@@ -278,3 +278,155 @@ def write_vscode_preview_webm(
     res = subprocess.run(cmd)
     if res.returncode != 0:
         raise RuntimeError(f"ffmpeg exited with code {res.returncode} while writing VS Code preview webm")
+
+
+_VS_CODE_PREVIEW_FORMATS: dict[str, str] = {
+    "webm_vorbis": "VP8+Vorbis WebM at outputs/<song>/preview.webm",
+    "webm_opus": "VP8+Opus WebM at outputs/<song>/previews/preview_opus.webm",
+    "webm_video_only": "VP8 WebM (no audio) at outputs/<song>/previews/preview_video_only.webm",
+    "mp4_aac": "H264 (copy) + AAC MP4 at outputs/<song>/previews/preview_aac.mp4",
+}
+
+
+def write_vscode_previews(
+    *,
+    src_video_path: str | Path,
+    out_dir: str | Path,
+    audio_bitrate: str,
+    formats: list[str],
+) -> list[Path]:
+    """
+    Generate one or more preview files to test playback in VS Code's media preview.
+
+    VS Code only registers previews for `.mp4` and `.webm`, but codec support can vary
+    across Electron/FFmpeg builds. This function writes a small "matrix" of common
+    combos so users can try which one works on their setup.
+    """
+    ffmpeg = require_ffmpeg()
+
+    out_dir_p = Path(out_dir)
+    out_dir_p.mkdir(parents=True, exist_ok=True)
+    previews_dir = out_dir_p / "previews"
+    previews_dir.mkdir(parents=True, exist_ok=True)
+
+    wrote: list[Path] = []
+
+    # Preserve caller order, but avoid duplicate work.
+    seen: set[str] = set()
+    for fmt in formats:
+        key = str(fmt).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+
+        if key == "webm_vorbis":
+            out_p = out_dir_p / "preview.webm"
+            write_vscode_preview_webm(src_video_path=src_video_path, out_path=out_p, audio_bitrate=audio_bitrate)
+            wrote.append(out_p)
+            continue
+
+        if key == "webm_opus":
+            out_p = previews_dir / "preview_opus.webm"
+            cmd = [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(src_video_path),
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a:0",
+                "-map_metadata",
+                "-1",
+                "-c:v",
+                "libvpx",
+                "-b:v",
+                "0",
+                "-crf",
+                "32",
+                "-deadline",
+                "good",
+                "-cpu-used",
+                "2",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "libopus",
+                "-b:a",
+                str(audio_bitrate),
+                "-shortest",
+                str(out_p),
+            ]
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                raise RuntimeError(f"ffmpeg exited with code {res.returncode} while writing {out_p.name}")
+            wrote.append(out_p)
+            continue
+
+        if key == "webm_video_only":
+            out_p = previews_dir / "preview_video_only.webm"
+            cmd = [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(src_video_path),
+                "-map",
+                "0:v:0",
+                "-map_metadata",
+                "-1",
+                "-c:v",
+                "libvpx",
+                "-b:v",
+                "0",
+                "-crf",
+                "32",
+                "-deadline",
+                "good",
+                "-cpu-used",
+                "2",
+                "-pix_fmt",
+                "yuv420p",
+                "-an",
+                str(out_p),
+            ]
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                raise RuntimeError(f"ffmpeg exited with code {res.returncode} while writing {out_p.name}")
+            wrote.append(out_p)
+            continue
+
+        if key == "mp4_aac":
+            out_p = previews_dir / "preview_aac.mp4"
+            cmd = [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(src_video_path),
+                "-map",
+                "0:v:0",
+                "-map",
+                "0:a:0",
+                "-map_metadata",
+                "-1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                str(audio_bitrate),
+                "-shortest",
+                "-movflags",
+                "+faststart",
+                str(out_p),
+            ]
+            res = subprocess.run(cmd)
+            if res.returncode != 0:
+                raise RuntimeError(f"ffmpeg exited with code {res.returncode} while writing {out_p.name}")
+            wrote.append(out_p)
+            continue
+
+        raise ValueError(
+            f"Unknown VS Code preview format: {fmt!r}. Supported: {', '.join(sorted(_VS_CODE_PREVIEW_FORMATS))}"
+        )
+
+    return wrote

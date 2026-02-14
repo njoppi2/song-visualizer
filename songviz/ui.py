@@ -14,9 +14,8 @@ from .paths import (
     output_dir_for_audio,
     safe_dirname,
     video_path_for_output_dir,
-    vscode_preview_path_for_output_dir,
 )
-from .render import RenderConfig, render_mp4, write_vscode_preview_webm
+from .render import RenderConfig, render_mp4, write_vscode_previews
 
 
 _AUDIO_EXTS = {
@@ -43,6 +42,17 @@ class UIConfig:
     audio_codec: str = "mp3"
     audio_bitrate: str = "128k"
     vscode_preview: bool | None = None
+    vscode_preview_formats: str | None = None
+
+
+def _parse_vscode_preview_formats(s: str) -> list[str]:
+    raw = str(s).strip()
+    if not raw:
+        return []
+    if raw.lower() == "all":
+        return ["webm_vorbis", "webm_opus", "webm_video_only", "mp4_aac"]
+    parts = [p.strip() for p in raw.split(",")]
+    return [p for p in (x.lower() for x in parts) if p]
 
 
 def _clear_screen() -> None:
@@ -97,11 +107,14 @@ def _print_song_list(cfg: UIConfig, songs: list[Path]) -> None:
         out_dir = cfg.outputs_dir / label
         vid = out_dir / "video.mp4"
         prev = out_dir / "preview.webm"
+        prev_dir = out_dir / "previews"
         status = "no video"
         if vid.exists():
             status = f"video {_human_size(vid.stat().st_size)} @ {_fmt_mtime(vid)}"
             if prev.exists():
                 status += " (+preview.webm)"
+            if prev_dir.exists():
+                status += " (+previews/)"
         print(f"{i:>2}. {p.name}  [{status}]")
     print()
     print("Commands: <number> select, r refresh, q quit")
@@ -182,16 +195,25 @@ def run_ui(cfg: UIConfig) -> int:
         vscode_preview = cfg.vscode_preview
         if vscode_preview is None:
             vscode_preview = os.environ.get("TERM_PROGRAM") == "vscode"
-        preview = None
+        wrote_previews = []
         if vscode_preview:
-            preview = vscode_preview_path_for_output_dir(out_dir)
-            write_vscode_preview_webm(src_video_path=canonical_video, out_path=preview, audio_bitrate=rcfg.audio_bitrate)
+            formats = _parse_vscode_preview_formats(cfg.vscode_preview_formats) if cfg.vscode_preview_formats else []
+            if not formats:
+                formats = ["webm_vorbis"]
+            wrote_previews = write_vscode_previews(
+                src_video_path=canonical_video,
+                out_dir=out_dir,
+                audio_bitrate=rcfg.audio_bitrate,
+                formats=formats,
+            )
 
         print()
         print("Done.")
         print(f"Wrote: {canonical_video}")
-        if preview is not None:
-            print(f"Wrote: {preview}  (open this in VS Code to hear audio)")
+        for p in wrote_previews:
+            print(f"Wrote: {p}")
+        if wrote_previews:
+            print("Tip: open these in VS Code and see which one plays audio on your setup.")
         print(f"Wrote: {canonical_analysis}")
         input("Press Enter to continue...")
 
