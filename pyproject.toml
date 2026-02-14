@@ -26,6 +26,9 @@ stems = [
   "demucs",
   "torchcodec",
 ]
+notes = [
+  "basic-pitch",
+]
 
 [project.scripts]
 songviz = "songviz.cli:main"

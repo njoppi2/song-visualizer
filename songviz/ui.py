@@ -11,7 +11,13 @@ import librosa
 import numpy as np
 
 from .analyze import analyze_audio, analyze_file
-from .features import bass_pitch_hz, drums_band_energy_3, other_chroma_12, vocals_pitch_hz
+from .features import (
+    bass_pitch_hz,
+    drums_band_energy_3,
+    other_chroma_12,
+    vocals_note_events_basic_pitch,
+    vocals_pitch_hz,
+)
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
@@ -214,6 +220,10 @@ def run_ui(cfg: UIConfig) -> int:
                     feats["pitch_hz"] = vocals_pitch_hz(
                         y, int(sr), hop_length=hop_length, frame_length=frame_length
                     )
+                    try:
+                        feats["note_events"] = vocals_note_events_basic_pitch(str(stem_path))
+                    except Exception:
+                        pass
                 elif name == "other":
                     feats["chroma_12"] = other_chroma_12(y, int(sr), hop_length=hop_length, n_fft=frame_length)
                 if feats:

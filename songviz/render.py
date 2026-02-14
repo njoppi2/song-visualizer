@@ -200,6 +200,10 @@ class StemQuadVisualizer:
         self.pitch_hz = _as_np_float(feats.get("pitch_hz", []))
         self.chroma_12 = np.asarray(feats.get("chroma_12", []), dtype=np.float32)
         self.drums_bands_3 = np.asarray(feats.get("drums_bands_3", []), dtype=np.float32)
+        self.note_events = feats.get("note_events") or []
+        if not isinstance(self.note_events, list):
+            self.note_events = []
+        self._note_idx = -1
 
         # Pre-process pitch into a stable [0,1] range for drawing.
         self.pitch_norm = None
@@ -369,6 +373,77 @@ class StemQuadVisualizer:
         for j in range(6):
             yy = (h * 0.20) + j * (h * 0.10)
             draw.line((20, yy, w - 20, yy), fill=(255, 255, 255, grid_a), width=1)
+
+        # If we have note events (Basic Pitch), render a small piano-roll window.
+        if self.note_events:
+            # Advance cursor (render is sequential in time).
+            while self._note_idx + 1 < len(self.note_events):
+                ne = self.note_events[self._note_idx + 1]
+                if float(ne.get("start_s", 0.0)) <= t:
+                    self._note_idx += 1
+                else:
+                    break
+
+            win_s = 6.0
+            left = 20
+            top = int(h * 0.10)
+            right = w - 20
+            bottom = int(h * 0.62)
+            draw.rectangle((left, top, right, bottom), outline=(255, 255, 255, 90), width=2)
+
+            # MIDI range for typical vocals (C3..C6). Adjust later if needed.
+            midi_min = 48.0
+            midi_max = 84.0
+            span = max(1e-6, (midi_max - midi_min))
+
+            def _x(time_s: float) -> float:
+                return left + (right - left) * ((time_s - (t - win_s)) / win_s)
+
+            def _y(midi: float) -> float:
+                return bottom - (bottom - top) * ((midi - midi_min) / span)
+
+            # Draw visible notes in the window.
+            for ne in self.note_events[max(0, self._note_idx - 200) : self._note_idx + 200]:
+                s = float(ne.get("start_s", 0.0))
+                e = float(ne.get("end_s", s))
+                if e < t - win_s or s > t + 0.2:
+                    continue
+                m = float(ne.get("midi", np.nan))
+                if not np.isfinite(m):
+                    continue
+                x0 = _x(s)
+                x1 = _x(e)
+                yy = _y(m)
+                hh = 10
+                a = int(90 + 120 * loud)
+                draw.rectangle((x0, yy - hh / 2, x1, yy + hh / 2), fill=(*self.c_accent, a))
+
+            # Playhead
+            px = _x(t)
+            draw.line((px, top, px, bottom), fill=(255, 255, 255, 200), width=2)
+
+            # Current note readout from active event.
+            cur = None
+            if 0 <= self._note_idx < len(self.note_events):
+                ne = self.note_events[self._note_idx]
+                s = float(ne.get("start_s", 0.0))
+                e = float(ne.get("end_s", s))
+                if s <= t <= e + 1e-3:
+                    cur = float(ne.get("midi", np.nan))
+            if cur is not None and np.isfinite(cur):
+                hz = 440.0 * (2.0 ** ((cur - 69.0) / 12.0))
+                note = _hz_to_note_name(hz)
+                if note:
+                    draw.text(
+                        (w - 10, h - 16),
+                        f"{note}",
+                        fill=(255, 255, 255, 230),
+                        anchor="rd",
+                        font=self.font if hasattr(self, "font") else None,
+                    )
+
+            # With note events, we don't need the dot/trail as the primary carrier.
+            return
 
         self._trail.append((x, y))
         if len(self._trail) > 72:

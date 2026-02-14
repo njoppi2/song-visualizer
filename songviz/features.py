@@ -254,3 +254,89 @@ def drums_band_energy_3(
         cap = max(cap, float(v.max()) if v.size else 0.0, 1e-9)
         out[:, i] = np.clip(v / cap, 0.0, 1.0)
     return out
+
+
+def vocals_note_events_basic_pitch(
+    audio_path: str,
+    *,
+    onset_threshold: float = 0.55,
+    frame_threshold: float = 0.30,
+    minimum_note_length_ms: float = 120.0,
+    minimum_frequency: float = 60.0,
+    maximum_frequency: float = 1100.0,
+) -> list[dict[str, float]]:
+    """
+    Extract note events from (isolated) vocals using Spotify's Basic Pitch.
+
+    Returns a list of events: {"start_s","end_s","midi","velocity"}.
+    This is intentionally a small, renderer-friendly schema.
+    """
+    try:
+        from basic_pitch.inference import predict  # type: ignore
+    except Exception as e:  # pragma: no cover (optional dependency)
+        raise RuntimeError(
+            "basic_pitch is not installed. Install it to enable vocal note events:\n"
+            "  pip install -e '.[notes]'\n"
+            "or:\n"
+            "  python3 -m pip install basic-pitch"
+        ) from e
+
+    _, _, note_events = predict(
+        audio_path,
+        onset_threshold=float(onset_threshold),
+        frame_threshold=float(frame_threshold),
+        minimum_note_length=float(minimum_note_length_ms),
+        minimum_frequency=float(minimum_frequency),
+        maximum_frequency=float(maximum_frequency),
+        melodia_trick=True,
+    )
+
+    events: list[dict[str, float]] = []
+
+    # Basic Pitch has returned different shapes in the wild; normalize defensively.
+    if isinstance(note_events, list):
+        for it in note_events:
+            if isinstance(it, dict):
+                s = float(it.get("start_time_s", it.get("start_s", 0.0)))
+                e = float(it.get("end_time_s", it.get("end_s", s)))
+                m = it.get("pitch_midi", it.get("midi", it.get("pitch", np.nan)))
+                v = it.get("velocity", 0.0)
+                if not np.isfinite(m):
+                    continue
+                events.append({"start_s": s, "end_s": e, "midi": float(m), "velocity": float(v)})
+            else:
+                # unknown element type
+                continue
+        return events
+
+    arr = np.asarray(note_events)
+    if arr.size == 0:
+        return events
+
+    # Structured array with named fields.
+    if arr.dtype.fields:
+        f = arr.dtype.fields
+        for row in arr:
+            s = float(row["start_time_s"] if "start_time_s" in f else row["start_s"])
+            e = float(row["end_time_s"] if "end_time_s" in f else row["end_s"])
+            if "pitch_midi" in f:
+                m = float(row["pitch_midi"])
+            elif "midi" in f:
+                m = float(row["midi"])
+            else:
+                m = float(row["pitch"])
+            vel = float(row["velocity"]) if "velocity" in f else 0.0
+            events.append({"start_s": s, "end_s": e, "midi": m, "velocity": vel})
+        return events
+
+    # Fallback: assume columns [start, end, midi, velocity] or [start, end, pitch, velocity].
+    if arr.ndim == 2 and arr.shape[1] >= 3:
+        for row in arr:
+            s = float(row[0])
+            e = float(row[1])
+            m = float(row[2])
+            vel = float(row[3]) if arr.shape[1] >= 4 else 0.0
+            if not np.isfinite(m):
+                continue
+            events.append({"start_s": s, "end_s": e, "midi": m, "velocity": vel})
+    return events
