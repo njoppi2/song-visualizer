@@ -24,6 +24,7 @@ test = [
 ]
 stems = [
   "demucs",
+  "torchcodec",
 ]
 
 [project.scripts]

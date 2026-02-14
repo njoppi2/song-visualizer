@@ -40,9 +40,18 @@ def _require_demucs() -> str:
     if path:
         return path
 
-    # If running from a venv, the console script might live next to sys.executable.
+    # If running from a venv, the console script might live next to sys.executable
+    # (even if the python binary itself is a symlink).
     try:
-        cand = Path(sys.executable).resolve().parent / "demucs"
+        cand = Path(sys.executable).parent / "demucs"
+        if cand.exists() and os.access(cand, os.X_OK):
+            return str(cand)
+    except Exception:
+        pass
+
+    # Or under sys.prefix (venv root).
+    try:
+        cand = Path(sys.prefix) / "bin" / "demucs"
         if cand.exists() and os.access(cand, os.X_OK):
             return str(cand)
     except Exception:
@@ -143,6 +152,17 @@ def ensure_demucs_stems(
 
     demucs = _require_demucs()
 
+    # Demucs writes stems using torchaudio.save(), which requires TorchCodec on
+    # newer torchaudio versions. Fail fast with a clear message.
+    try:
+        import torchcodec  # type: ignore  # noqa: F401
+    except Exception as e:
+        raise RuntimeError(
+            "TorchCodec is required to write Demucs stems (torchaudio backend).\n"
+            "Install: python3 -m pip install -U torchcodec\n"
+            "Or: pip install -e '.[stems]'"
+        ) from e
+
     tmp_root = stems_dir / "_tmp_demucs"
     if tmp_root.exists():
         shutil.rmtree(tmp_root)
@@ -224,4 +244,3 @@ def ensure_demucs_stems(
         pass
 
     return StemsResult(stems_dir=stems_dir, stems=stems, meta_path=meta_path, cached=False)
-

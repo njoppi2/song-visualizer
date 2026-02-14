@@ -30,7 +30,7 @@
 
 ## How to run locally
 - `pip install -e .`
-- For stems: `pip install -e '.[stems]'` (installs Demucs)
+- For stems: `pip install -e '.[stems]'` (installs Demucs + TorchCodec)
 - `python3 -m songviz --help`
 - `python3 -m songviz analyze path/to/song.flac`
 - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`

@@ -7,7 +7,7 @@ Generate a music-reactive video from an audio file.
 2) Install ffmpeg (recommended for MP4 output). If not available, SongViz will attempt to use a user-space ffmpeg binary via `imageio-ffmpeg`.
 3) Install deps:
    - `pip install -e .`
-   - For stems: `pip install -e '.[stems]'` (installs Demucs)
+   - For stems: `pip install -e '.[stems]'` (installs Demucs + TorchCodec)
 4) Run:
    - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
 
