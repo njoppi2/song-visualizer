@@ -34,7 +34,7 @@ VS Code's bundled "Media Preview" has limitations on Linux:
 - `.mp4` preview does not support AAC audio tracks.
 - `.webm` preview supports VP8 video.
 
-SongViz can also write `outputs/<song_name>/preview.webm` (VP8+Opus). In VS Code, open `preview.webm` to hear audio.
+SongViz can also write `outputs/<song_name>/preview.webm` (VP8+Vorbis). In VS Code, open `preview.webm` to hear audio.
 
 By default this preview is auto-enabled when running from VS Code's integrated terminal. You can control it explicitly:
 - `python -m songviz render songs/my.flac --vscode-preview`

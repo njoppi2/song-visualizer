@@ -20,7 +20,7 @@
   - deterministic given `--seed`
   - uses ffmpeg to mux original audio into the MP4
   - audio codec can be selected via `--audio-codec aac|mp3` (default: mp3 for browser-friendliness)
-  - can also write `outputs/<song_name>/preview.webm` (VP8+Opus) for reliable audio playback in VS Code preview
+  - can also write `outputs/<song_name>/preview.webm` (VP8+Vorbis) for reliable audio playback in VS Code preview
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
