@@ -9,8 +9,14 @@ from pathlib import Path
 from typing import Iterable
 
 from .analyze import analyze_file
-from .paths import analysis_path_for_output_dir, output_dir_for_audio, safe_dirname, video_path_for_output_dir
-from .render import RenderConfig, render_mp4
+from .paths import (
+    analysis_path_for_output_dir,
+    output_dir_for_audio,
+    safe_dirname,
+    video_path_for_output_dir,
+    vscode_preview_path_for_output_dir,
+)
+from .render import RenderConfig, render_mp4, write_vscode_preview_webm
 
 
 _AUDIO_EXTS = {
@@ -36,6 +42,7 @@ class UIConfig:
     fps: int = 30
     audio_codec: str = "mp3"
     audio_bitrate: str = "128k"
+    vscode_preview: bool | None = None
 
 
 def _clear_screen() -> None:
@@ -89,9 +96,12 @@ def _print_song_list(cfg: UIConfig, songs: list[Path]) -> None:
         label = safe_dirname(p.stem)
         out_dir = cfg.outputs_dir / label
         vid = out_dir / "video.mp4"
+        prev = out_dir / "preview.webm"
         status = "no video"
         if vid.exists():
             status = f"video {_human_size(vid.stat().st_size)} @ {_fmt_mtime(vid)}"
+            if prev.exists():
+                status += " (+preview.webm)"
         print(f"{i:>2}. {p.name}  [{status}]")
     print()
     print("Commands: <number> select, r refresh, q quit")
@@ -169,9 +179,19 @@ def run_ui(cfg: UIConfig) -> int:
         )
         render_mp4(analysis=analysis, audio_path=audio_path, out_path=canonical_video, cfg=rcfg)
 
+        vscode_preview = cfg.vscode_preview
+        if vscode_preview is None:
+            vscode_preview = os.environ.get("TERM_PROGRAM") == "vscode"
+        preview = None
+        if vscode_preview:
+            preview = vscode_preview_path_for_output_dir(out_dir)
+            write_vscode_preview_webm(src_video_path=canonical_video, out_path=preview, audio_bitrate=rcfg.audio_bitrate)
+
         print()
         print("Done.")
         print(f"Wrote: {canonical_video}")
+        if preview is not None:
+            print(f"Wrote: {preview}  (open this in VS Code to hear audio)")
         print(f"Wrote: {canonical_analysis}")
         input("Press Enter to continue...")
 

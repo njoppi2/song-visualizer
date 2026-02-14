@@ -16,6 +16,7 @@ outputs/
 *.mov
 *.avi
 *.mkv
+*.webm
 *.wav
 *.png
 

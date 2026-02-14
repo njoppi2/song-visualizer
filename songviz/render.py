@@ -221,3 +221,57 @@ def render_mp4(
     rc = proc.wait()
     if rc != 0:
         raise RuntimeError(f"ffmpeg exited with code {rc}")
+
+
+def write_vscode_preview_webm(
+    *,
+    src_video_path: str | Path,
+    out_path: str | Path,
+    audio_bitrate: str,
+) -> None:
+    """
+    Write a VS Code-friendly preview file.
+
+    VS Code's bundled "Media Preview" extension documents that `.mp4` preview on
+    Linux does not support AAC audio tracks. WebM (VP8) works reliably.
+
+    We transcode from the already-rendered MP4 to avoid re-rendering frames in
+    Python (much faster iterations while tweaking visuals).
+    """
+    ffmpeg = require_ffmpeg()
+
+    out_p = Path(out_path)
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(src_video_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0",
+        "-c:v",
+        "libvpx",
+        "-b:v",
+        "0",
+        "-crf",
+        "32",
+        "-deadline",
+        "realtime",
+        "-cpu-used",
+        "4",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        str(audio_bitrate),
+        "-shortest",
+        str(out_p),
+    ]
+
+    res = subprocess.run(cmd)
+    if res.returncode != 0:
+        raise RuntimeError(f"ffmpeg exited with code {res.returncode} while writing VS Code preview webm")

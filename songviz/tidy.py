@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 _HEX16_RE = re.compile(r"^[0-9a-f]{16}$")
-_EXPORT_EXTS = {".mp4", ".mov", ".mkv", ".avi"}
+_EXPORT_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
 
 
 @dataclass(frozen=True)
@@ -82,4 +82,3 @@ def tidy_outputs(
         skipped.append(p)
 
     return TidyResult(moved=moved, skipped=skipped)
-

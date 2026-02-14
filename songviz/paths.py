@@ -65,3 +65,7 @@ def analysis_path_for_output_dir(out_dir: Path) -> Path:
 def video_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "video.mp4"
 
+
+def vscode_preview_path_for_output_dir(out_dir: Path) -> Path:
+    # VS Code's bundled media preview supports VP8 WebM reliably on Linux.
+    return out_dir / "preview.webm"

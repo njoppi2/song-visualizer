@@ -20,6 +20,7 @@
   - deterministic given `--seed`
   - uses ffmpeg to mux original audio into the MP4
   - audio codec can be selected via `--audio-codec aac|mp3` (default: mp3 for browser-friendliness)
+  - can also write `outputs/<song_name>/preview.webm` (VP8+Opus) for reliable audio playback in VS Code preview
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
@@ -32,6 +33,7 @@
 - `python -m songviz analyze path/to/song.flac`
 - `python -m songviz render path/to/song.flac --out outputs/demo.mp4`
 - If your browser shows a muted/disabled volume icon, try: `python -m songviz render path/to/song.flac --audio-codec mp3`
+- If VS Code preview is silent, open `outputs/<song_name>/preview.webm` instead (or pass `--no-vscode-preview` to skip generating it).
 - `python -m songviz ui` (or `make ui`)
 - `python -m songviz tidy` (optional: cleans `outputs/` by moving legacy dirs/loose files into hidden folders)
 - `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
