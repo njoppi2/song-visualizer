@@ -9,6 +9,7 @@ from pathlib import Path
 from .analyze import analyze_file
 from .paths import analysis_path_for_output_dir, output_dir_for_audio, video_path_for_output_dir
 from .render import RenderConfig, render_mp4
+from .tidy import tidy_outputs
 from .ui import UIConfig, run_ui
 
 
@@ -51,6 +52,10 @@ def _build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     ui.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
     ui.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
+
+    tidy = sub.add_parser("tidy", help="Tidy outputs/ (move legacy dirs and loose files into hidden folders)")
+    tidy.add_argument("--outputs-dir", default="outputs", help="Outputs directory (default: outputs/)")
+    tidy.add_argument("--dry-run", action="store_true", help="Print what would happen without moving files")
 
     return p
 
@@ -119,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
                 audio_bitrate=str(args.audio_bitrate),
             )
             return int(run_ui(cfg) or 0)
+
+        if args.cmd == "tidy":
+            res = tidy_outputs(outputs_dir=args.outputs_dir, dry_run=bool(args.dry_run))
+            for src, dst in res.moved:
+                print(f"move: {src} -> {dst}")
+            if not res.moved:
+                print("Nothing to move.")
+            return 0
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

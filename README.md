@@ -20,6 +20,8 @@ SongViz writes per-song artifacts under `outputs/<song_name>/`:
 - `video.mp4`
 - `analysis/analysis.json`
 
+If you want `outputs/` to stay clean, run `python -m songviz tidy` to move old layout folders and loose files into hidden subfolders.
+
 ## Notes about copyrighted audio
 Use your own purchased/downloaded tracks locally. Do not commit copyrighted audio into public repositories.
 
