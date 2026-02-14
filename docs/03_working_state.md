@@ -8,6 +8,7 @@
     - `outputs/<song_name>/analysis/analysis.json`
     - `outputs/<song_name>/video.mp4` (always)
     - plus a copy/hardlink at `--out` if provided
+  - `songviz stems <audio>` writes `outputs/<song_name>/stems/{drums,bass,vocals,other}.wav` and `outputs/<song_name>/stems/stems.json` (requires Demucs).
   - `songviz ui` provides a simple interactive picker for songs in `songs/` to render/regenerate videos.
 - Packaging via `pyproject.toml` with an optional console script: `songviz ...` after `pip install -e .`.
 - Analysis (v0):
@@ -28,9 +29,11 @@
 
 ## How to run locally
 - `pip install -e .`
+- For stems: `pip install -e '.[stems]'` (installs Demucs)
 - `python3 -m songviz --help`
 - `python3 -m songviz analyze path/to/song.flac`
 - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
+- `python3 -m songviz stems path/to/song.flac`
 - If your browser shows a muted/disabled volume icon, try: `python3 -m songviz render path/to/song.flac --audio-codec mp3`
 - If VS Code preview is silent/unreliable, open the MP4 in a media player (e.g. `mpv` or `vlc`).
 - `python3 -m songviz ui` (or `make ui`)

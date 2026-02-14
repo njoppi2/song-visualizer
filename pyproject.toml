@@ -22,6 +22,9 @@ dependencies = [
 test = [
   "pytest>=7.4",
 ]
+stems = [
+  "demucs",
+]
 
 [project.scripts]
 songviz = "songviz.cli:main"

@@ -7,6 +7,7 @@ Generate a music-reactive video from an audio file.
 2) Install ffmpeg (recommended for MP4 output). If not available, SongViz will attempt to use a user-space ffmpeg binary via `imageio-ffmpeg`.
 3) Install deps:
    - `pip install -e .`
+   - For stems: `pip install -e '.[stems]'` (installs Demucs)
 4) Run:
    - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
 
@@ -19,6 +20,7 @@ Generate a music-reactive video from an audio file.
 SongViz writes per-song artifacts under `outputs/<song_name>/`:
 - `video.mp4`
 - `analysis/analysis.json`
+- `stems/` (optional; written by `python3 -m songviz stems ...`)
 
 If you want `outputs/` to stay clean, run `python3 -m songviz tidy` to move old layout folders and loose files into hidden subfolders.
 
@@ -28,6 +30,16 @@ By default SongViz encodes audio as MP3-in-MP4 to maximize "it plays somewhere" 
 If you prefer AAC (more standard for MP4), or if you want to experiment:
 - `python3 -m songviz render songs/my.flac --audio-codec aac --audio-bitrate 128k`
 - `python3 -m songviz render songs/my.flac --audio-codec mp3 --audio-bitrate 128k`
+
+## Stems (Optional)
+If you install the optional Demucs dependency, SongViz can separate a track into stems:
+
+```bash
+python3 -m songviz stems songs/my.flac
+```
+
+This writes WAV stems under `outputs/<song_name>/stems/`:
+- `drums.wav`, `bass.wav`, `vocals.wav`, `other.wav`
 
 ### VS Code note (Linux)
 VS Code's bundled media preview can be unreliable for some video/audio codecs. If a rendered MP4 is silent (or fails to load) inside VS Code, open it in a media player instead:

@@ -7,12 +7,14 @@ import sys
 from pathlib import Path
 
 from .analyze import analyze_file
+from .ingest import song_id_for_path
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
     video_path_for_output_dir,
 )
 from .render import RenderConfig, render_mp4
+from .stems import ensure_demucs_stems
 from .tidy import tidy_outputs
 from .ui import UIConfig, run_ui
 
@@ -48,6 +50,12 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
     render.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
     render.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
+
+    stems = sub.add_parser("stems", help="Separate an audio file into stems (Demucs)")
+    stems.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
+    stems.add_argument("--model", default="htdemucs", help="Demucs model name (default: htdemucs)")
+    stems.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"], help="Device (auto|cpu|cuda)")
+    stems.add_argument("--force", action="store_true", help="Re-run separation even if cached")
 
     ui = sub.add_parser("ui", help="Interactive terminal UI (pick a song from songs/ and render)")
     ui.add_argument("--songs-dir", default="songs", help="Directory containing local audio files (default: songs/)")
@@ -118,6 +126,24 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(out_mp4))
             else:
                 print(str(canonical_mp4))
+            return 0
+
+        if args.cmd == "stems":
+            song_id = song_id_for_path(args.audio_path)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            res = ensure_demucs_stems(
+                args.audio_path,
+                out_dir=out_dir,
+                model=str(args.model),
+                device=str(args.device),
+                force=bool(args.force),
+            )
+
+            for name, p in res.stems.items():
+                print(f"{name}: {p}")
+            print(f"meta: {res.meta_path}", file=sys.stderr)
             return 0
 
         if args.cmd == "ui":
