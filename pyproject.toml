@@ -15,6 +15,7 @@ dependencies = [
   "librosa>=0.10.1",
   "soundfile>=0.12",
   "Pillow>=10.0",
+  "imageio-ffmpeg>=0.4.9",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,9 @@ test = [
 
 [project.scripts]
 songviz = "songviz.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["songviz*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

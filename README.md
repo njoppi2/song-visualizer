@@ -4,7 +4,7 @@ Generate a music-reactive video from an audio file.
 
 ## Quickstart
 1) Install Python 3.10+
-2) Install ffmpeg (required for MP4 output)
+2) Install ffmpeg (recommended for MP4 output). If not available, SongViz will attempt to use a user-space ffmpeg binary via `imageio-ffmpeg`.
 3) Install deps:
    - `pip install -e .`
 4) Run:

@@ -31,7 +31,9 @@
 - `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
 
 ## Known issues
-- Rendering requires `ffmpeg` on PATH. If missing, SongViz prints a short install hint.
+- Rendering uses ffmpeg:
+  - if `ffmpeg` is on PATH, it will use that
+  - otherwise it will try a user-space ffmpeg binary via `imageio-ffmpeg` (first run may download it)
 
 ## Dev notes
 - Keep outputs out of git
