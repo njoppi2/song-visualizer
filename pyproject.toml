@@ -7,7 +7,7 @@ name = "songviz"
 version = "0.0.0"
 description = "Generate a music-reactive video from an audio file."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = {text = "Proprietary"}
 authors = [{name = "SongViz Contributors"}]
 dependencies = [
@@ -27,4 +27,3 @@ songviz = "songviz.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-

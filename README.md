@@ -3,7 +3,7 @@
 Generate a music-reactive video from an audio file.
 
 ## Quickstart
-1) Install Python 3.11+
+1) Install Python 3.10+
 2) Install ffmpeg (required for MP4 output)
 3) Install deps:
    - `pip install -e .`
