@@ -31,7 +31,8 @@ def _nanmedian_smooth(x: np.ndarray, *, win: int) -> np.ndarray:
     for i in range(x.size):
         lo = max(0, i - r)
         hi = min(x.size, i + r + 1)
-        out[i] = np.nanmedian(x[lo:hi]).astype(np.float32)
+        v = np.nanmedian(x[lo:hi])
+        out[i] = (0.0 if not np.isfinite(v) else float(v))
     return out
 
 
