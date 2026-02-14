@@ -12,6 +12,39 @@ _BASS_FMIN_HZ: Final[float] = 30.0
 _BASS_FMAX_HZ: Final[float] = 400.0
 
 
+def _nanmedian_smooth(x: np.ndarray, *, win: int) -> np.ndarray:
+    """
+    NaN-aware running median smoothing.
+
+    Small utility to stabilize pitch tracks without adding scipy as a dependency.
+    """
+    x = np.asarray(x, dtype=np.float32)
+    if x.size == 0:
+        return x
+    if win <= 1:
+        return x.astype(np.float32, copy=True)
+    win = int(win)
+    if win % 2 == 0:
+        win += 1
+    r = win // 2
+    out = np.empty_like(x, dtype=np.float32)
+    for i in range(x.size):
+        lo = max(0, i - r)
+        hi = min(x.size, i + r + 1)
+        out[i] = np.nanmedian(x[lo:hi]).astype(np.float32)
+    return out
+
+
+def _hz_to_midi(hz: np.ndarray) -> np.ndarray:
+    hz = np.asarray(hz, dtype=np.float32)
+    return (69.0 + 12.0 * np.log2(np.maximum(hz, 1e-6) / 440.0)).astype(np.float32)
+
+
+def _midi_to_hz(midi: np.ndarray) -> np.ndarray:
+    midi = np.asarray(midi, dtype=np.float32)
+    return (440.0 * (2.0 ** ((midi - 69.0) / 12.0))).astype(np.float32)
+
+
 def vocals_pitch_hz(
     y: np.ndarray,
     sr: int,
@@ -24,24 +57,33 @@ def vocals_pitch_hz(
     """
     Pitch track (Hz) for vocals visualization.
 
-    We use YIN (fast) + an RMS-based gate to mark unvoiced frames as NaN.
+    We want "notes", not sibilance/noise scribbles:
+    - extract harmonic component to suppress consonants/fricatives
+    - use pYIN (voicing probability) + RMS gate
+    - smooth + quantize to semitones for readability
     """
     if y.ndim != 1:
         raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
     if sr <= 0:
         return np.zeros((0,), dtype=np.float32)
 
-    f0 = librosa.yin(
-        y=y,
+    # Harmonic component makes pitch tracking much more stable for vocals stems.
+    yh = librosa.effects.harmonic(y=y, margin=8.0).astype(np.float32, copy=False)
+
+    f0, voiced_flag, voiced_prob = librosa.pyin(
+        y=yh,
         fmin=float(fmin_hz),
         fmax=float(fmax_hz),
         sr=int(sr),
         frame_length=int(frame_length),
         hop_length=int(hop_length),
-    ).astype(np.float32, copy=False)
+    )
+    f0 = np.asarray(f0, dtype=np.float32)
+    voiced_flag = np.asarray(voiced_flag, dtype=bool)
+    voiced_prob = np.asarray(voiced_prob, dtype=np.float32)
 
     rms = librosa.feature.rms(
-        y=y,
+        y=yh,
         frame_length=int(frame_length),
         hop_length=int(hop_length),
         center=True,
@@ -52,14 +94,22 @@ def vocals_pitch_hz(
         return np.zeros((0,), dtype=np.float32)
     f0 = f0[:n]
     rms = rms[:n]
+    voiced_flag = voiced_flag[:n]
+    voiced_prob = voiced_prob[:n]
 
     # Gate based on relative energy to avoid pitch scribbles in silence.
     thr = float(np.percentile(rms, 25)) * 0.8
     thr = max(thr, float(rms.max()) * 0.08, 1e-6)
-    voiced = rms >= thr
+    voiced = (rms >= thr) & voiced_flag & (voiced_prob >= 0.80)
 
-    out = np.where(voiced, f0, np.nan).astype(np.float32)
-    return out
+    f0v = np.where(voiced, f0, np.nan).astype(np.float32)
+
+    # Smooth in MIDI space, then quantize to semitones.
+    midi = np.where(np.isfinite(f0v), _hz_to_midi(f0v), np.nan).astype(np.float32)
+    midi = _nanmedian_smooth(midi, win=7)
+    midi_q = np.round(midi).astype(np.float32)
+    f0_q = np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
+    return f0_q
 
 
 def bass_pitch_hz(
@@ -76,14 +126,49 @@ def bass_pitch_hz(
 
     Same method as vocals (YIN + energy gate), but with a bass-appropriate range.
     """
-    return vocals_pitch_hz(
-        y,
-        sr,
-        hop_length=hop_length,
-        frame_length=frame_length,
-        fmin_hz=float(fmin_hz),
-        fmax_hz=float(fmax_hz),
+    if y.ndim != 1:
+        raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
+    if sr <= 0:
+        return np.zeros((0,), dtype=np.float32)
+
+    yh = librosa.effects.harmonic(y=y, margin=6.0).astype(np.float32, copy=False)
+    f0, voiced_flag, voiced_prob = librosa.pyin(
+        y=yh,
+        fmin=float(fmin_hz),
+        fmax=float(fmax_hz),
+        sr=int(sr),
+        frame_length=int(frame_length),
+        hop_length=int(hop_length),
     )
+    f0 = np.asarray(f0, dtype=np.float32)
+    voiced_flag = np.asarray(voiced_flag, dtype=bool)
+    voiced_prob = np.asarray(voiced_prob, dtype=np.float32)
+
+    rms = librosa.feature.rms(
+        y=yh,
+        frame_length=int(frame_length),
+        hop_length=int(hop_length),
+        center=True,
+    )[0].astype(np.float32, copy=False)
+
+    n = int(min(f0.size, rms.size))
+    if n <= 0:
+        return np.zeros((0,), dtype=np.float32)
+    f0 = f0[:n]
+    rms = rms[:n]
+    voiced_flag = voiced_flag[:n]
+    voiced_prob = voiced_prob[:n]
+
+    thr = float(np.percentile(rms, 25)) * 0.8
+    thr = max(thr, float(rms.max()) * 0.08, 1e-6)
+    voiced = (rms >= thr) & voiced_flag & (voiced_prob >= 0.75)
+
+    f0v = np.where(voiced, f0, np.nan).astype(np.float32)
+    midi = np.where(np.isfinite(f0v), _hz_to_midi(f0v), np.nan).astype(np.float32)
+    midi = _nanmedian_smooth(midi, win=7)
+    midi_q = np.round(midi).astype(np.float32)
+    f0_q = np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
+    return f0_q
 
 
 def other_chroma_12(
