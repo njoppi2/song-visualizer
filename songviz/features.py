@@ -8,6 +8,8 @@ import librosa
 
 _DEFAULT_FMIN_HZ: Final[float] = float(librosa.note_to_hz("C2"))
 _DEFAULT_FMAX_HZ: Final[float] = float(librosa.note_to_hz("C7"))
+_BASS_FMIN_HZ: Final[float] = 30.0
+_BASS_FMAX_HZ: Final[float] = 400.0
 
 
 def vocals_pitch_hz(
@@ -60,6 +62,30 @@ def vocals_pitch_hz(
     return out
 
 
+def bass_pitch_hz(
+    y: np.ndarray,
+    sr: int,
+    *,
+    hop_length: int = 512,
+    frame_length: int = 2048,
+    fmin_hz: float = _BASS_FMIN_HZ,
+    fmax_hz: float = _BASS_FMAX_HZ,
+) -> np.ndarray:
+    """
+    Pitch track (Hz) for bass visualization.
+
+    Same method as vocals (YIN + energy gate), but with a bass-appropriate range.
+    """
+    return vocals_pitch_hz(
+        y,
+        sr,
+        hop_length=hop_length,
+        frame_length=frame_length,
+        fmin_hz=float(fmin_hz),
+        fmax_hz=float(fmax_hz),
+    )
+
+
 def other_chroma_12(
     y: np.ndarray,
     sr: int,
@@ -92,3 +118,53 @@ def other_chroma_12(
     chroma = np.divide(chroma, denom, out=np.zeros_like(chroma), where=denom > 1e-6)
     return chroma.astype(np.float32, copy=False)
 
+
+def drums_band_energy_3(
+    y: np.ndarray,
+    sr: int,
+    *,
+    hop_length: int = 512,
+    n_fft: int = 2048,
+) -> np.ndarray:
+    """
+    3-band energy proxy for drums: (N, 3) => [kick, snare, hats].
+
+    This is not true drum classification, but it's a decent heuristic:
+    - kick: 20-150 Hz
+    - snare: 150-2500 Hz
+    - hats: 2500+ Hz
+    """
+    if y.ndim != 1:
+        raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
+    if sr <= 0:
+        return np.zeros((0, 3), dtype=np.float32)
+
+    S = np.abs(librosa.stft(y=y, n_fft=int(n_fft), hop_length=int(hop_length))) ** 2  # (f, n)
+    if S.size == 0:
+        return np.zeros((0, 3), dtype=np.float32)
+
+    freqs = librosa.fft_frequencies(sr=int(sr), n_fft=int(n_fft)).astype(np.float32)
+
+    def _band(lo: float, hi: float | None) -> np.ndarray:
+        if hi is None:
+            m = freqs >= float(lo)
+        else:
+            m = (freqs >= float(lo)) & (freqs < float(hi))
+        if not np.any(m):
+            return np.zeros((S.shape[1],), dtype=np.float32)
+        return np.sum(S[m, :], axis=0).astype(np.float32, copy=False)
+
+    kick = _band(20.0, 150.0)
+    snare = _band(150.0, 2500.0)
+    hats = _band(2500.0, None)
+
+    X = np.stack([kick, snare, hats], axis=1)  # (n, 3)
+
+    # Per-band normalize to [0,1] with a robust percentile cap (avoid one huge hit flattening everything).
+    out = np.zeros_like(X, dtype=np.float32)
+    for i in range(3):
+        v = X[:, i]
+        cap = float(np.percentile(v, 99)) if v.size else 0.0
+        cap = max(cap, float(v.max()) if v.size else 0.0, 1e-9)
+        out[:, i] = np.clip(v / cap, 0.0, 1.0)
+    return out

@@ -11,7 +11,7 @@ import numpy as np
 
 from .analyze import analyze_file
 from .analyze import analyze_audio
-from .features import other_chroma_12, vocals_pitch_hz
+from .features import bass_pitch_hz, drums_band_energy_3, other_chroma_12, vocals_pitch_hz
 from .ingest import song_id_for_path
 from .paths import (
     analysis_path_for_output_dir,
@@ -151,7 +151,15 @@ def main(argv: list[str] | None = None) -> int:
 
                     # Optional stem-specific features (in-memory only).
                     feats: dict[str, np.ndarray] = {}
-                    if name == "vocals":
+                    if name == "drums":
+                        feats["drums_bands_3"] = drums_band_energy_3(
+                            y, int(sr), hop_length=hop_length, n_fft=frame_length
+                        )
+                    elif name == "bass":
+                        feats["pitch_hz"] = bass_pitch_hz(
+                            y, int(sr), hop_length=hop_length, frame_length=frame_length
+                        )
+                    elif name == "vocals":
                         feats["pitch_hz"] = vocals_pitch_hz(
                             y, int(sr), hop_length=hop_length, frame_length=frame_length
                         )

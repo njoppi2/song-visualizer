@@ -60,6 +60,19 @@ def _stem_palette(stem: str) -> tuple[tuple[int, int, int], tuple[int, int, int]
     return palettes.get(stem, palettes["other"])
 
 
+_NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _hz_to_note_name(hz: float) -> str | None:
+    if not np.isfinite(hz) or hz <= 0.0:
+        return None
+    midi = 69.0 + 12.0 * math.log2(max(hz, 1e-6) / 440.0)
+    n = int(round(midi))
+    name = _NOTE_NAMES[n % 12]
+    octv = (n // 12) - 1
+    return f"{name}{octv}"
+
+
 class Visualizer:
     def __init__(self, analysis: dict[str, Any], cfg: RenderConfig):
         self.cfg = cfg
@@ -169,6 +182,11 @@ class StemQuadVisualizer:
         self.cfg = cfg
         self.rng = np.random.default_rng(cfg.seed)
 
+        try:
+            self.font = ImageFont.load_default()
+        except Exception:
+            self.font = None
+
         env = analysis["envelopes"]
         self.env_times = _as_np_float(env["times_s"])
         self.loudness = _as_np_float(env["loudness"])
@@ -181,6 +199,7 @@ class StemQuadVisualizer:
         feats = analysis.get("features") or {}
         self.pitch_hz = _as_np_float(feats.get("pitch_hz", []))
         self.chroma_12 = np.asarray(feats.get("chroma_12", []), dtype=np.float32)
+        self.drums_bands_3 = np.asarray(feats.get("drums_bands_3", []), dtype=np.float32)
 
         # Pre-process pitch into a stable [0,1] range for drawing.
         self.pitch_norm = None
@@ -240,25 +259,50 @@ class StemQuadVisualizer:
             return 0.0
         return float(math.exp(-dt / decay_s))
 
+    def _draw_band_meters(self, draw: ImageDraw.ImageDraw, bands: np.ndarray, *, x0: int, y0: int, w: int, h: int) -> None:
+        # bands: shape (3,) => K,S,H
+        labels = ["K", "S", "H"]
+        pad = 10
+        bw = int((w - pad * 2) / 3) - 6
+        base_y = y0 + h - pad
+        top_y = y0 + pad + 26
+        for i in range(3):
+            v = float(np.clip(bands[i], 0.0, 1.0))
+            bh = int((base_y - top_y) * (v**0.65))
+            bx0 = x0 + pad + i * (bw + 10)
+            bx1 = bx0 + bw
+            by0 = base_y - bh
+            # Background slot
+            draw.rectangle((bx0, top_y, bx1, base_y), outline=(255, 255, 255, 80), width=2)
+            # Fill
+            if bh > 2:
+                draw.rectangle((bx0 + 2, by0, bx1 - 2, base_y - 2), fill=(*self.c_accent, int(80 + 140 * v)))
+            # Label
+            draw.text((bx0 + 2, y0 + pad), labels[i], fill=(255, 255, 255, 220), font=self.font if hasattr(self, "font") else None)
+
     def _draw_drums(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float, flash: float) -> None:
         w, h = self.cfg.width, self.cfg.height
 
-        # Onset history (bottom bars).
+        # 3-band "kick/snare/hats" meters if present, otherwise fall back to onset history bars.
         k = self._env_index(t)
-        n = 24
-        hist = self.onset[max(0, k - n + 1) : k + 1]
-        if hist.size < n:
-            pad = np.zeros((n - hist.size,), dtype=np.float32)
-            hist = np.concatenate([pad, hist], axis=0)
-        bar_w = w / n
-        for i in range(n):
-            v = float(hist[i])
-            bh = int((v**0.6) * (h * 0.42))
-            x0 = int(i * bar_w)
-            x1 = int((i + 1) * bar_w) - 2
-            y0 = h - bh
-            a = int(40 + 200 * v)
-            draw.rectangle((x0, y0, x1, h), fill=(255, 255, 255, a))
+        if self.drums_bands_3.size and self.drums_bands_3.ndim == 2 and self.drums_bands_3.shape[1] == 3:
+            b = self.drums_bands_3[min(k, int(self.drums_bands_3.shape[0] - 1))]
+            self._draw_band_meters(draw, b, x0=0, y0=0, w=w, h=h)
+        else:
+            n = 24
+            hist = self.onset[max(0, k - n + 1) : k + 1]
+            if hist.size < n:
+                pad = np.zeros((n - hist.size,), dtype=np.float32)
+                hist = np.concatenate([pad, hist], axis=0)
+            bar_w = w / n
+            for i in range(n):
+                v = float(hist[i])
+                bh = int((v**0.6) * (h * 0.42))
+                x0 = int(i * bar_w)
+                x1 = int((i + 1) * bar_w) - 2
+                y0 = h - bh
+                a = int(40 + 200 * v)
+                draw.rectangle((x0, y0, x1, h), fill=(255, 255, 255, a))
 
         # "Drum head" ring + impact outline.
         cx, cy = w * 0.5, h * 0.45
@@ -299,6 +343,14 @@ class StemQuadVisualizer:
         meter_h = int(h * (0.10 + 0.80 * amp))
         draw.rectangle((10, h - 10 - meter_h, 22, h - 10), fill=(255, 255, 255, 160))
 
+        # If we have pitch, show current note prominently (helps "what am I seeing").
+        if self.pitch_hz.size:
+            k = self._env_index(t)
+            hz = float(self.pitch_hz[min(k, int(self.pitch_hz.size - 1))])
+            note = _hz_to_note_name(hz)
+            if note:
+                draw.text((w - 10 - 60, 10), note, fill=(255, 255, 255, 230), anchor="ra", font=self.font if hasattr(self, "font") else None)
+
     def _draw_vocals(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float) -> None:
         w, h = self.cfg.width, self.cfg.height
 
@@ -311,6 +363,12 @@ class StemQuadVisualizer:
 
         x = (w * 0.5) + math.sin(t * 0.8) * (w * 0.18) * (0.3 + loud)
         y = (h * 0.85) - y_norm * (h * 0.70)
+
+        # Draw a simple "staff" grid for readability.
+        grid_a = int(35 + 55 * voiced)
+        for j in range(6):
+            yy = (h * 0.20) + j * (h * 0.10)
+            draw.line((20, yy, w - 20, yy), fill=(255, 255, 255, grid_a), width=1)
 
         self._trail.append((x, y))
         if len(self._trail) > 72:
@@ -327,6 +385,13 @@ class StemQuadVisualizer:
         if onset > 0.2:
             r2 = r * (1.0 + 1.8 * onset)
             draw.ellipse((x - r2, y - r2, x + r2, y + r2), outline=(255, 255, 255, int(140 * onset)), width=2)
+
+        # Note name readout.
+        if self.pitch_hz.size:
+            hz = float(self.pitch_hz[min(k, int(self.pitch_hz.size - 1))])
+            note = _hz_to_note_name(hz)
+            if note:
+                draw.text((w - 10, h - 16), f"{note}  {hz:0.0f}Hz", fill=(255, 255, 255, int(160 + 70 * voiced)), anchor="rd", font=self.font if hasattr(self, "font") else None)
 
     def _draw_other(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float) -> None:
         w, h = self.cfg.width, self.cfg.height

@@ -11,7 +11,7 @@ import librosa
 import numpy as np
 
 from .analyze import analyze_audio, analyze_file
-from .features import other_chroma_12, vocals_pitch_hz
+from .features import bass_pitch_hz, drums_band_energy_3, other_chroma_12, vocals_pitch_hz
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
@@ -202,7 +202,15 @@ def run_ui(cfg: UIConfig) -> int:
                 a = analyze_audio(y, int(sr), hop_length=hop_length, frame_length=frame_length)
 
                 feats: dict[str, np.ndarray] = {}
-                if name == "vocals":
+                if name == "drums":
+                    feats["drums_bands_3"] = drums_band_energy_3(
+                        y, int(sr), hop_length=hop_length, n_fft=frame_length
+                    )
+                elif name == "bass":
+                    feats["pitch_hz"] = bass_pitch_hz(
+                        y, int(sr), hop_length=hop_length, frame_length=frame_length
+                    )
+                elif name == "vocals":
                     feats["pitch_hz"] = vocals_pitch_hz(
                         y, int(sr), hop_length=hop_length, frame_length=frame_length
                     )
