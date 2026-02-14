@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import os
 import shutil
+import sys
+from pathlib import Path
 
 
 def require_ffmpeg() -> str:
     path = shutil.which("ffmpeg")
     if path:
         return path
+
+    # Next to the active Python (e.g., `.venv/bin/ffmpeg`) for user-space installs.
+    try:
+        cand = Path(sys.prefix) / "bin" / "ffmpeg"
+        if cand.exists() and os.access(cand, os.X_OK):
+            return str(cand)
+    except Exception:
+        pass
 
     # Fallback: user-space ffmpeg binary (no system install required).
     try:

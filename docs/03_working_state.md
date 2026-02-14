@@ -32,7 +32,7 @@
 
 ## Known issues
 - Rendering uses ffmpeg:
-  - if `ffmpeg` is on PATH, it will use that
+  - if `ffmpeg` is on PATH (or available as `$VIRTUAL_ENV/bin/ffmpeg`), it will use that
   - otherwise it will try a user-space ffmpeg binary via `imageio-ffmpeg` (first run may download it)
 
 ## Dev notes
