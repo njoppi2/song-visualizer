@@ -34,6 +34,7 @@ class UIConfig:
     width: int = 960
     height: int = 540
     fps: int = 30
+    audio_codec: str = "mp3"
     audio_bitrate: str = "128k"
 
 
@@ -163,6 +164,7 @@ def run_ui(cfg: UIConfig) -> int:
             height=int(cfg.height),
             fps=int(cfg.fps),
             seed=int(cfg.seed),
+            audio_codec=str(cfg.audio_codec),
             audio_bitrate=str(cfg.audio_bitrate),
         )
         render_mp4(analysis=analysis, audio_path=audio_path, out_path=canonical_video, cfg=rcfg)
@@ -176,4 +178,3 @@ def run_ui(cfg: UIConfig) -> int:
 
 def main() -> int:
     return run_ui(UIConfig())
-

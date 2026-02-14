@@ -22,6 +22,13 @@ SongViz writes per-song artifacts under `outputs/<song_name>/`:
 
 If you want `outputs/` to stay clean, run `python -m songviz tidy` to move old layout folders and loose files into hidden subfolders.
 
+## Audio in MP4
+By default SongViz encodes audio as MP3-in-MP4 to maximize "it plays in my browser" compatibility on Linux.
+
+If you prefer AAC (more standard for MP4), or if you want to experiment:
+- `python -m songviz render songs/my.flac --audio-codec aac --audio-bitrate 128k`
+- `python -m songviz render songs/my.flac --audio-codec mp3 --audio-bitrate 128k`
+
 ## Notes about copyrighted audio
 Use your own purchased/downloaded tracks locally. Do not commit copyrighted audio into public repositories.
 

@@ -20,6 +20,9 @@ class RenderConfig:
     seed: int = 0
     crf: int = 18
     preset: str = "veryfast"
+    # Some Linux browser builds don't ship AAC decoders. MP3-in-MP4 is often more
+    # broadly playable, even if it's less "standard" than AAC.
+    audio_codec: str = "mp3"  # "aac" | "mp3"
     audio_bitrate: str = "128k"
 
 
@@ -157,6 +160,14 @@ def render_mp4(
 
     vis = Visualizer(analysis, cfg)
 
+    audio_codec = cfg.audio_codec.strip().lower()
+    if audio_codec == "aac":
+        audio_args = ["-c:a", "aac", "-b:a", cfg.audio_bitrate]
+    elif audio_codec in ("mp3", "libmp3lame"):
+        audio_args = ["-c:a", "libmp3lame", "-b:a", cfg.audio_bitrate]
+    else:
+        raise ValueError(f"Unsupported audio codec: {cfg.audio_codec!r} (expected: aac|mp3)")
+
     cmd = [
         ffmpeg,
         "-y",
@@ -185,10 +196,7 @@ def render_mp4(
         str(cfg.crf),
         "-pix_fmt",
         "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        cfg.audio_bitrate,
+        *audio_args,
         "-shortest",
         "-movflags",
         "+faststart",

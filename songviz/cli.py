@@ -42,7 +42,8 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--width", type=int, default=960, help="Video width (pixels)")
     render.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
-    render.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
+    render.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
+    render.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
 
     ui = sub.add_parser("ui", help="Interactive terminal UI (pick a song from songs/ and render)")
     ui.add_argument("--songs-dir", default="songs", help="Directory containing local audio files (default: songs/)")
@@ -51,7 +52,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--width", type=int, default=960, help="Video width (pixels)")
     ui.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     ui.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
-    ui.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
+    ui.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
+    ui.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
 
     tidy = sub.add_parser("tidy", help="Tidy outputs/ (move legacy dirs and loose files into hidden folders)")
     tidy.add_argument("--outputs-dir", default="outputs", help="Outputs directory (default: outputs/)")
@@ -97,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                 height=int(args.height),
                 fps=int(args.fps),
                 seed=int(args.seed),
+                audio_codec=str(args.audio_codec),
                 audio_bitrate=str(args.audio_bitrate),
             )
 
@@ -121,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
                 width=int(args.width),
                 height=int(args.height),
                 fps=int(args.fps),
+                audio_codec=str(args.audio_codec),
                 audio_bitrate=str(args.audio_bitrate),
             )
             return int(run_ui(cfg) or 0)
