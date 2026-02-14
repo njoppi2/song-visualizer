@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -13,7 +12,7 @@ from .paths import (
     output_dir_for_audio,
     video_path_for_output_dir,
 )
-from .render import RenderConfig, render_mp4, write_vscode_previews
+from .render import RenderConfig, render_mp4
 from .tidy import tidy_outputs
 from .ui import UIConfig, run_ui
 
@@ -49,17 +48,6 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
     render.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
     render.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
-    render.add_argument(
-        "--vscode-preview",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Also write outputs/<song_name>/preview.webm (VP8 WebM) for VS Code's bundled media preview",
-    )
-    render.add_argument(
-        "--vscode-preview-formats",
-        default=None,
-        help="Comma-separated preview formats for VS Code (or 'all'). Examples: all | webm_vorbis,webm_opus,mp4_aac",
-    )
 
     ui = sub.add_parser("ui", help="Interactive terminal UI (pick a song from songs/ and render)")
     ui.add_argument("--songs-dir", default="songs", help="Directory containing local audio files (default: songs/)")
@@ -70,33 +58,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
     ui.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
     ui.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
-    ui.add_argument(
-        "--vscode-preview",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="Also write outputs/<song_name>/preview.webm (VP8 WebM) for VS Code's bundled media preview",
-    )
-    ui.add_argument(
-        "--vscode-preview-formats",
-        default=None,
-        help="Comma-separated preview formats for VS Code (or 'all'). Examples: all | webm_vorbis,webm_opus,mp4_aac",
-    )
 
     tidy = sub.add_parser("tidy", help="Tidy outputs/ (move legacy dirs and loose files into hidden folders)")
     tidy.add_argument("--outputs-dir", default="outputs", help="Outputs directory (default: outputs/)")
     tidy.add_argument("--dry-run", action="store_true", help="Print what would happen without moving files")
 
     return p
-
-
-def _parse_vscode_preview_formats(s: str) -> list[str]:
-    raw = str(s).strip()
-    if not raw:
-        return []
-    if raw.lower() == "all":
-        return ["webm_vorbis", "webm_opus", "webm_video_only", "mp4_aac"]
-    parts = [p.strip() for p in raw.split(",")]
-    return [p for p in (x.lower() for x in parts) if p]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -143,24 +110,6 @@ def main(argv: list[str] | None = None) -> int:
             # Always render into the per-song output directory.
             render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg)
 
-            vscode_preview = args.vscode_preview
-            if vscode_preview is None:
-                vscode_preview = os.environ.get("TERM_PROGRAM") == "vscode"
-            preview_formats = _parse_vscode_preview_formats(args.vscode_preview_formats) if args.vscode_preview_formats else []
-            if preview_formats:
-                vscode_preview = True
-            if vscode_preview:
-                if not preview_formats:
-                    preview_formats = ["webm_vorbis"]
-                wrote = write_vscode_previews(
-                    src_video_path=canonical_mp4,
-                    out_dir=out_dir,
-                    audio_bitrate=cfg.audio_bitrate,
-                    formats=preview_formats,
-                )
-                for p in wrote:
-                    print(f"preview: {p}", file=sys.stderr)
-
             # If --out is given, also place a copy/hardlink there.
             if args.out:
                 out_mp4 = Path(args.out)
@@ -181,8 +130,6 @@ def main(argv: list[str] | None = None) -> int:
                 fps=int(args.fps),
                 audio_codec=str(args.audio_codec),
                 audio_bitrate=str(args.audio_bitrate),
-                vscode_preview=args.vscode_preview,
-                vscode_preview_formats=str(args.vscode_preview_formats) if args.vscode_preview_formats else None,
             )
             return int(run_ui(cfg) or 0)
 
