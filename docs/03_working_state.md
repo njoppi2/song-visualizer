@@ -22,11 +22,13 @@
   - uses ffmpeg to mux original audio into the MP4
   - audio codec can be selected via `--audio-codec aac|mp3` (default: mp3 for browser-friendliness)
   - supports `--layout stems4` to render a 2x2 grid where each quadrant is driven by a Demucs stem (drums/bass/vocals/other)
+    - each stem has a distinct visual grammar (drums hit bars, bass oscilloscope, vocals pitch trail, other chroma spokes)
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
 - Smoke-test MP4 output on a machine with ffmpeg installed.
 - Polish error handling and defaults based on real renders.
+  - Consider caching stem feature extraction (pitch/chroma) if render startup becomes slow.
 
 ## How to run locally
 - `pip install -e .`

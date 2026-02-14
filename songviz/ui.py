@@ -11,6 +11,7 @@ import librosa
 import numpy as np
 
 from .analyze import analyze_audio, analyze_file
+from .features import other_chroma_12, vocals_pitch_hz
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
@@ -193,10 +194,23 @@ def run_ui(cfg: UIConfig) -> int:
             )
 
             stem_analyses: dict[str, dict] = {}
+            hop_length = 512
+            frame_length = 2048
             for name, stem_path in stems.stems.items():
                 y, sr = librosa.load(stem_path, sr=22050, mono=True)
                 y = np.asarray(y, dtype=np.float32)
-                a = analyze_audio(y, int(sr))
+                a = analyze_audio(y, int(sr), hop_length=hop_length, frame_length=frame_length)
+
+                feats: dict[str, np.ndarray] = {}
+                if name == "vocals":
+                    feats["pitch_hz"] = vocals_pitch_hz(
+                        y, int(sr), hop_length=hop_length, frame_length=frame_length
+                    )
+                elif name == "other":
+                    feats["chroma_12"] = other_chroma_12(y, int(sr), hop_length=hop_length, n_fft=frame_length)
+                if feats:
+                    a["features"] = feats
+
                 if name != "drums":
                     a["beats"]["beat_times_s"] = []
                     a["beats"]["tempo_bpm"] = 0.0
