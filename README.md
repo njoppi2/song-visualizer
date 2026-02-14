@@ -13,6 +13,7 @@ Generate a music-reactive video from an audio file.
 ## Interactive UI
 - Put songs in `songs/`
 - Run: `python -m songviz ui`
+- Or: `make ui`
 
 ## Outputs
 SongViz writes per-song artifacts under `outputs/<song_name>/`:

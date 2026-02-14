@@ -30,6 +30,7 @@
 - `python -m songviz --help`
 - `python -m songviz analyze path/to/song.flac`
 - `python -m songviz render path/to/song.flac --out outputs/demo.mp4`
+- `python -m songviz ui` (or `make ui`)
 - `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
 
 ## Known issues
