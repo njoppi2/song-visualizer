@@ -11,7 +11,7 @@ def require_ffmpeg() -> str:
     if path:
         return path
 
-    # Next to the active Python (e.g., `.venv/bin/ffmpeg`) for user-space installs.
+    # Next to the active venv (e.g., `.songviz/venv/bin/ffmpeg`) for user-space installs.
     try:
         cand = Path(sys.prefix) / "bin" / "ffmpeg"
         if cand.exists() and os.access(cand, os.X_OK):

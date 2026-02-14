@@ -24,3 +24,5 @@ SongViz writes per-song artifacts under `outputs/<song_name>/`:
 Use your own purchased/downloaded tracks locally. Do not commit copyrighted audio into public repositories.
 
 For local organization, put audio files under `songs/` (gitignored).
+
+Dev/runtime artifacts (venv, caches) are grouped under `.songviz/` (gitignored).

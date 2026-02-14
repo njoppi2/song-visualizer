@@ -40,4 +40,5 @@
 
 ## Dev notes
 - Keep outputs out of git
+- Local dev artifacts are grouped under `.songviz/` (venv, pytest cache, egg-info)
 - Prefer small commits after each milestone

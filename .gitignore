@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+.songviz/
 .env
 dist/
 build/
@@ -20,7 +21,6 @@ outputs/
 
 # Local audio assets (keep private)
 assets/private/
-inputs/
 songs/
 
 # OS

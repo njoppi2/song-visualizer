@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.21.1"]
+build-backend = "hatchling.build"
 
 [project]
 name = "songviz"
@@ -26,8 +26,9 @@ test = [
 [project.scripts]
 songviz = "songviz.cli:main"
 
-[tool.setuptools.packages.find]
-include = ["songviz*"]
+[tool.hatch.build.targets.wheel]
+packages = ["songviz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+cache_dir = ".songviz/pytest_cache"

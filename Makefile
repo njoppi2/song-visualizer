@@ -1,6 +1,6 @@
 .PHONY: ui venv
 
-VENV ?= .venv
+VENV ?= .songviz/venv
 PY := $(VENV)/bin/python
 PIP := $(PY) -m pip
 
@@ -10,4 +10,3 @@ venv:
 
 ui: venv
 	@$(PY) -m songviz ui
-
