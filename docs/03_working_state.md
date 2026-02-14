@@ -4,27 +4,34 @@
 - Python package scaffold: `songviz/` with module entrypoint (`python -m songviz`).
 - CLI:
   - `songviz analyze <audio>` writes `outputs/<song_id>/analysis.json`.
-  - `songviz render ...` is still a stub (not implemented yet).
+  - `songviz render <audio> --out outputs/demo.mp4` writes:
+    - `outputs/<song_id>/analysis.json`
+    - `outputs/<song_id>/video.mp4` (or `--out`)
 - Packaging via `pyproject.toml` with an optional console script: `songviz ...` after `pip install -e .`.
 - Analysis (v0):
   - tempo + beat times
   - loudness (RMS) envelope normalized to [0,1]
   - onset strength normalized to [0,1]
+- Renderer (v0):
+  - 30 fps (default) video
+  - layered visuals driven by loudness + onset strength + beat flashes
+  - deterministic given `--seed`
+  - uses ffmpeg to mux original audio into the MP4
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
-- Implement `songviz render` to create an MP4 (frames + mux original audio via ffmpeg).
-  - must be deterministic given `--seed`
-  - must render at 30 fps with layered visuals (loudness + onsets + beat flashes)
+- Smoke-test MP4 output on a machine with ffmpeg installed.
+- Polish error handling and defaults based on real renders.
 
 ## How to run locally
 - `pip install -e .`
 - `python -m songviz --help`
 - `python -m songviz analyze path/to/song.flac`
+- `python -m songviz render path/to/song.flac --out outputs/demo.mp4`
 - `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
 
 ## Known issues
-- `songviz render` is not implemented yet (no MP4 output).
+- Rendering requires `ffmpeg` on PATH. If missing, SongViz prints a short install hint.
 
 ## Dev notes
 - Keep outputs out of git
