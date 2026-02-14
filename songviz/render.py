@@ -172,6 +172,11 @@ def render_mp4(
         "pipe:0",
         "-i",
         str(audio_path),
+        # Be explicit: input 0 is our generated frames, input 1 is the original audio.
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
         "-c:v",
         "libx264",
         "-preset",
