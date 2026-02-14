@@ -17,15 +17,15 @@
    - mux original audio back into MP4
 
 ## Output structure
-outputs/<song_id>/
-  input/ (optional copy or symlink)
-  stems/ (v1+)
-  analysis.json
-  render/
-    frames/ (optional, behind a flag)
+outputs/<song_name>/
+  analysis/
+    analysis.json
   video.mp4
+  # future:
+  # stems/ (v1+)
+  # render/frames/ (optional, behind a flag)
 
-`song_id` should be stable (hash of file contents or file name + size + mtime).
+`song_id` should be stable (hash of file contents or file name + size + mtime). It is stored in `analysis.json` metadata.
 
 ## analysis.json schema (v0-v2)
 Top-level:
@@ -56,6 +56,6 @@ Renderer should be decoupled:
 - Map sections -> scenes via deterministic assignment (hash label -> scene preset).
 
 ## CLI commands (planned)
-- `songviz analyze <audio> --out outputs/<song_id>/analysis.json`
+- `songviz analyze <audio> --out outputs/<song_name>/analysis/analysis.json`
 - `songviz render <audio> --out out.mp4 [--analysis existing.json]`
 - `songviz separate <audio> --out stems_dir` (optional)

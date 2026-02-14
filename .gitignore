@@ -21,6 +21,7 @@ outputs/
 # Local audio assets (keep private)
 assets/private/
 inputs/
+songs/
 
 # OS
 .DS_Store

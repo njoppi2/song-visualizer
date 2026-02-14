@@ -30,6 +30,6 @@ The renderer only asks: “At time t, what scene are we in and what values drive
 
 ## Success criteria (MVP)
 Given `song.flac` (local file), the tool produces:
-- outputs/<song_id>/analysis.json
-- outputs/<song_id>/video.mp4
+- outputs/<song_name>/analysis/analysis.json
+- outputs/<song_name>/video.mp4
 And the video visibly reacts to beats + stem energies + section changes.

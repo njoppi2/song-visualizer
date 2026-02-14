@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .analyze import analyze_file
+from .paths import analysis_path_for_output_dir, output_dir_for_audio, video_path_for_output_dir
 from .render import RenderConfig, render_mp4
 
 
@@ -51,24 +52,31 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "analyze":
             analysis = analyze_file(args.audio_path)
             song_id = analysis["meta"]["song_id"]
-            default_out = Path("outputs") / str(song_id) / "analysis.json"
-            out_path = Path(args.out) if args.out else default_out
-            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            canonical = analysis_path_for_output_dir(out_dir)
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            canonical.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-            out_path.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            print(str(out_path))
+            if args.out:
+                out_path = Path(args.out)
+                if out_path.resolve() != canonical.resolve():
+                    _copy_or_link(canonical, out_path)
+                print(str(out_path))
+            else:
+                print(str(canonical))
             return 0
 
         if args.cmd == "render":
             analysis = analyze_file(args.audio_path)
             song_id = analysis["meta"]["song_id"]
-            out_dir = Path("outputs") / str(song_id)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            analysis_path = out_dir / "analysis.json"
+            analysis_path = analysis_path_for_output_dir(out_dir)
+            analysis_path.parent.mkdir(parents=True, exist_ok=True)
             analysis_path.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-            canonical_mp4 = out_dir / "video.mp4"
+            canonical_mp4 = video_path_for_output_dir(out_dir)
             cfg = RenderConfig(
                 width=int(args.width),
                 height=int(args.height),
