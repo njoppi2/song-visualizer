@@ -20,9 +20,7 @@ outputs/
 
 # Local audio assets (keep private)
 assets/private/
-
-# Local scratch audio (do not commit purchased tracks)
-Gorillaz - Feel Good Inc (featuring De La Soul).flac
+inputs/
 
 # OS
 .DS_Store

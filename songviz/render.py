@@ -20,6 +20,7 @@ class RenderConfig:
     seed: int = 0
     crf: int = 18
     preset: str = "veryfast"
+    audio_bitrate: str = "128k"
 
 
 def _as_np_float(x: Any) -> np.ndarray:
@@ -182,7 +183,7 @@ def render_mp4(
         "-c:a",
         "aac",
         "-b:a",
-        "192k",
+        cfg.audio_bitrate,
         "-shortest",
         "-movflags",
         "+faststart",
@@ -207,4 +208,3 @@ def render_mp4(
     rc = proc.wait()
     if rc != 0:
         raise RuntimeError(f"ffmpeg exited with code {rc}")
-

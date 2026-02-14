@@ -6,7 +6,8 @@
   - `songviz analyze <audio>` writes `outputs/<song_id>/analysis.json`.
   - `songviz render <audio> --out outputs/demo.mp4` writes:
     - `outputs/<song_id>/analysis.json`
-    - `outputs/<song_id>/video.mp4` (or `--out`)
+    - `outputs/<song_id>/video.mp4` (always)
+    - plus a copy/hardlink at `--out` if provided
 - Packaging via `pyproject.toml` with an optional console script: `songviz ...` after `pip install -e .`.
 - Analysis (v0):
   - tempo + beat times

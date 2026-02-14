@@ -15,3 +15,5 @@ SongViz writes per-song artifacts under `outputs/<song_id>/` including `analysis
 
 ## Notes about copyrighted audio
 Use your own purchased/downloaded tracks locally. Do not commit copyrighted audio into public repositories.
+
+For local organization, put audio files under `inputs/` (gitignored).

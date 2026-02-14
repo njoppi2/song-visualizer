@@ -2,11 +2,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
 from .analyze import analyze_file
 from .render import RenderConfig, render_mp4
+
+
+def _copy_or_link(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+
+    # Try hardlink first (fast, no extra disk) then fall back to copy.
+    try:
+        if dst.exists():
+            dst.unlink()
+        dst.hardlink_to(src)
+        return
+    except Exception:
+        pass
+    shutil.copyfile(src, dst)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -24,6 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--width", type=int, default=960, help="Video width (pixels)")
     render.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
+    render.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
 
     return p
 
@@ -52,15 +68,26 @@ def main(argv: list[str] | None = None) -> int:
             analysis_path = out_dir / "analysis.json"
             analysis_path.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-            mp4_path = Path(args.out) if args.out else (out_dir / "video.mp4")
+            canonical_mp4 = out_dir / "video.mp4"
             cfg = RenderConfig(
                 width=int(args.width),
                 height=int(args.height),
                 fps=int(args.fps),
                 seed=int(args.seed),
+                audio_bitrate=str(args.audio_bitrate),
             )
-            render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=mp4_path, cfg=cfg)
-            print(str(mp4_path))
+
+            # Always render into the per-song output directory.
+            render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg)
+
+            # If --out is given, also place a copy/hardlink there.
+            if args.out:
+                out_mp4 = Path(args.out)
+                if out_mp4.resolve() != canonical_mp4.resolve():
+                    _copy_or_link(canonical_mp4, out_mp4)
+                print(str(out_mp4))
+            else:
+                print(str(canonical_mp4))
             return 0
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
