@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.env
+dist/
+build/
+*.egg-info/
+
+# Outputs
+outputs/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.wav
+*.png
+
+# Local audio assets (keep private)
+assets/private/
+
+# Local scratch audio (do not commit purchased tracks)
+Gorillaz - Feel Good Inc (featuring De La Soul).flac
+
+# OS
+.DS_Store
+Thumbs.db
