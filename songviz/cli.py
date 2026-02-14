@@ -9,6 +9,7 @@ from pathlib import Path
 from .analyze import analyze_file
 from .paths import analysis_path_for_output_dir, output_dir_for_audio, video_path_for_output_dir
 from .render import RenderConfig, render_mp4
+from .ui import UIConfig, run_ui
 
 
 def _copy_or_link(src: Path, dst: Path) -> None:
@@ -41,6 +42,15 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
     render.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
+
+    ui = sub.add_parser("ui", help="Interactive terminal UI (pick a song from songs/ and render)")
+    ui.add_argument("--songs-dir", default="songs", help="Directory containing local audio files (default: songs/)")
+    ui.add_argument("--outputs-dir", default="outputs", help="Directory for outputs (default: outputs/)")
+    ui.add_argument("--seed", type=int, default=0, help="Deterministic seed")
+    ui.add_argument("--width", type=int, default=960, help="Video width (pixels)")
+    ui.add_argument("--height", type=int, default=540, help="Video height (pixels)")
+    ui.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
+    ui.add_argument("--audio-bitrate", default="128k", help="AAC bitrate (e.g. 96k, 128k, 160k)")
 
     return p
 
@@ -97,6 +107,18 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(str(canonical_mp4))
             return 0
+
+        if args.cmd == "ui":
+            cfg = UIConfig(
+                songs_dir=Path(args.songs_dir),
+                outputs_dir=Path(args.outputs_dir),
+                seed=int(args.seed),
+                width=int(args.width),
+                height=int(args.height),
+                fps=int(args.fps),
+                audio_bitrate=str(args.audio_bitrate),
+            )
+            return int(run_ui(cfg) or 0)
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

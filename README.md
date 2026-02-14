@@ -10,6 +10,10 @@ Generate a music-reactive video from an audio file.
 4) Run:
    - `python -m songviz render path/to/song.flac --out outputs/demo.mp4`
 
+## Interactive UI
+- Put songs in `songs/`
+- Run: `python -m songviz ui`
+
 ## Outputs
 SongViz writes per-song artifacts under `outputs/<song_name>/`:
 - `video.mp4`

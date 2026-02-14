@@ -8,6 +8,7 @@
     - `outputs/<song_name>/analysis/analysis.json`
     - `outputs/<song_name>/video.mp4` (always)
     - plus a copy/hardlink at `--out` if provided
+  - `songviz ui` provides a simple interactive picker for songs in `songs/` to render/regenerate videos.
 - Packaging via `pyproject.toml` with an optional console script: `songviz ...` after `pip install -e .`.
 - Analysis (v0):
   - tempo + beat times
