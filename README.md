@@ -41,6 +41,12 @@ python3 -m songviz stems songs/my.flac
 This writes WAV stems under `outputs/<song_name>/stems/`:
 - `drums.wav`, `bass.wav`, `vocals.wav`, `other.wav`
 
+You can also render a 2x2 stems grid video (one quadrant per stem):
+
+```bash
+python3 -m songviz render songs/my.flac --layout stems4
+```
+
 ### VS Code note (Linux)
 VS Code's bundled media preview can be unreliable for some video/audio codecs. If a rendered MP4 is silent (or fails to load) inside VS Code, open it in a media player instead:
 - `xdg-open outputs/<song_name>/video.mp4`

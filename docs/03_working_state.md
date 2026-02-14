@@ -21,6 +21,7 @@
   - deterministic given `--seed`
   - uses ffmpeg to mux original audio into the MP4
   - audio codec can be selected via `--audio-codec aac|mp3` (default: mp3 for browser-friendliness)
+  - supports `--layout stems4` to render a 2x2 grid where each quadrant is driven by a Demucs stem (drums/bass/vocals/other)
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
@@ -33,6 +34,7 @@
 - `python3 -m songviz --help`
 - `python3 -m songviz analyze path/to/song.flac`
 - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
+- `python3 -m songviz render path/to/song.flac --layout stems4` (requires Demucs; will create stems if missing)
 - `python3 -m songviz stems path/to/song.flac`
 - If your browser shows a muted/disabled volume icon, try: `python3 -m songviz render path/to/song.flac --audio-codec mp3`
 - If VS Code preview is silent/unreliable, open the MP4 in a media player (e.g. `mpv` or `vlc`).

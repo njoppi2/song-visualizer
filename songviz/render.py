@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import math
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from .ffmpeg import require_ffmpeg
 
@@ -143,22 +143,83 @@ class Visualizer:
         return img.tobytes()
 
 
-def render_mp4(
+class StemGridVisualizer:
+    """
+    2x2 grid layout: one stem per quadrant.
+
+    Expected stem names (Demucs default): drums, bass, vocals, other.
+    """
+
+    def __init__(self, stem_analyses: dict[str, dict[str, Any]], cfg: RenderConfig, *, labels: bool = True):
+        if cfg.width % 2 != 0 or cfg.height % 2 != 0:
+            raise ValueError("width and height must be even for stems4 layout")
+
+        self.cfg = cfg
+        self.labels = labels
+        self.order = ["drums", "bass", "vocals", "other"]
+
+        missing = [k for k in self.order if k not in stem_analyses]
+        if missing:
+            raise ValueError(f"Missing stem analyses: {missing} (expected: {self.order})")
+
+        self.w_half = cfg.width // 2
+        self.h_half = cfg.height // 2
+
+        try:
+            self.font = ImageFont.load_default()
+        except Exception:
+            self.font = None
+
+        self._quads: dict[str, Visualizer] = {}
+        for i, name in enumerate(self.order):
+            # Stable seed offsets so each quadrant has its own deterministic palette.
+            qcfg = replace(cfg, width=self.w_half, height=self.h_half, seed=int(cfg.seed) + ((i + 1) * 1000))
+            self._quads[name] = Visualizer(stem_analyses[name], qcfg)
+
+    def frame_rgb24(self, t: float) -> bytes:
+        img = Image.new("RGB", (self.cfg.width, self.cfg.height))
+
+        for i, name in enumerate(self.order):
+            q = self._quads[name]
+            qimg = Image.frombytes("RGB", (self.w_half, self.h_half), q.frame_rgb24(t))
+            x = 0 if (i % 2 == 0) else self.w_half
+            y = 0 if (i < 2) else self.h_half
+            img.paste(qimg, (x, y))
+
+        draw = ImageDraw.Draw(img)
+        # Dividers
+        draw.line((self.w_half, 0, self.w_half, self.cfg.height), fill=(235, 235, 235), width=2)
+        draw.line((0, self.h_half, self.cfg.width, self.h_half), fill=(235, 235, 235), width=2)
+
+        if self.labels and self.font is not None:
+            pad = 8
+            for i, name in enumerate(self.order):
+                x0 = 0 if (i % 2 == 0) else self.w_half
+                y0 = 0 if (i < 2) else self.h_half
+                label = name.upper()
+                bbox = draw.textbbox((0, 0), label, font=self.font)
+                tw = bbox[2] - bbox[0]
+                th = bbox[3] - bbox[1]
+                draw.rectangle((x0 + pad - 4, y0 + pad - 4, x0 + pad + tw + 6, y0 + pad + th + 4), fill=(0, 0, 0))
+                draw.text((x0 + pad, y0 + pad), label, fill=(255, 255, 255), font=self.font)
+
+        return img.tobytes()
+
+
+def _render_mp4_with_visualizer(
     *,
-    analysis: dict[str, Any],
     audio_path: str | Path,
     out_path: str | Path,
     cfg: RenderConfig,
+    duration_s: float,
+    visualizer: Any,
 ) -> None:
     ffmpeg = require_ffmpeg()
 
     out_p = Path(out_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
 
-    duration_s = float(analysis["meta"]["duration_s"])
     n_frames = int(math.ceil(duration_s * cfg.fps))
-
-    vis = Visualizer(analysis, cfg)
 
     audio_codec = cfg.audio_codec.strip().lower()
     if audio_codec == "aac":
@@ -209,7 +270,7 @@ def render_mp4(
     try:
         for i in range(n_frames):
             t = i / cfg.fps
-            proc.stdin.write(vis.frame_rgb24(t))
+            proc.stdin.write(visualizer.frame_rgb24(t))
     except BrokenPipeError as e:
         raise RuntimeError("ffmpeg pipeline failed while writing video frames") from e
     finally:
@@ -221,3 +282,39 @@ def render_mp4(
     rc = proc.wait()
     if rc != 0:
         raise RuntimeError(f"ffmpeg exited with code {rc}")
+
+
+def render_mp4(
+    *,
+    analysis: dict[str, Any],
+    audio_path: str | Path,
+    out_path: str | Path,
+    cfg: RenderConfig,
+) -> None:
+    duration_s = float(analysis["meta"]["duration_s"])
+    vis = Visualizer(analysis, cfg)
+    _render_mp4_with_visualizer(
+        audio_path=audio_path,
+        out_path=out_path,
+        cfg=cfg,
+        duration_s=duration_s,
+        visualizer=vis,
+    )
+
+
+def render_mp4_stems4(
+    *,
+    stem_analyses: dict[str, dict[str, Any]],
+    duration_s: float,
+    audio_path: str | Path,
+    out_path: str | Path,
+    cfg: RenderConfig,
+) -> None:
+    vis = StemGridVisualizer(stem_analyses, cfg)
+    _render_mp4_with_visualizer(
+        audio_path=audio_path,
+        out_path=out_path,
+        cfg=cfg,
+        duration_s=float(duration_s),
+        visualizer=vis,
+    )

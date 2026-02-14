@@ -7,14 +7,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-from .analyze import analyze_file
+import librosa
+import numpy as np
+
+from .analyze import analyze_audio, analyze_file
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
     safe_dirname,
     video_path_for_output_dir,
 )
-from .render import RenderConfig, render_mp4
+from .render import RenderConfig, render_mp4, render_mp4_stems4
+from .stems import ensure_demucs_stems
 
 
 _AUDIO_EXTS = {
@@ -38,8 +42,12 @@ class UIConfig:
     width: int = 960
     height: int = 540
     fps: int = 30
+    layout: str = "mix"  # "mix" | "stems4"
     audio_codec: str = "mp3"
     audio_bitrate: str = "128k"
+    stems_model: str = "htdemucs"
+    stems_device: str = "auto"  # "auto" | "cpu" | "cuda"
+    stems_force: bool = False
 
 
 def _clear_screen() -> None:
@@ -171,7 +179,38 @@ def run_ui(cfg: UIConfig) -> int:
             audio_codec=str(cfg.audio_codec),
             audio_bitrate=str(cfg.audio_bitrate),
         )
-        render_mp4(analysis=analysis, audio_path=audio_path, out_path=canonical_video, cfg=rcfg)
+
+        layout = str(cfg.layout)
+        if layout == "mix":
+            render_mp4(analysis=analysis, audio_path=audio_path, out_path=canonical_video, cfg=rcfg)
+        elif layout == "stems4":
+            stems = ensure_demucs_stems(
+                audio_path,
+                out_dir=out_dir,
+                model=str(cfg.stems_model),
+                device=str(cfg.stems_device),
+                force=bool(cfg.stems_force),
+            )
+
+            stem_analyses: dict[str, dict] = {}
+            for name, stem_path in stems.stems.items():
+                y, sr = librosa.load(stem_path, sr=22050, mono=True)
+                y = np.asarray(y, dtype=np.float32)
+                a = analyze_audio(y, int(sr))
+                if name != "drums":
+                    a["beats"]["beat_times_s"] = []
+                    a["beats"]["tempo_bpm"] = 0.0
+                stem_analyses[name] = a
+
+            render_mp4_stems4(
+                stem_analyses=stem_analyses,
+                duration_s=float(analysis["meta"]["duration_s"]),
+                audio_path=audio_path,
+                out_path=canonical_video,
+                cfg=rcfg,
+            )
+        else:
+            raise AssertionError(f"Unknown layout: {layout!r}")
 
         print()
         print("Done.")

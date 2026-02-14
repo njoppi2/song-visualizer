@@ -6,14 +6,18 @@ import shutil
 import sys
 from pathlib import Path
 
+import librosa
+import numpy as np
+
 from .analyze import analyze_file
+from .analyze import analyze_audio
 from .ingest import song_id_for_path
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
     video_path_for_output_dir,
 )
-from .render import RenderConfig, render_mp4
+from .render import RenderConfig, render_mp4, render_mp4_stems4
 from .stems import ensure_demucs_stems
 from .tidy import tidy_outputs
 from .ui import UIConfig, run_ui
@@ -48,8 +52,12 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--width", type=int, default=960, help="Video width (pixels)")
     render.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     render.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
+    render.add_argument("--layout", default="mix", choices=["mix", "stems4"], help="Layout: mix | stems4")
     render.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
     render.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
+    render.add_argument("--stems-model", default="htdemucs", help="Demucs model for stems4 layout (default: htdemucs)")
+    render.add_argument("--stems-device", default="auto", choices=["auto", "cpu", "cuda"], help="Device for stems4 (auto|cpu|cuda)")
+    render.add_argument("--stems-force", action="store_true", help="Re-run stem separation for stems4 even if cached")
 
     stems = sub.add_parser("stems", help="Separate an audio file into stems (Demucs)")
     stems.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
@@ -64,8 +72,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ui.add_argument("--width", type=int, default=960, help="Video width (pixels)")
     ui.add_argument("--height", type=int, default=540, help="Video height (pixels)")
     ui.add_argument("--fps", type=int, default=30, help="Frames per second (default: 30)")
+    ui.add_argument("--layout", default="mix", choices=["mix", "stems4"], help="Layout: mix | stems4")
     ui.add_argument("--audio-codec", default="mp3", choices=["aac", "mp3"], help="Audio codec for MP4 (aac|mp3)")
     ui.add_argument("--audio-bitrate", default="128k", help="Audio bitrate (e.g. 96k, 128k, 160k)")
+    ui.add_argument("--stems-model", default="htdemucs", help="Demucs model for stems4 layout (default: htdemucs)")
+    ui.add_argument("--stems-device", default="auto", choices=["auto", "cpu", "cuda"], help="Device for stems4 (auto|cpu|cuda)")
+    ui.add_argument("--stems-force", action="store_true", help="Re-run stem separation for stems4 even if cached")
 
     tidy = sub.add_parser("tidy", help="Tidy outputs/ (move legacy dirs and loose files into hidden folders)")
     tidy.add_argument("--outputs-dir", default="outputs", help="Outputs directory (default: outputs/)")
@@ -116,7 +128,37 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             # Always render into the per-song output directory.
-            render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg)
+            layout = str(args.layout)
+            if layout == "mix":
+                render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg)
+            elif layout == "stems4":
+                stems = ensure_demucs_stems(
+                    args.audio_path,
+                    out_dir=out_dir,
+                    model=str(args.stems_model),
+                    device=str(args.stems_device),
+                    force=bool(args.stems_force),
+                )
+
+                stem_analyses: dict[str, dict] = {}
+                for name, stem_path in stems.stems.items():
+                    y, sr = librosa.load(stem_path, sr=22050, mono=True)
+                    y = np.asarray(y, dtype=np.float32)
+                    a = analyze_audio(y, int(sr))
+                    if name != "drums":
+                        a["beats"]["beat_times_s"] = []
+                        a["beats"]["tempo_bpm"] = 0.0
+                    stem_analyses[name] = a
+
+                render_mp4_stems4(
+                    stem_analyses=stem_analyses,
+                    duration_s=float(analysis["meta"]["duration_s"]),
+                    audio_path=args.audio_path,
+                    out_path=canonical_mp4,
+                    cfg=cfg,
+                )
+            else:
+                raise AssertionError(f"Unknown layout: {layout!r}")
 
             # If --out is given, also place a copy/hardlink there.
             if args.out:
@@ -154,8 +196,12 @@ def main(argv: list[str] | None = None) -> int:
                 width=int(args.width),
                 height=int(args.height),
                 fps=int(args.fps),
+                layout=str(args.layout),
                 audio_codec=str(args.audio_codec),
                 audio_bitrate=str(args.audio_bitrate),
+                stems_model=str(args.stems_model),
+                stems_device=str(args.stems_device),
+                stems_force=bool(args.stems_force),
             )
             return int(run_ui(cfg) or 0)
 
