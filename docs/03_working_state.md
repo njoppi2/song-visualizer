@@ -15,6 +15,12 @@
   - tempo + beat times
   - loudness (RMS) envelope normalized to [0,1]
   - onset strength normalized to [0,1]
+- Story (v0+):
+  - `songviz analyze` and `songviz render` also write `outputs/<song_name>/analysis/story.json`
+  - includes:
+    - coarse section segmentation (`A/B/C/...`) from MFCC clustering
+    - a per-frame `tension` curve (energy/brightness proxy) aligned to envelope frames
+    - simple `drop_times_s` event candidates
 - Renderer (v0):
   - 30 fps (default) video
   - layered visuals driven by loudness + onset strength + beat flashes
@@ -23,12 +29,17 @@
   - audio codec can be selected via `--audio-codec aac|mp3` (default: mp3 for browser-friendliness)
   - supports `--layout stems4` to render a 2x2 grid where each quadrant is driven by a Demucs stem (drums/bass/vocals/other)
     - each stem has a distinct visual grammar (drums hit bars, bass oscilloscope, vocals pitch trail, other chroma spokes)
+    - backgrounds subtly shift by story section; motion increases with `tension`
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 
 ## What is next
-- Smoke-test MP4 output on a machine with ffmpeg installed.
-- Polish error handling and defaults based on real renders.
-  - Consider caching stem feature extraction (pitch/chroma) if render startup becomes slow.
+- Improve story signals:
+  - better section boundaries (less “jitter”, fewer micro-sections)
+  - build explicit “buildup/climax” events from tension slope + beats
+  - cache note-events and story computations so rerenders are faster
+- Improve story-driven rendering:
+  - stronger visual “chapter changes” at boundaries (with short crossfades)
+  - map “buildup” to progressively tighter composition, “drop” to release
 
 ## How to run locally
 - `pip install -e .`

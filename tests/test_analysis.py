@@ -26,7 +26,8 @@ def test_analyze_required_keys_and_lengths(tmp_path: Path) -> None:
     _write_test_wav(wav)
 
     a = analyze_file(wav)
-    assert set(a.keys()) == {"beats", "envelopes", "meta"}
+    for k in ("beats", "envelopes", "meta"):
+        assert k in a
 
     assert "song_id" in a["meta"]
     assert "duration_s" in a["meta"]
@@ -47,4 +48,3 @@ def test_analyze_required_keys_and_lengths(tmp_path: Path) -> None:
     onset = np.asarray(env["onset_strength"], dtype=np.float32)
     assert float(onset.min()) >= -1e-6
     assert float(onset.max()) <= 1.0 + 1e-6
-

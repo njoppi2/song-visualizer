@@ -22,6 +22,7 @@ from .ingest import song_id_for_path
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
+    story_path_for_output_dir,
     video_path_for_output_dir,
 )
 from .render import RenderConfig, render_mp4, render_mp4_stems4
@@ -104,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
             canonical = analysis_path_for_output_dir(out_dir)
             canonical.parent.mkdir(parents=True, exist_ok=True)
             canonical.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            # Also export story as a separate artifact for easier human inspection.
+            story_p = story_path_for_output_dir(out_dir)
+            story_p.parent.mkdir(parents=True, exist_ok=True)
+            story_p.write_text(json.dumps(analysis.get("story", {}), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
             if args.out:
                 out_path = Path(args.out)
@@ -123,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
             analysis_path = analysis_path_for_output_dir(out_dir)
             analysis_path.parent.mkdir(parents=True, exist_ok=True)
             analysis_path.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            story_p = story_path_for_output_dir(out_dir)
+            story_p.parent.mkdir(parents=True, exist_ok=True)
+            story_p.write_text(json.dumps(analysis.get("story", {}), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
             canonical_mp4 = video_path_for_output_dir(out_dir)
             cfg = RenderConfig(
@@ -154,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
                     y, sr = librosa.load(stem_path, sr=22050, mono=True)
                     y = np.asarray(y, dtype=np.float32)
                     a = analyze_audio(y, int(sr), hop_length=hop_length, frame_length=frame_length)
+                    # Use the mix story/sections for all stems (keeps a single "narrative timeline").
+                    a["story"] = analysis.get("story", {})
 
                     # Optional stem-specific features (in-memory only).
                     feats: dict[str, np.ndarray] = {}

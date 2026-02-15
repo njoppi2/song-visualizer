@@ -73,6 +73,22 @@ def _hz_to_note_name(hz: float) -> str | None:
     return f"{name}{octv}"
 
 
+def _silence_gate01(x: float, *, thr: float = 0.035, knee: float = 0.035) -> float:
+    """
+    Map a normalized envelope value (0..1) to a visibility factor (0..1) with
+    a soft knee near "silence".
+    """
+    if not np.isfinite(x):
+        return 0.0
+    if x <= thr:
+        return 0.0
+    if knee <= 1e-9:
+        return 1.0
+    t = (x - thr) / knee
+    t = float(np.clip(t, 0.0, 1.0))
+    return t * t * (3.0 - 2.0 * t)  # smoothstep
+
+
 class Visualizer:
     def __init__(self, analysis: dict[str, Any], cfg: RenderConfig):
         self.cfg = cfg
@@ -94,9 +110,41 @@ class Visualizer:
         self.c_accent = c_accent
         self.base = _make_gradient(cfg.width, cfg.height, c_top, c_bot)
 
+        # Optional "story" overlays (sections + tension curve).
+        self.story = analysis.get("story") if isinstance(analysis, dict) else None
+        self._story_sections: list[dict[str, Any]] = []
+        self._tension_times = np.zeros((0,), dtype=np.float32)
+        self._tension_val = np.zeros((0,), dtype=np.float32)
+        if isinstance(self.story, dict):
+            secs = self.story.get("sections")
+            if isinstance(secs, list):
+                self._story_sections = [s for s in secs if isinstance(s, dict)]
+            ten = self.story.get("tension")
+            if isinstance(ten, dict):
+                self._tension_times = _as_np_float(ten.get("times_s", []))
+                self._tension_val = _as_np_float(ten.get("value", []))
+
         # Static film grain; scaled per-frame by onset.
         grain = self.rng.random((cfg.height, cfg.width, 1), dtype=np.float32)
         self.grain = (grain - 0.5)  # [-0.5, 0.5]
+
+    def _section_index(self, t: float) -> int:
+        if not self._story_sections:
+            return 0
+        for i, sec in enumerate(self._story_sections):
+            try:
+                s0 = float(sec.get("start_s", 0.0))
+                s1 = float(sec.get("end_s", 0.0))
+            except Exception:
+                continue
+            if s0 <= t < s1:
+                return int(i)
+        return int(max(0, len(self._story_sections) - 1))
+
+    def _interp_tension(self, t: float) -> float:
+        if self._tension_times.size == 0 or self._tension_val.size == 0:
+            return 0.0
+        return float(np.interp(t, self._tension_times, self._tension_val))
 
     def _interp_env(self, t: float) -> tuple[float, float]:
         if self.env_times.size == 0:
@@ -123,12 +171,26 @@ class Visualizer:
         w, h = self.cfg.width, self.cfg.height
         loud, onset = self._interp_env(t)
         flash = self._beat_flash(t)
+        tension = self._interp_tension(t)
+
+        # Section-aware palette: deterministic "chapters" across the song.
+        sec_idx = self._section_index(t)
+        palettes = [
+            ((12, 18, 38), (24, 70, 140)),   # deep blue
+            ((22, 14, 6), (180, 90, 18)),    # amber
+            ((8, 22, 18), (22, 120, 88)),    # teal
+            ((18, 10, 24), (124, 24, 100)),  # magenta
+        ]
+        top2, bot2 = palettes[int(sec_idx) % len(palettes)]
+        story_mix = float(np.clip(0.15 + 0.55 * (tension**0.9), 0.0, 0.85))
 
         # Background (layer 1): gradient + loudness brightness + onset grain.
-        bg = self.base.astype(np.float32)
-        brightness = 0.55 + 0.65 * (loud ** 0.6)
+        base = self.base.astype(np.float32)
+        story = _make_gradient(w, h, top2, bot2).astype(np.float32)
+        bg = (1.0 - story_mix) * base + story_mix * story
+        brightness = 0.50 + 0.65 * (loud**0.6) + 0.12 * (tension**0.9)
         bg *= brightness
-        bg += (self.grain * (40.0 * onset))  # subtle spark on onsets
+        bg += (self.grain * (22.0 * onset + 18.0 * tension))  # tension adds motion
         bg = np.clip(bg, 0, 255).astype(np.uint8)
 
         img = Image.fromarray(bg, mode="RGB")
@@ -205,6 +267,20 @@ class StemQuadVisualizer:
             self.note_events = []
         self._note_idx = -1
 
+        # Optional story info (sections + tension) shared across stems.
+        story = analysis.get("story") if isinstance(analysis, dict) else None
+        self._story_sections: list[dict[str, Any]] = []
+        self._tension_times = np.zeros((0,), dtype=np.float32)
+        self._tension_val = np.zeros((0,), dtype=np.float32)
+        if isinstance(story, dict):
+            secs = story.get("sections")
+            if isinstance(secs, list):
+                self._story_sections = [s for s in secs if isinstance(s, dict)]
+            ten = story.get("tension")
+            if isinstance(ten, dict):
+                self._tension_times = _as_np_float(ten.get("times_s", []))
+                self._tension_val = _as_np_float(ten.get("value", []))
+
         # Pre-process pitch into a stable [0,1] range for drawing.
         self.pitch_norm = None
         self.pitch_voiced = None
@@ -251,6 +327,24 @@ class StemQuadVisualizer:
         onset = float(np.interp(t, self.env_times, self.onset))
         return loud, onset
 
+    def _section_index(self, t: float) -> int:
+        if not self._story_sections:
+            return 0
+        for i, sec in enumerate(self._story_sections):
+            try:
+                s0 = float(sec.get("start_s", 0.0))
+                s1 = float(sec.get("end_s", 0.0))
+            except Exception:
+                continue
+            if s0 <= t < s1:
+                return int(i)
+        return int(max(0, len(self._story_sections) - 1))
+
+    def _interp_tension(self, t: float) -> float:
+        if self._tension_times.size == 0 or self._tension_val.size == 0:
+            return 0.0
+        return float(np.interp(t, self._tension_times, self._tension_val))
+
     def _beat_flash(self, t: float, *, decay_s: float = 0.12) -> float:
         if self.beat_times.size == 0:
             return 0.0
@@ -286,6 +380,7 @@ class StemQuadVisualizer:
 
     def _draw_drums(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float, flash: float) -> None:
         w, h = self.cfg.width, self.cfg.height
+        vis = _silence_gate01(loud)
 
         # 3-band "kick/snare/hats" meters if present, otherwise fall back to onset history bars.
         k = self._env_index(t)
@@ -310,12 +405,15 @@ class StemQuadVisualizer:
 
         # "Drum head" ring + impact outline.
         cx, cy = w * 0.5, h * 0.45
-        r = (min(w, h) * (0.14 + 0.22 * (loud**0.8)))
-        ring_w = max(2, int(2 + 10 * onset))
-        draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(*self.c_accent, 220), width=ring_w)
-        if onset > 0.15:
-            r2 = r * (1.0 + 0.55 * onset)
-            draw.ellipse((cx - r2, cy - r2, cx + r2, cy + r2), outline=(255, 255, 255, int(140 * onset)), width=2)
+        if vis > 1e-3:
+            # Radius and opacity are loudness-driven; in near-silence, this becomes invisible.
+            r = (min(w, h) * (0.14 + 0.22 * (loud**0.8))) * (0.25 + 0.75 * vis)
+            ring_w = max(2, int(2 + 10 * onset))
+            a = int(220 * vis)
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(*self.c_accent, a), width=ring_w)
+            if onset > 0.15:
+                r2 = r * (1.0 + 0.55 * onset)
+                draw.ellipse((cx - r2, cy - r2, cx + r2, cy + r2), outline=(255, 255, 255, int(140 * onset * vis)), width=2)
 
         # Beat flash: border pulse (more readable than full-screen strobe in a quadrant).
         if flash > 1e-3:
@@ -325,11 +423,15 @@ class StemQuadVisualizer:
     def _draw_bass(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float) -> None:
         w, h = self.cfg.width, self.cfg.height
         cx, cy = w * 0.5, h * 0.5
+        vis = _silence_gate01(loud)
 
         amp = loud ** 0.9
-        r = min(w, h) * (0.10 + 0.30 * amp)
+        if vis <= 1e-3:
+            return
+
+        r = min(w, h) * (0.10 + 0.30 * amp) * (0.25 + 0.75 * vis)
         ow = max(2, int(2 + 10 * amp))
-        draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(*self.c_accent, 220), width=ow)
+        draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(*self.c_accent, int(220 * vis)), width=ow)
         draw.ellipse((cx - r * 0.55, cy - r * 0.55, cx + r * 0.55, cy + r * 0.55), outline=(255, 255, 255, 90), width=2)
 
         # Oscilloscope wave: slow, heavy motion.
@@ -341,7 +443,7 @@ class StemQuadVisualizer:
             u = (x / max(1.0, w)) * (2.0 * math.pi)
             y = cy + math.sin(u * freq + phase) * a + math.sin(u * (freq * 0.5) + phase * 0.7) * (a * 0.35)
             pts.append((x, y))
-        draw.line(pts, fill=(*self.c_accent, 220), width=max(2, int(3 + 8 * amp)))
+        draw.line(pts, fill=(*self.c_accent, int(220 * vis)), width=max(2, int(3 + 8 * amp)))
 
         # VU bar on the left.
         meter_h = int(h * (0.10 + 0.80 * amp))
@@ -357,6 +459,7 @@ class StemQuadVisualizer:
 
     def _draw_vocals(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float) -> None:
         w, h = self.cfg.width, self.cfg.height
+        vis = _silence_gate01(loud)
 
         k = self._env_index(t)
         y_norm = 0.5
@@ -445,21 +548,28 @@ class StemQuadVisualizer:
             # With note events, we don't need the dot/trail as the primary carrier.
             return
 
-        self._trail.append((x, y))
-        if len(self._trail) > 72:
-            self._trail = self._trail[-72:]
+        # When the stem is silent, don't leave a misleading trail behind.
+        if vis > 1e-3:
+            self._trail.append((x, y))
+            if len(self._trail) > 72:
+                self._trail = self._trail[-72:]
+        else:
+            self._trail = []
 
         # Trail (older segments fade out).
         for i in range(1, len(self._trail)):
             a = int(12 + 170 * (i / len(self._trail)) ** 2 * (0.35 + 0.65 * voiced))
             draw.line((self._trail[i - 1], self._trail[i]), fill=(255, 255, 255, a), width=2)
 
-        r = min(w, h) * (0.020 + 0.055 * (loud**0.9))
-        fill_a = int(60 + 170 * loud) if voiced > 0.0 else int(30 + 90 * loud)
-        draw.ellipse((x - r, y - r, x + r, y + r), fill=(*self.c_accent, fill_a), outline=(255, 255, 255, 200), width=2)
+        if vis <= 1e-3:
+            return
+
+        r = min(w, h) * (0.020 + 0.055 * (loud**0.9)) * (0.25 + 0.75 * vis)
+        fill_a = (int(60 + 170 * loud) if voiced > 0.0 else int(30 + 90 * loud)) * vis
+        draw.ellipse((x - r, y - r, x + r, y + r), fill=(*self.c_accent, int(fill_a)), outline=(255, 255, 255, int(200 * vis)), width=2)
         if onset > 0.2:
             r2 = r * (1.0 + 1.8 * onset)
-            draw.ellipse((x - r2, y - r2, x + r2, y + r2), outline=(255, 255, 255, int(140 * onset)), width=2)
+            draw.ellipse((x - r2, y - r2, x + r2, y + r2), outline=(255, 255, 255, int(140 * onset * vis)), width=2)
 
         # Note name readout.
         if self.pitch_hz.size:
@@ -515,11 +625,24 @@ class StemQuadVisualizer:
         w, h = self.cfg.width, self.cfg.height
         loud, onset = self._interp_env(t)
         flash = self._beat_flash(t)
+        tension = self._interp_tension(t)
 
-        bg = self.base.astype(np.float32)
-        brightness = 0.48 + 0.72 * (loud**0.6)
+        sec_idx = self._section_index(t)
+        palettes = [
+            ((12, 18, 38), (24, 70, 140)),   # deep blue
+            ((22, 14, 6), (180, 90, 18)),    # amber
+            ((8, 22, 18), (22, 120, 88)),    # teal
+            ((18, 10, 24), (124, 24, 100)),  # magenta
+        ]
+        top2, bot2 = palettes[int(sec_idx) % len(palettes)]
+        story_mix = float(np.clip(0.12 + 0.40 * (tension**0.9), 0.0, 0.65))
+
+        base = self.base.astype(np.float32)
+        story = _make_gradient(w, h, top2, bot2).astype(np.float32)
+        bg = (1.0 - story_mix) * base + story_mix * story
+        brightness = 0.46 + 0.72 * (loud**0.6) + 0.10 * (tension**0.9)
         bg *= brightness
-        bg += (self.grain * (28.0 * onset))
+        bg += (self.grain * (18.0 * onset + 16.0 * tension))
         bg = np.clip(bg, 0, 255).astype(np.uint8)
 
         img = Image.fromarray(bg, mode="RGB")

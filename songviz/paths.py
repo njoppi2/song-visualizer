@@ -62,5 +62,9 @@ def analysis_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "analysis" / "analysis.json"
 
 
+def story_path_for_output_dir(out_dir: Path) -> Path:
+    return out_dir / "analysis" / "story.json"
+
+
 def video_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "video.mp4"

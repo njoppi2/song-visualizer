@@ -8,6 +8,7 @@ import librosa
 import numpy as np
 
 from .ingest import song_id_for_path
+from .story import compute_story
 
 
 def _utc_now_iso() -> str:
@@ -100,5 +101,7 @@ def analyze_file(
     y = np.asarray(y, dtype=np.float32)
 
     analysis = analyze_audio(y, sr, hop_length=hop_length, frame_length=frame_length)
+    # Optional "story" signals (segmentation + tension). Kept lightweight so v0 stays fast.
+    analysis["story"] = compute_story(y, sr, hop_length=hop_length, frame_length=frame_length)
     analysis["meta"]["song_id"] = song_id
     return analysis
