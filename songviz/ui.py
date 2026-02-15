@@ -152,6 +152,7 @@ def run_ui(cfg: UIConfig) -> int:
         out_dir = cfg.outputs_dir / label
         canonical_video = video_path_for_output_dir(out_dir)
         canonical_analysis = analysis_path_for_output_dir(out_dir)
+        stems_meta = out_dir / "stems" / "stems.json"
 
         _clear_screen()
         print("SongViz UI")
@@ -162,6 +163,8 @@ def run_ui(cfg: UIConfig) -> int:
         print()
         if canonical_video.exists():
             print(f"Existing video: {canonical_video} ({_human_size(canonical_video.stat().st_size)})")
+            if str(cfg.layout) == "stems4" and not stems_meta.exists():
+                print("Note: stems cache not found; this video was probably rendered as mix.")
             action = input("Regenerate video? [Y/n] ").strip().lower()
             if action in ("n", "no"):
                 continue
