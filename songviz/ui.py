@@ -22,6 +22,7 @@ from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
     safe_dirname,
+    story_path_for_output_dir,
     video_path_for_output_dir,
 )
 from .render import RenderConfig, render_mp4, render_mp4_stems4
@@ -94,6 +95,9 @@ def _print_song_list(cfg: UIConfig, songs: list[Path]) -> None:
     print()
     print(f"Songs dir: {cfg.songs_dir}")
     print(f"Outputs dir: {cfg.outputs_dir}")
+    print(f"Layout: {cfg.layout}")
+    if str(cfg.layout) == "stems4":
+        print(f"Stems: model={cfg.stems_model} device={cfg.stems_device} force={1 if cfg.stems_force else 0}")
     print()
     if not songs:
         print("No audio files found.")
@@ -154,6 +158,7 @@ def run_ui(cfg: UIConfig) -> int:
         print()
         print(f"Selected: {audio_path}")
         print(f"Outputs:  {out_dir}")
+        print(f"Layout:   {cfg.layout}")
         print()
         if canonical_video.exists():
             print(f"Existing video: {canonical_video} ({_human_size(canonical_video.stat().st_size)})")
@@ -176,6 +181,9 @@ def run_ui(cfg: UIConfig) -> int:
         canonical_analysis = analysis_path_for_output_dir(out_dir)
         canonical_analysis.parent.mkdir(parents=True, exist_ok=True)
         canonical_analysis.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        story_p = story_path_for_output_dir(out_dir)
+        story_p.parent.mkdir(parents=True, exist_ok=True)
+        story_p.write_text(json.dumps(analysis.get("story", {}), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
         canonical_video = video_path_for_output_dir(out_dir)
         rcfg = RenderConfig(
@@ -206,6 +214,8 @@ def run_ui(cfg: UIConfig) -> int:
                 y, sr = librosa.load(stem_path, sr=22050, mono=True)
                 y = np.asarray(y, dtype=np.float32)
                 a = analyze_audio(y, int(sr), hop_length=hop_length, frame_length=frame_length)
+                # Use the mix story/sections for all stems (keeps a single "narrative timeline").
+                a["story"] = analysis.get("story", {})
 
                 feats: dict[str, np.ndarray] = {}
                 if name == "drums":
@@ -248,6 +258,7 @@ def run_ui(cfg: UIConfig) -> int:
         print("Done.")
         print(f"Wrote: {canonical_video}")
         print(f"Wrote: {canonical_analysis}")
+        print(f"Wrote: {story_p}")
         input("Press Enter to continue...")
 
 

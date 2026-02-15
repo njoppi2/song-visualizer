@@ -14,12 +14,13 @@ Generate a music-reactive video from an audio file.
 ## Interactive UI
 - Put songs in `songs/`
 - Run: `python3 -m songviz ui`
-- Or: `make ui`
+- Or: `make ui` (renders `--layout stems4` by default; override with `make ui UI_LAYOUT=mix`)
 
 ## Outputs
 SongViz writes per-song artifacts under `outputs/<song_name>/`:
 - `video.mp4`
 - `analysis/analysis.json`
+- `analysis/story.json`
 - `stems/` (optional; written by `python3 -m songviz stems ...`)
 
 If you want `outputs/` to stay clean, run `python3 -m songviz tidy` to move old layout folders and loose files into hidden subfolders.

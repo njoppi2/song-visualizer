@@ -16,7 +16,7 @@
   - loudness (RMS) envelope normalized to [0,1]
   - onset strength normalized to [0,1]
 - Story (v0+):
-  - `songviz analyze` and `songviz render` also write `outputs/<song_name>/analysis/story.json`
+  - `songviz analyze`, `songviz render`, and `songviz ui` also write `outputs/<song_name>/analysis/story.json`
   - includes:
     - coarse section segmentation (`A/B/C/...`) from MFCC clustering
     - a per-frame `tension` curve (energy/brightness proxy) aligned to envelope frames
@@ -52,6 +52,7 @@
 - If your browser shows a muted/disabled volume icon, try: `python3 -m songviz render path/to/song.flac --audio-codec mp3`
 - If VS Code preview is silent/unreliable, open the MP4 in a media player (e.g. `mpv` or `vlc`).
 - `python3 -m songviz ui` (or `make ui`)
+  - `make ui` defaults to `--layout stems4` (override with `make ui UI_LAYOUT=mix`)
 - `python3 -m songviz tidy` (optional: cleans `outputs/` by moving legacy dirs/loose files into hidden folders)
 - `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
 
