@@ -37,10 +37,11 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - `--audio-codec aac|mp3` (default `mp3`)
   - `--layout stems4` renders a 2x2 stem grid with stem-specific visuals
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
-- Lyrics alignment:
+- Lyrics alignment + render integration:
   - `songviz lyrics <audio>` writes `outputs/<song_id>/lyrics/alignment.json`.
   - Whisper-based (word-level timestamps + confidence); uses vocals stem when present.
   - `lyrics.load_alignment()` / `lyrics.lyric_activity_at()` / `lyrics.lyric_signals_for_timeline()` expose derived signals.
+  - `songviz render <audio> --lyrics` loads `alignment.json` and renders the active word as a text overlay (mix layout: bottom-center; stems4 layout: vocals quadrant bottom-center).
 
 ## Lyrics status
 - **Implemented**: `songviz lyrics <audio>` runs Whisper with word timestamps and writes `outputs/<song_id>/lyrics/alignment.json`.
@@ -55,9 +56,10 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
 - Improve story signal quality:
   - reduce section jitter and micro-sections
   - add explicit buildup/climax/drop event extraction
-- Deepen lyrics → render integration (lyrics pipeline is done; rendering still ignores it):
-  - use `lyric_signals_for_timeline()` to drive word-flash visuals in the renderer
-  - add `--lyrics` flag to `songviz render` to load alignment.json automatically
+- Deepen lyrics integration (pipeline + render done; remaining):
+  - MFA forced alignment path (better accuracy on clean vocals)
+  - pYIN pitch summary per word
+  - `lyrics-aligner` fallback (wav2vec2, pip-installable)
 - Improve story-driven rendering:
   - stronger chapter transitions at boundaries
   - clearer buildup vs drop visual grammar

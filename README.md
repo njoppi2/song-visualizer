@@ -75,6 +75,13 @@ Options:
 - `--model base` — Whisper model size: tiny, base, small, medium, large (default: base)
 - `--force` — re-run alignment even if a cached file exists
 
+To display lyrics as a word overlay in the rendered video, run lyrics first and then render with `--lyrics`:
+
+```bash
+python3 -m songviz lyrics songs/my.flac
+python3 -m songviz render songs/my.flac --lyrics
+```
+
 ### VS Code note (Linux)
 VS Code's bundled media preview can be unreliable for some video/audio codecs. If a rendered MP4 is silent (or fails to load) inside VS Code, open it in a media player instead:
 - `xdg-open outputs/<song_name>/video.mp4`

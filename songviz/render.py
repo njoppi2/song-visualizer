@@ -60,6 +60,39 @@ def _stem_palette(stem: str) -> tuple[tuple[int, int, int], tuple[int, int, int]
     return palettes.get(stem, palettes["other"])
 
 
+def _make_lyrics_font() -> ImageFont.ImageFont:
+    """Return the largest readable font available for lyric overlays."""
+    try:
+        return ImageFont.load_default(size=28)  # Pillow >= 10.1
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _draw_lyric_overlay(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    confidence: float,
+    *,
+    cx: float,
+    cy: float,
+    font: ImageFont.ImageFont,
+) -> None:
+    """Render an active lyric word as a centered text overlay with dark background."""
+    alpha = max(80, int(220 * max(0.35, float(confidence))))
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        px, py = 10, 4
+        draw.rectangle(
+            (cx - tw / 2 - px, cy - th / 2 - py, cx + tw / 2 + px, cy + th / 2 + py),
+            fill=(0, 0, 0, int(alpha * 0.6)),
+        )
+        draw.text((cx - tw / 2, cy - th / 2), text, fill=(255, 255, 255, alpha), font=font)
+    except Exception:
+        pass
+
+
 _NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 
@@ -90,9 +123,11 @@ def _silence_gate01(x: float, *, thr: float = 0.035, knee: float = 0.035) -> flo
 
 
 class Visualizer:
-    def __init__(self, analysis: dict[str, Any], cfg: RenderConfig):
+    def __init__(self, analysis: dict[str, Any], cfg: RenderConfig, *, alignment: dict[str, Any] | None = None):
         self.cfg = cfg
         self.rng = np.random.default_rng(cfg.seed)
+        self._alignment = alignment
+        self._lyrics_font = _make_lyrics_font() if alignment is not None else None
 
         env = analysis["envelopes"]
         self.env_times = _as_np_float(env["times_s"])
@@ -225,6 +260,20 @@ class Visualizer:
             a = int(140 * flash)
             draw.rectangle((0, 0, w, h), fill=(255, 255, 255, a))
 
+        # Lyric word overlay (layer 5): active word centered near the bottom.
+        if self._alignment is not None and self._lyrics_font is not None:
+            from .lyrics import lyric_activity_at as _lyric_at
+            act = _lyric_at(self._alignment, t)
+            if act["active_word"]:
+                _draw_lyric_overlay(
+                    draw,
+                    act["active_word"],
+                    act.get("word_confidence", 0.8),
+                    cx=w / 2,
+                    cy=h * 0.84,
+                    font=self._lyrics_font,
+                )
+
         return img.tobytes()
 
 
@@ -239,10 +288,13 @@ class StemQuadVisualizer:
     - other: chroma spokes wheel (if available) + texture
     """
 
-    def __init__(self, stem: str, analysis: dict[str, Any], cfg: RenderConfig):
+    def __init__(self, stem: str, analysis: dict[str, Any], cfg: RenderConfig, *, alignment: dict[str, Any] | None = None):
         self.stem = str(stem)
         self.cfg = cfg
         self.rng = np.random.default_rng(cfg.seed)
+        # Lyrics overlay only makes sense on the vocals quadrant.
+        self._alignment = alignment if self.stem == "vocals" else None
+        self._lyrics_font = _make_lyrics_font() if self._alignment is not None else None
 
         try:
             self.font = ImageFont.load_default()
@@ -578,6 +630,20 @@ class StemQuadVisualizer:
             if note:
                 draw.text((w - 10, h - 16), f"{note}  {hz:0.0f}Hz", fill=(255, 255, 255, int(160 + 70 * voiced)), anchor="rd", font=self.font if hasattr(self, "font") else None)
 
+        # Lyric word overlay: centered at the bottom of the vocals quadrant.
+        if self._alignment is not None and self._lyrics_font is not None:
+            from .lyrics import lyric_activity_at as _lyric_at
+            act = _lyric_at(self._alignment, t)
+            if act["active_word"]:
+                _draw_lyric_overlay(
+                    draw,
+                    act["active_word"],
+                    act.get("word_confidence", 0.8),
+                    cx=w / 2,
+                    cy=h * 0.88,
+                    font=self._lyrics_font,
+                )
+
     def _draw_other(self, draw: ImageDraw.ImageDraw, t: float, loud: float, onset: float) -> None:
         w, h = self.cfg.width, self.cfg.height
         cx, cy = w * 0.5, h * 0.52
@@ -667,7 +733,7 @@ class StemGridVisualizer:
     Expected stem names (Demucs default): drums, bass, vocals, other.
     """
 
-    def __init__(self, stem_analyses: dict[str, dict[str, Any]], cfg: RenderConfig, *, labels: bool = True):
+    def __init__(self, stem_analyses: dict[str, dict[str, Any]], cfg: RenderConfig, *, labels: bool = True, alignment: dict[str, Any] | None = None):
         if cfg.width % 2 != 0 or cfg.height % 2 != 0:
             raise ValueError("width and height must be even for stems4 layout")
 
@@ -691,7 +757,9 @@ class StemGridVisualizer:
         for i, name in enumerate(self.order):
             # Stable seed offsets so each quadrant has its own deterministic palette.
             qcfg = replace(cfg, width=self.w_half, height=self.h_half, seed=int(cfg.seed) + ((i + 1) * 1000))
-            self._quads[name] = StemQuadVisualizer(name, stem_analyses[name], qcfg)
+            # Pass alignment only to the vocals quadrant.
+            quad_alignment = alignment if name == "vocals" else None
+            self._quads[name] = StemQuadVisualizer(name, stem_analyses[name], qcfg, alignment=quad_alignment)
 
     def frame_rgb24(self, t: float) -> bytes:
         img = Image.new("RGB", (self.cfg.width, self.cfg.height))
@@ -807,9 +875,10 @@ def render_mp4(
     audio_path: str | Path,
     out_path: str | Path,
     cfg: RenderConfig,
+    alignment: dict[str, Any] | None = None,
 ) -> None:
     duration_s = float(analysis["meta"]["duration_s"])
-    vis = Visualizer(analysis, cfg)
+    vis = Visualizer(analysis, cfg, alignment=alignment)
     _render_mp4_with_visualizer(
         audio_path=audio_path,
         out_path=out_path,
@@ -826,8 +895,9 @@ def render_mp4_stems4(
     audio_path: str | Path,
     out_path: str | Path,
     cfg: RenderConfig,
+    alignment: dict[str, Any] | None = None,
 ) -> None:
-    vis = StemGridVisualizer(stem_analyses, cfg)
+    vis = StemGridVisualizer(stem_analyses, cfg, alignment=alignment)
     _render_mp4_with_visualizer(
         audio_path=audio_path,
         out_path=out_path,

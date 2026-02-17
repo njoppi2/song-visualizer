@@ -66,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     render.add_argument("--stems-model", default="htdemucs", help="Demucs model for stems4 layout (default: htdemucs)")
     render.add_argument("--stems-device", default="auto", choices=["auto", "cpu", "cuda"], help="Device for stems4 (auto|cpu|cuda)")
     render.add_argument("--stems-force", action="store_true", help="Re-run stem separation for stems4 even if cached")
+    render.add_argument("--lyrics", action="store_true", help="Load lyrics/alignment.json (if present) and render word overlays")
 
     stems = sub.add_parser("stems", help="Separate an audio file into stems (Demucs)")
     stems.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
@@ -153,10 +154,22 @@ def main(argv: list[str] | None = None) -> int:
                 audio_bitrate=str(args.audio_bitrate),
             )
 
+            # Load lyrics alignment when --lyrics flag is set.
+            alignment = None
+            if getattr(args, "lyrics", False):
+                from .lyrics import load_alignment
+                alignment = load_alignment(out_dir)
+                if alignment is None:
+                    print(
+                        f"warning: --lyrics set but lyrics/alignment.json not found under {out_dir}. "
+                        "Run `songviz lyrics` first.",
+                        file=sys.stderr,
+                    )
+
             # Always render into the per-song output directory.
             layout = str(args.layout)
             if layout == "mix":
-                render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg)
+                render_mp4(analysis=analysis, audio_path=args.audio_path, out_path=canonical_mp4, cfg=cfg, alignment=alignment)
             elif layout == "stems4":
                 stems = ensure_demucs_stems(
                     args.audio_path,
@@ -213,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
                     audio_path=args.audio_path,
                     out_path=canonical_mp4,
                     cfg=cfg,
+                    alignment=alignment,
                 )
             else:
                 raise AssertionError(f"Unknown layout: {layout!r}")
