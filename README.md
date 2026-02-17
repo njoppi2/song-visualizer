@@ -2,6 +2,12 @@
 
 Generate a music-reactive video from an audio file.
 
+## Start Here (Humans + LLMs)
+- Current runtime status and priorities: `docs/03_working_state.md`
+- Repo map and command reference: `docs/04_repo_reference.md`
+- Canonical lyrics implementation path: `docs/05_lyrics_playbook.md`
+- Lyrics research and alternatives (non-default): `docs/research/lyrics_syncing_research.md`
+
 ## Quickstart
 1) Install Python 3.10+
 2) Install ffmpeg (recommended for MP4 output). If not available, SongViz will attempt to use a user-space ffmpeg binary via `imageio-ffmpeg`.
@@ -16,12 +22,18 @@ Generate a music-reactive video from an audio file.
 - Run: `python3 -m songviz ui`
 - Or: `make ui` (renders `--layout stems4` by default; override with `make ui UI_LAYOUT=mix`)
 
+## Make targets
+- `make ui` (or `python3 -m songviz ui`) shows a terminal picker, separates the selected track into stems, runs the story-aware analysis pipeline, and renders a stems-grid video.
+- `make render` is shorthand for running `python3 -m songviz render` with a handful of defaults; it produces the per-song `analysis/analysis.json`, `story.json`, and `video.mp4` files under `outputs/`.
+- `make analyze` or `python3 -m songviz analyze` only generates `analysis/*.json` (including `story.json`) so you can inspect beats, envelopes, sections, and tension without rendering a video.
+
 ## Outputs
 SongViz writes per-song artifacts under `outputs/<song_name>/`:
 - `video.mp4`
 - `analysis/analysis.json`
 - `analysis/story.json`
 - `stems/` (optional; written by `python3 -m songviz stems ...`)
+- `lyrics/alignment.json` (optional; written by `python3 -m songviz lyrics ...`; requires `pip install -e '.[lyrics]'`)
 
 If you want `outputs/` to stay clean, run `python3 -m songviz tidy` to move old layout folders and loose files into hidden subfolders.
 
@@ -47,6 +59,21 @@ You can also render a 2x2 stems grid video (one quadrant per stem):
 ```bash
 python3 -m songviz render songs/my.flac --layout stems4
 ```
+
+## Lyrics (Optional)
+If you install the optional `openai-whisper` dependency, SongViz can transcribe and align lyrics:
+
+```bash
+pip install -e '.[lyrics]'
+python3 -m songviz lyrics songs/my.flac
+```
+
+This writes `outputs/<song_name>/lyrics/alignment.json` with word-level timestamps and confidence scores. If a vocals stem exists under `outputs/<song_name>/stems/vocals.wav`, it is used automatically for better alignment quality.
+
+Options:
+- `--language en` — language code for Whisper (default: en)
+- `--model base` — Whisper model size: tiny, base, small, medium, large (default: base)
+- `--force` — re-run alignment even if a cached file exists
 
 ### VS Code note (Linux)
 VS Code's bundled media preview can be unreliable for some video/audio codecs. If a rendered MP4 is silent (or fails to load) inside VS Code, open it in a media player instead:

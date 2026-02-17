@@ -91,6 +91,17 @@ def _build_parser() -> argparse.ArgumentParser:
     tidy.add_argument("--outputs-dir", default="outputs", help="Outputs directory (default: outputs/)")
     tidy.add_argument("--dry-run", action="store_true", help="Print what would happen without moving files")
 
+    lyrics_p = sub.add_parser("lyrics", help="Run lyrics alignment and write lyrics/alignment.json")
+    lyrics_p.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
+    lyrics_p.add_argument("--language", default="en", help="Language code for Whisper (default: en)")
+    lyrics_p.add_argument(
+        "--model",
+        default="base",
+        choices=["tiny", "base", "small", "medium", "large"],
+        help="Whisper model size (default: base)",
+    )
+    lyrics_p.add_argument("--force", action="store_true", help="Re-run alignment even if cached")
+
     return p
 
 
@@ -258,6 +269,31 @@ def main(argv: list[str] | None = None) -> int:
             if not res.moved:
                 print("Nothing to move.")
             return 0
+
+        if args.cmd == "lyrics":
+            from .lyrics import align_lyrics
+
+            song_id = song_id_for_path(args.audio_path)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            # Use isolated vocals stem when available for better alignment quality.
+            vocals_stem = out_dir / "stems" / "vocals.wav"
+            if not vocals_stem.exists():
+                vocals_stem = None  # type: ignore[assignment]
+
+            result = align_lyrics(
+                args.audio_path,
+                song_id=str(song_id),
+                output_dir=out_dir,
+                vocals_stem=vocals_stem,
+                language=str(args.language),
+                model_name=str(args.model),
+                force=bool(args.force),
+            )
+            print(str(result))
+            return 0
+
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

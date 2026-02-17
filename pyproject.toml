@@ -32,6 +32,9 @@ notes = [
   # be compatible with NumPy 2.x on all platforms.
   "numpy<2",
 ]
+lyrics = [
+  "openai-whisper",
+]
 
 [project.scripts]
 songviz = "songviz.cli:main"
