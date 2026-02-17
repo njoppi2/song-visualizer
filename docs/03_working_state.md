@@ -50,7 +50,8 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
 - Key public API in `songviz/lyrics.py`: `align_lyrics()`, `load_alignment()`, `lyric_activity_at()`, `lyric_signals_for_timeline()`.
 - The output contract and full pipeline spec remain in `docs/05_lyrics_playbook.md`.
 - Do not treat `docs/research/lyrics_syncing_research.md` as an execution default.
-- **Not yet done**: MFA forced alignment, pYIN pitch summary, story/render visual integration.
+- **Render integration done**: `--lyrics` flag on `songviz render` draws active word as text overlay.
+- **Not yet done**: MFA forced alignment, pYIN pitch summary, `lyrics-aligner` fallback.
 
 ## Current priorities
 - Improve story signal quality:
