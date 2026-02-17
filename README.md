@@ -9,18 +9,12 @@ Generate a music-reactive video from an audio file.
 - Lyrics research and alternatives (non-default): `docs/research/lyrics_syncing_research.md`
 
 ## Quickstart
-1) Install Python 3.10+
-2) Install ffmpeg (recommended for MP4 output). If not available, SongViz will attempt to use a user-space ffmpeg binary via `imageio-ffmpeg`.
-3) Install deps:
-   - `pip install -e .`
-   - For stems: `pip install -e '.[stems]'` (installs Demucs + TorchCodec)
-4) Run:
-   - `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
+1) Install Python 3.10+ and ffmpeg
+2) Install deps: `pip install -e '.[stems]'`
+3) Drop songs into `songs/`
+4) Run: **`make ui`** — picks a song interactively, separates stems, and renders `outputs/<song>/video.mp4`
 
-## Interactive UI
-- Put songs in `songs/`
-- Run: `python3 -m songviz ui`
-- Or: `make ui` (renders `--layout stems4` by default; override with `make ui UI_LAYOUT=mix`)
+Override layout: `make ui UI_LAYOUT=mix` (skips stem separation, faster).
 
 ## Make targets
 - `make ui` (or `python3 -m songviz ui`) shows a terminal picker, separates the selected track into stems, runs the story-aware analysis pipeline, and renders a stems-grid video.

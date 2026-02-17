@@ -66,19 +66,23 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - clearer buildup vs drop visual grammar
 
 ## How to run locally
-- `pip install -e .`
-- For stems: `pip install -e '.[stems]'` (Demucs + TorchCodec)
-- For lyrics: `pip install -e '.[lyrics]'` (openai-whisper)
+
+### Gerar um vídeo (caminho mais curto)
+```
+pip install -e '.[stems]'   # Demucs + TorchCodec
+# coloque músicas em songs/
+make ui                      # picker interativo → stems → video.mp4
+make ui UI_LAYOUT=mix        # sem stems, mais rápido
+```
+
+### Comandos individuais
 - `python3 -m songviz --help`
 - `python3 -m songviz analyze path/to/song.flac`
-- `python3 -m songviz render path/to/song.flac --out outputs/demo.mp4`
-- `python3 -m songviz render path/to/song.flac --layout stems4` (requires Demucs; creates stems if missing)
-- `python3 -m songviz stems path/to/song.flac`
-- `python3 -m songviz lyrics path/to/song.flac` (requires `.[lyrics]`; uses vocals stem if present)
-- `python3 -m songviz ui` (or `make ui`)
-  - `make ui` defaults to `--layout stems4` (override with `make ui UI_LAYOUT=mix`)
-- `python3 -m songviz tidy` (optional cleanup of legacy output layout)
-- `pytest -q` (or `pip install -e '.[test]' && pytest -q`)
+- `python3 -m songviz render path/to/song.flac` (ou `--layout stems4`, `--lyrics`, etc.)
+- `python3 -m songviz stems path/to/song.flac` (requer `.[stems]`)
+- `python3 -m songviz lyrics path/to/song.flac` (requer `.[lyrics]` = openai-whisper)
+- `python3 -m songviz tidy` (limpeza de outputs antigos)
+- `pytest -q` (ou `pip install -e '.[test]' && pytest -q`)
 
 ## Known issues
 - Rendering uses ffmpeg:
