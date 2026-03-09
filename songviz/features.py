@@ -50,6 +50,62 @@ def _midi_to_hz(midi: np.ndarray) -> np.ndarray:
     return (440.0 * (2.0 ** ((midi - 69.0) / 12.0))).astype(np.float32)
 
 
+def _pyin_pitch_hz(
+    y: np.ndarray,
+    sr: int,
+    *,
+    fmin_hz: float,
+    fmax_hz: float,
+    harmonic_margin: float,
+    voiced_prob_thr: float,
+    hop_length: int,
+    frame_length: int,
+) -> np.ndarray:
+    if y.ndim != 1:
+        raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
+    if sr <= 0:
+        return np.zeros((0,), dtype=np.float32)
+
+    yh = librosa.effects.harmonic(y=y, margin=harmonic_margin).astype(np.float32, copy=False)
+
+    f0, voiced_flag, voiced_prob = librosa.pyin(
+        y=yh,
+        fmin=float(fmin_hz),
+        fmax=float(fmax_hz),
+        sr=int(sr),
+        frame_length=int(frame_length),
+        hop_length=int(hop_length),
+    )
+    f0 = np.asarray(f0, dtype=np.float32)
+    voiced_flag = np.asarray(voiced_flag, dtype=bool)
+    voiced_prob = np.asarray(voiced_prob, dtype=np.float32)
+
+    rms = librosa.feature.rms(
+        y=yh,
+        frame_length=int(frame_length),
+        hop_length=int(hop_length),
+        center=True,
+    )[0].astype(np.float32, copy=False)
+
+    n = int(min(f0.size, rms.size))
+    if n <= 0:
+        return np.zeros((0,), dtype=np.float32)
+    f0 = f0[:n]
+    rms = rms[:n]
+    voiced_flag = voiced_flag[:n]
+    voiced_prob = voiced_prob[:n]
+
+    thr = float(np.percentile(rms, 25)) * 0.8
+    thr = max(thr, float(rms.max()) * 0.08, 1e-6)
+    voiced = (rms >= thr) & voiced_flag & (voiced_prob >= voiced_prob_thr)
+
+    f0v = np.where(voiced, f0, np.nan).astype(np.float32)
+    midi = np.where(np.isfinite(f0v), _hz_to_midi(f0v), np.nan).astype(np.float32)
+    midi = _nanmedian_smooth(midi, win=7)
+    midi_q = np.round(midi).astype(np.float32)
+    return np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
+
+
 def vocals_pitch_hz(
     y: np.ndarray,
     sr: int,
@@ -67,54 +123,12 @@ def vocals_pitch_hz(
     - use pYIN (voicing probability) + RMS gate
     - smooth + quantize to semitones for readability
     """
-    if y.ndim != 1:
-        raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
-    if sr <= 0:
-        return np.zeros((0,), dtype=np.float32)
-
-    # Harmonic component makes pitch tracking much more stable for vocals stems.
-    yh = librosa.effects.harmonic(y=y, margin=8.0).astype(np.float32, copy=False)
-
-    f0, voiced_flag, voiced_prob = librosa.pyin(
-        y=yh,
-        fmin=float(fmin_hz),
-        fmax=float(fmax_hz),
-        sr=int(sr),
-        frame_length=int(frame_length),
-        hop_length=int(hop_length),
+    return _pyin_pitch_hz(
+        y, sr,
+        fmin_hz=fmin_hz, fmax_hz=fmax_hz,
+        harmonic_margin=8.0, voiced_prob_thr=0.80,
+        hop_length=hop_length, frame_length=frame_length,
     )
-    f0 = np.asarray(f0, dtype=np.float32)
-    voiced_flag = np.asarray(voiced_flag, dtype=bool)
-    voiced_prob = np.asarray(voiced_prob, dtype=np.float32)
-
-    rms = librosa.feature.rms(
-        y=yh,
-        frame_length=int(frame_length),
-        hop_length=int(hop_length),
-        center=True,
-    )[0].astype(np.float32, copy=False)
-
-    n = int(min(f0.size, rms.size))
-    if n <= 0:
-        return np.zeros((0,), dtype=np.float32)
-    f0 = f0[:n]
-    rms = rms[:n]
-    voiced_flag = voiced_flag[:n]
-    voiced_prob = voiced_prob[:n]
-
-    # Gate based on relative energy to avoid pitch scribbles in silence.
-    thr = float(np.percentile(rms, 25)) * 0.8
-    thr = max(thr, float(rms.max()) * 0.08, 1e-6)
-    voiced = (rms >= thr) & voiced_flag & (voiced_prob >= 0.80)
-
-    f0v = np.where(voiced, f0, np.nan).astype(np.float32)
-
-    # Smooth in MIDI space, then quantize to semitones.
-    midi = np.where(np.isfinite(f0v), _hz_to_midi(f0v), np.nan).astype(np.float32)
-    midi = _nanmedian_smooth(midi, win=7)
-    midi_q = np.round(midi).astype(np.float32)
-    f0_q = np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
-    return f0_q
 
 
 def bass_pitch_hz(
@@ -129,51 +143,14 @@ def bass_pitch_hz(
     """
     Pitch track (Hz) for bass visualization.
 
-    Same method as vocals (YIN + energy gate), but with a bass-appropriate range.
+    Same method as vocals (pYIN + energy gate), but with a bass-appropriate range.
     """
-    if y.ndim != 1:
-        raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
-    if sr <= 0:
-        return np.zeros((0,), dtype=np.float32)
-
-    yh = librosa.effects.harmonic(y=y, margin=6.0).astype(np.float32, copy=False)
-    f0, voiced_flag, voiced_prob = librosa.pyin(
-        y=yh,
-        fmin=float(fmin_hz),
-        fmax=float(fmax_hz),
-        sr=int(sr),
-        frame_length=int(frame_length),
-        hop_length=int(hop_length),
+    return _pyin_pitch_hz(
+        y, sr,
+        fmin_hz=fmin_hz, fmax_hz=fmax_hz,
+        harmonic_margin=6.0, voiced_prob_thr=0.75,
+        hop_length=hop_length, frame_length=frame_length,
     )
-    f0 = np.asarray(f0, dtype=np.float32)
-    voiced_flag = np.asarray(voiced_flag, dtype=bool)
-    voiced_prob = np.asarray(voiced_prob, dtype=np.float32)
-
-    rms = librosa.feature.rms(
-        y=yh,
-        frame_length=int(frame_length),
-        hop_length=int(hop_length),
-        center=True,
-    )[0].astype(np.float32, copy=False)
-
-    n = int(min(f0.size, rms.size))
-    if n <= 0:
-        return np.zeros((0,), dtype=np.float32)
-    f0 = f0[:n]
-    rms = rms[:n]
-    voiced_flag = voiced_flag[:n]
-    voiced_prob = voiced_prob[:n]
-
-    thr = float(np.percentile(rms, 25)) * 0.8
-    thr = max(thr, float(rms.max()) * 0.08, 1e-6)
-    voiced = (rms >= thr) & voiced_flag & (voiced_prob >= 0.75)
-
-    f0v = np.where(voiced, f0, np.nan).astype(np.float32)
-    midi = np.where(np.isfinite(f0v), _hz_to_midi(f0v), np.nan).astype(np.float32)
-    midi = _nanmedian_smooth(midi, win=7)
-    midi_q = np.round(midi).astype(np.float32)
-    f0_q = np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
-    return f0_q
 
 
 def other_chroma_12(

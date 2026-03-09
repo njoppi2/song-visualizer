@@ -41,3 +41,23 @@ def require_ffmpeg() -> str:
         "Windows (winget): winget install Gyan.FFmpeg\n"
         "Alternatively (no system install): pip install imageio-ffmpeg"
     )
+
+
+def require_ffplay() -> str:
+    path = shutil.which("ffplay")
+    if path:
+        return path
+
+    try:
+        cand = Path(sys.prefix) / "bin" / "ffplay"
+        if cand.exists() and os.access(cand, os.X_OK):
+            return str(cand)
+    except Exception:
+        pass
+
+    raise RuntimeError(
+        "ffplay was not found on PATH. Install ffmpeg (which includes ffplay).\n"
+        "Linux (Debian/Ubuntu): sudo apt-get update && sudo apt-get install -y ffmpeg\n"
+        "macOS (Homebrew): brew install ffmpeg\n"
+        "Windows (winget): winget install Gyan.FFmpeg"
+    )

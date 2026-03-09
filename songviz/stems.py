@@ -7,20 +7,15 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import soundfile as sf
 
-from .ingest import sha256_file
+from .ingest import sha256_file, _utc_now_iso
 
 
 _EXPECTED_STEMS = ("drums", "bass", "vocals", "other")
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _sha256_bytes(b: bytes) -> str:

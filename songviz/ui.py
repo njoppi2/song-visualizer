@@ -1,23 +1,12 @@
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-import librosa
-import numpy as np
-
-from .analyze import analyze_audio, analyze_file
-from .features import (
-    bass_pitch_hz,
-    drums_band_energy_3,
-    other_chroma_12,
-    vocals_note_events_basic_pitch,
-    vocals_pitch_hz,
-)
+from .analyze import analyze_file
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
@@ -25,8 +14,8 @@ from .paths import (
     story_path_for_output_dir,
     video_path_for_output_dir,
 )
-from .render import RenderConfig, render_mp4, render_mp4_stems4
-from .stems import ensure_demucs_stems
+from .pipeline import run_render_pipeline
+from .render import RenderConfig
 
 
 _AUDIO_EXTS = {
@@ -179,16 +168,7 @@ def run_ui(cfg: UIConfig) -> int:
         analysis = analyze_file(audio_path)
         song_id = str(analysis["meta"]["song_id"])
         out_dir = output_dir_for_audio(audio_path, song_id, outputs_root=cfg.outputs_dir)
-        out_dir.mkdir(parents=True, exist_ok=True)
 
-        canonical_analysis = analysis_path_for_output_dir(out_dir)
-        canonical_analysis.parent.mkdir(parents=True, exist_ok=True)
-        canonical_analysis.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        story_p = story_path_for_output_dir(out_dir)
-        story_p.parent.mkdir(parents=True, exist_ok=True)
-        story_p.write_text(json.dumps(analysis.get("story", {}), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-        canonical_video = video_path_for_output_dir(out_dir)
         rcfg = RenderConfig(
             width=int(cfg.width),
             height=int(cfg.height),
@@ -197,71 +177,66 @@ def run_ui(cfg: UIConfig) -> int:
             audio_codec=str(cfg.audio_codec),
             audio_bitrate=str(cfg.audio_bitrate),
         )
-
         layout = str(cfg.layout)
-        if layout == "mix":
-            render_mp4(analysis=analysis, audio_path=audio_path, out_path=canonical_video, cfg=rcfg)
-        elif layout == "stems4":
-            stems = ensure_demucs_stems(
+
+        # ── Lyrics alignment (auto; cached — only runs once per song) ────────
+        # Run before pipeline so vocals.wav is used when stems4 is also selected.
+        from .lyrics import align_lyrics, load_alignment
+        lyrics_status = "Lyrics: unavailable"
+        alignment = None
+        try:
+            vocals_stem_path = out_dir / "stems" / "vocals.wav"
+            align_path = align_lyrics(
                 audio_path,
-                out_dir=out_dir,
-                model=str(cfg.stems_model),
-                device=str(cfg.stems_device),
-                force=bool(cfg.stems_force),
+                song_id=song_id,
+                output_dir=out_dir,
+                vocals_stem=vocals_stem_path if vocals_stem_path.exists() else None,
+                force=False,
             )
+            alignment = load_alignment(out_dir)
+            if alignment is not None:
+                meta = alignment.get("metadata", {})
+                tool = str(meta.get("alignment_tool", "unknown"))
+                backend = str(meta.get("backend_used", "unknown"))
+                calibrated = bool(meta.get("calibration_applied", False))
+                offset_s = float(meta.get("auto_offset_s", 0.0) or 0.0)
+                flags = alignment.get("quality_flags", [])
+                flag_text = ""
+                if isinstance(flags, list) and flags:
+                    flag_text = f" flags={','.join(str(f) for f in flags)}"
+                cal_text = f" calibrated={offset_s:+.3f}s" if calibrated else ""
+                lyrics_status = f"Lyrics: ok ({tool}, backend={backend}{cal_text}{flag_text}) [{align_path}]"
+            else:
+                lyrics_status = "Lyrics: missing alignment file after run"
+        except ImportError:
+            lyrics_status = "Lyrics: skipped (alignment backend not installed)"
+            alignment = load_alignment(out_dir)
+        except Exception as e:
+            lyrics_status = f"Lyrics: failed ({type(e).__name__}: {e})"
+            alignment = load_alignment(out_dir)
 
-            stem_analyses: dict[str, dict] = {}
-            hop_length = 512
-            frame_length = 2048
-            for name, stem_path in stems.stems.items():
-                y, sr = librosa.load(stem_path, sr=22050, mono=True)
-                y = np.asarray(y, dtype=np.float32)
-                a = analyze_audio(y, int(sr), hop_length=hop_length, frame_length=frame_length)
-                # Use the mix story/sections for all stems (keeps a single "narrative timeline").
-                a["story"] = analysis.get("story", {})
+        # ── Render ───────────────────────────────────────────────────────────
+        canonical_video = run_render_pipeline(
+            audio_path,
+            out_dir,
+            analysis,
+            layout,
+            rcfg,
+            stems_model=str(cfg.stems_model),
+            stems_device=str(cfg.stems_device),
+            stems_force=bool(cfg.stems_force),
+            alignment=alignment,
+        )
 
-                feats: dict[str, np.ndarray] = {}
-                if name == "drums":
-                    feats["drums_bands_3"] = drums_band_energy_3(
-                        y, int(sr), hop_length=hop_length, n_fft=frame_length
-                    )
-                elif name == "bass":
-                    feats["pitch_hz"] = bass_pitch_hz(
-                        y, int(sr), hop_length=hop_length, frame_length=frame_length
-                    )
-                elif name == "vocals":
-                    feats["pitch_hz"] = vocals_pitch_hz(
-                        y, int(sr), hop_length=hop_length, frame_length=frame_length
-                    )
-                    try:
-                        feats["note_events"] = vocals_note_events_basic_pitch(str(stem_path))
-                    except Exception:
-                        pass
-                elif name == "other":
-                    feats["chroma_12"] = other_chroma_12(y, int(sr), hop_length=hop_length, n_fft=frame_length)
-                if feats:
-                    a["features"] = feats
-
-                if name != "drums":
-                    a["beats"]["beat_times_s"] = []
-                    a["beats"]["tempo_bpm"] = 0.0
-                stem_analyses[name] = a
-
-            render_mp4_stems4(
-                stem_analyses=stem_analyses,
-                duration_s=float(analysis["meta"]["duration_s"]),
-                audio_path=audio_path,
-                out_path=canonical_video,
-                cfg=rcfg,
-            )
-        else:
-            raise AssertionError(f"Unknown layout: {layout!r}")
+        canonical_analysis = analysis_path_for_output_dir(out_dir)
+        story_p = story_path_for_output_dir(out_dir)
 
         print()
         print("Done.")
         print(f"Wrote: {canonical_video}")
         print(f"Wrote: {canonical_analysis}")
         print(f"Wrote: {story_p}")
+        print(lyrics_status)
         input("Press Enter to continue...")
 
 

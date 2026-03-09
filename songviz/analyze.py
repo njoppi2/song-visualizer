@@ -1,29 +1,13 @@
 from __future__ import annotations
 
-import datetime as _dt
 from pathlib import Path
 from typing import Any
 
 import librosa
 import numpy as np
 
-from .ingest import song_id_for_path
+from .ingest import song_id_for_path, _utc_now_iso, _normalize_01
 from .story import compute_story
-
-
-def _utc_now_iso() -> str:
-    return _dt.datetime.now(tz=_dt.timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _normalize_01(x: np.ndarray) -> np.ndarray:
-    x = np.asarray(x, dtype=np.float32)
-    if x.size == 0:
-        return x
-    x = x - float(x.min())
-    m = float(x.max())
-    if m <= 0:
-        return np.zeros_like(x, dtype=np.float32)
-    return x / m
 
 
 def analyze_audio(
@@ -105,3 +89,5 @@ def analyze_file(
     analysis["story"] = compute_story(y, sr, hop_length=hop_length, frame_length=frame_length)
     analysis["meta"]["song_id"] = song_id
     return analysis
+
+

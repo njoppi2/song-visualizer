@@ -1,61 +1,61 @@
 # Architecture
 
+This file describes the pipeline shape. For current implementation status, see `docs/03_working_state.md`.
+
 ## Pipeline
 1) ingest
    - normalize input path
-   - decode to a working WAV (consistent sample rate)
-2) separate (optional, v1+)
-   - stems: vocals/drums/bass/other
+   - hash file contents into a stable `song_id`
+   - decode to mono WAV at 22.05 kHz
+2) separate (optional)
+   - stems: vocals/drums/bass/other via Demucs
 3) analyze
    - beats + tempo
-   - envelopes (overall + per-stem)
-   - optional structural segmentation (v2+)
-   - derive storyboard events (v3+)
-4) render
-   - generate frames (fps, duration)
-   - render scenes based on analysis timeline
-   - mux original audio back into MP4
+   - envelopes (RMS loudness + normalized onset strength)
+   - structural segmentation (MFCC-based A/B/C… labels; same letter = recurring motif)
+   - story signals: tension curve, drop candidates, buildup windows
+4) lyrics (optional)
+   - query LRCLIB for human-verified synced lyrics
+   - refine word timestamps via Whisper/stable-ts/whisperx backend
+   - write `outputs/<song_id>/lyrics/alignment.json`
+5) render
+   - generate frames at configured fps/resolution
+   - section-aware background gradients (crossfade at boundaries)
+   - beat flash, tension buildup bar, drop strobe
+   - optional lyric word overlay (mix: bottom-centre; stems4: vocals quadrant)
+   - mux original audio into MP4 via ffmpeg
 
 ## Output structure
-outputs/<song_name>/
+```
+outputs/<song_id>/
   analysis/
     analysis.json
+    story.json
+    overview.png          # signal envelopes + section timeline (requires [viz])
+    stems_overview.png    # per-stem RMS heatmap (requires [viz] + stems)
+    README.md             # auto-generated human-readable summary
   video.mp4
-  # future:
-  # stems/ (v1+)
-  # render/frames/ (optional, behind a flag)
+  stems/                  # optional; drums.wav, bass.wav, vocals.wav, other.wav
+  lyrics/
+    alignment.json        # optional; word-level timestamps
+```
 
-`song_id` should be stable (hash of file contents or file name + size + mtime). It is stored in `analysis.json` metadata.
+`song_id` is the first 16 hex chars of the SHA-256 of the file contents (stable across machines).
 
-## analysis.json schema (v0-v2)
+## analysis.json schema
 Top-level:
-- meta:
-  - song_id, original_path (optional), sr, duration_s, created_at
-- beats:
-  - tempo_bpm
-  - beat_times_s: [..]
-- envelopes:
-  - hop_s, times_s: [..]
-  - loudness: [..]          # overall RMS or LUFS proxy
-  - onset_strength: [..]    # normalized
-- stems (v1+):
-  - names: ["vocals","drums","bass","other"]
-  - energy: {stem_name: [..]}
+- `meta`: song_id, duration_s, sample_rate, created_at
+- `beats`: tempo_bpm, beat_times_s
+- `envelopes`: hop_s, times_s, loudness (normalized), onset_strength (normalized)
+- `story`: sections, tension, events — see story.json
 
-- sections (v2+):
-  - [{start_s, end_s, label}]   # label can be "A","B","C" etc.
+## CLI commands
+- `songviz analyze <audio>` — write `analysis/*.json` without rendering
+- `songviz render <audio>` — analyze + render + mux into `video.mp4`
+- `songviz stems <audio>` — run Demucs and dump WAV stems
+- `songviz lyrics <audio>` — run lyrics alignment pipeline
+- `songviz ui` — interactive terminal picker
+- `songviz tidy` — move legacy output files into hidden subfolders
 
-Notes:
-- Keep arrays same length using a common hop size.
-- Normalize signals for stable visuals.
-
-## Scene system
-Renderer should be decoupled:
-- Scene gets (t, analysis, rng) and returns drawing primitives.
-- Provide 3–5 built-in scenes with different motion behaviors.
-- Map sections -> scenes via deterministic assignment (hash label -> scene preset).
-
-## CLI commands (planned)
-- `songviz analyze <audio> --out outputs/<song_name>/analysis/analysis.json`
-- `songviz render <audio> --out out.mp4 [--analysis existing.json]`
-- `songviz separate <audio> --out stems_dir` (optional)
+Full option reference: `docs/04_repo_reference.md`.
+Lyrics pipeline contract: `docs/05_lyrics_playbook.md`.

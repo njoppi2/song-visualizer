@@ -72,3 +72,7 @@ def video_path_for_output_dir(out_dir: Path) -> Path:
 
 def lyrics_alignment_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "lyrics" / "alignment.json"
+
+
+def lyrics_corrections_path_for_output_dir(out_dir: Path) -> Path:
+    return out_dir / "lyrics" / "corrections.yaml"

@@ -34,6 +34,15 @@ notes = [
 ]
 lyrics = [
   "openai-whisper",
+  "mutagen>=1.47",
+  "stable-ts",
+  "pyyaml>=6.0",
+]
+lyricsx = [
+  "whisperx",
+]
+viz = [
+  "matplotlib",
 ]
 
 [project.scripts]

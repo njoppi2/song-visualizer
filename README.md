@@ -55,21 +55,43 @@ python3 -m songviz render songs/my.flac --layout stems4
 ```
 
 ## Lyrics (Optional)
-If you install the optional `openai-whisper` dependency, SongViz can transcribe and align lyrics:
+Install the lyrics extras (Whisper + mutagen for ID3 tag reading):
 
 ```bash
 pip install -e '.[lyrics]'
 python3 -m songviz lyrics songs/my.flac
 ```
 
-This writes `outputs/<song_name>/lyrics/alignment.json` with word-level timestamps and confidence scores. If a vocals stem exists under `outputs/<song_name>/stems/vocals.wav`, it is used automatically for better alignment quality.
+Optional forced-alignment backend:
+
+```bash
+pip install -e '.[lyricsx]'
+python3 -m songviz lyrics songs/my.flac --backend whisperx
+```
+
+This writes `outputs/<song_name>/lyrics/alignment.json` with word-level timestamps. The alignment uses a backend-aware fallback chain:
+
+1. **LRCLIB synced + backend timing** (`lrclib+whisper_timing` or `lrclib+whisperx_timing`) — queries [lrclib.net](https://lrclib.net) (free, no auth) for human-verified lyrics, then assigns real audio timing from backend words.
+2. **LRCLIB synced, no Whisper** (`lrclib_synced`) — same text, proportional word timing.
+3. **LRCLIB plain text + backend** (`whisper+lrclib_prompt` / `whisperx+lrclib_prompt`) — correct text fed to backend as a prompt.
+4. **Pure backend** (`whisper` / `whisperx`) — when no metadata or LRCLIB match is found.
+
+SongViz also runs automatic global offset calibration (enabled by default) to reduce constant early/late drift between aligned words and vocal energy.
+
+LRCLIB lookup uses ID3/Vorbis tags automatically. Override them with `--artist`/`--title` if tags are missing.
+
+`make ui` runs lyrics alignment automatically before rendering (cached; re-run with `--force`).
 
 Options:
+- `--artist "Name"` — artist name (overrides ID3 tag)
+- `--title "Name"` — track title (overrides ID3 tag)
 - `--language en` — language code for Whisper (default: en)
-- `--model base` — Whisper model size: tiny, base, small, medium, large (default: base)
+- `--model base` — Whisper model size: tiny, base, small, medium, large (default: small)
+- `--backend auto` — alignment backend: auto, whisper, whisperx (default: auto)
+- `--no-auto-calibrate` — disable automatic global timing calibration
 - `--force` — re-run alignment even if a cached file exists
 
-To display lyrics as a word overlay in the rendered video, run lyrics first and then render with `--lyrics`:
+To display lyrics as a word overlay in the rendered video:
 
 ```bash
 python3 -m songviz lyrics songs/my.flac

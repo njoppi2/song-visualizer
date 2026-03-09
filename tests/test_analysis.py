@@ -48,3 +48,5 @@ def test_analyze_required_keys_and_lengths(tmp_path: Path) -> None:
     onset = np.asarray(env["onset_strength"], dtype=np.float32)
     assert float(onset.min()) >= -1e-6
     assert float(onset.max()) <= 1.0 + 1e-6
+
+
