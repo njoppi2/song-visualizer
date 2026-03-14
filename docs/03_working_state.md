@@ -27,11 +27,15 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - loudness (RMS) envelope normalized to [0,1]
   - onset strength normalized to [0,1]
 - Story:
-  - coarse section segmentation with **motif-aware labels** (same letter reused for recurring sections, e.g. A B A C A)
+  - coarse section segmentation with **functional role-based labels**: each section is assigned a role (`intro`, `build`, `payoff`, `valley`, `contrast`, `outro`) based on energy flow, position, and repetition features. Letters (A/B/C) are derived from role + acoustic similarity. Boundary detection (SSM + checkerboard novelty + tension valleys) unchanged.
+  - **SSM + checkerboard novelty** segmentation (primary): beat-synchronous chroma_cqt + MFCC, self-similarity matrix with path enhancement, checkerboard kernel novelty curve, adaptive peak-picking. Fallbacks: tension valley boundaries (if ≤2 sections for songs >90s), then agglomerative clustering (on exception).
+  - **Role assignment pipeline**: `_compute_section_features` (11 features per section, min-max normalized), `_assign_roles` (weighted scoring per role with eligibility constraints), `_revise_roles_globally` (sequence constraints: intro/outro position, build→payoff proximity, repeated-section consistency, payoff guarantee), `_resolve_visual_behavior` (role→visual mapping with context, e.g. first payoff = `release_payoff`, subsequent = `sustain_euphoria`), `_assign_role_based_labels` (cluster within same-role groups by cosine similarity).
+  - Section output includes: `role`, `visual_behavior`, `confidence`, `intensity`, `repetition_strength`, `novelty_to_prev`, `relative_intensity_rank`, plus existing `label`, `start_s`, `end_s`, `subsections`.
   - per-frame `tension` curve aligned to envelope frames
   - `drop_times_s` event detection (wired to renderer: full-frame flash on drop)
   - **buildup detection**: buildup windows exported to story + renderer shows extra rays and intensity bar during buildups
-  - `min_len_s` raised to 15 s; adjacent same-label sections merged via `_merge_same_label_sections`; drop detection requires ≥ 0.6 peak tension in preceding 2 s.
+  - `min_len_s` 12 s (SSM path) / 15 s (agglomerative fallback); adjacent sections merged via `_merge_same_label_sections` when same role AND low novelty across boundary (< 0.3); drop detection requires ≥ 0.6 peak tension in preceding 2 s.
+  - **subsections**: each section contains `subsections[]` with finer-grained energy regions (detected via tension valleys within each section, 4 s smoothing, min 8 s subsection length). Each subsection has an energy descriptor: `low`, `mid`, `high`, `rising`, or `falling`.
 - Renderer:
   - 30 fps (default)
   - visuals driven by loudness + onset + beat flashes
@@ -42,6 +46,7 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - `--layout stems4` renders a 2x2 stem grid with stem-specific visuals
   - `_VisualizerBase` base class shared by `Visualizer` (mix) and `StemQuadVisualizer` (stems4)
   - Drop flash is now a two-phase sharp white spike (decay 60 ms) + accent afterglow (decay 300 ms); section boundaries have a 150 ms color wash in the incoming palette; buildup fraction drives orb radius swell (+12% at peak).
+  - **Timeline bar**: thin 18 px bar at the bottom of every frame (mix + stems4). Colored blocks per section (palette `bot` color), section labels, section boundary lines, and a 3 px white playhead + downward triangle. Subsection dividers removed. Implemented via `_VisualizerBase._draw_timeline_bar(draw, t, w, h)`.
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 - Analysis visualization:
   - `songviz analyze <audio>` and `songviz render <audio>` now auto-generate `analysis/overview.png` (2-panel dark-theme: envelopes + section timeline) and `analysis/README.md` (metadata table, sections, signal glossary, re-generate instructions).

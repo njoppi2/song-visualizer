@@ -40,6 +40,10 @@ _ACTIVE_WORD_COLOR = (255, 220, 60)  # bright gold
 
 _SECTION_TRANSITION_PULSE_S = 0.6   # half-width of bell pulse around boundary
 _SECTION_TRANSITION_PEAK = 0.85     # max intensity (0-1)
+_SUBSECTION_TRANSITION_PULSE_S = 0.35   # half-width for subsection pulse
+_SUBSECTION_TRANSITION_PEAK = 0.40      # max intensity for subsection pulse
+_TIMELINE_BAR_H = 24
+_TIMELINE_MARKER_W = 3
 
 
 def _as_np_float(x: Any) -> np.ndarray:
@@ -181,6 +185,7 @@ class _VisualizerBase:
         self.rng = np.random.default_rng(cfg.seed)
         self._alignment = alignment
         self._lyrics_font = _make_lyrics_font() if alignment is not None else None
+        self._timeline_font = _make_lyrics_font(size=11)
 
         env = analysis["envelopes"]
         self.env_times = _as_np_float(env["times_s"])
@@ -221,6 +226,20 @@ class _VisualizerBase:
             label = str(sec.get("label") or "")
             if label and label not in self._label_to_palette:
                 self._label_to_palette[label] = len(self._label_to_palette)
+
+        # Collect subsection boundary times (skip those coinciding with section starts).
+        self._subsection_boundaries: list[float] = []
+        for sec in self._story_sections:
+            sec_start = float(sec.get("start_s", 0.0))
+            for sub in sec.get("subsections", []):
+                sub_start = float(sub.get("start_s", 0.0))
+                if abs(sub_start - sec_start) > 0.5:
+                    self._subsection_boundaries.append(sub_start)
+
+        if self._story_sections:
+            self._song_duration_s = float(self._story_sections[-1].get("end_s", 0.0))
+        else:
+            self._song_duration_s = 0.0
 
     # ── Query helpers ───────────────────────────────────────────────────────
 
@@ -311,6 +330,61 @@ class _VisualizerBase:
                 if pulse > best:
                     best = pulse
         return best
+
+    def _subsection_boundary_intensity(self, t: float) -> float:
+        """Subtle pulse at subsection boundaries (weaker than section transitions)."""
+        best = 0.0
+        for bt in self._subsection_boundaries:
+            dt = abs(t - bt)
+            if dt < _SUBSECTION_TRANSITION_PULSE_S:
+                phi = dt / _SUBSECTION_TRANSITION_PULSE_S
+                pulse = _SUBSECTION_TRANSITION_PEAK * 0.5 * (1.0 + math.cos(math.pi * phi))
+                if pulse > best:
+                    best = pulse
+        return best
+
+    def _draw_timeline_bar(self, draw: ImageDraw.ImageDraw, t: float, *, w: int, h: int) -> None:
+        """Draw a section/subsection progress bar at the top of the frame."""
+        if self._song_duration_s <= 0 or not self._story_sections:
+            return
+        dur = self._song_duration_s
+        bar_y0 = 0
+        bar_y1 = _TIMELINE_BAR_H
+
+        # 1. Dark semi-transparent background
+        draw.rectangle((0, bar_y0, w, bar_y1), fill=(0, 0, 0, 140))
+
+        # 2. Section colored blocks
+        for i, sec in enumerate(self._story_sections):
+            s0 = float(sec.get("start_s", 0))
+            s1 = float(sec.get("end_s", 0))
+            x0 = int(w * s0 / dur)
+            x1 = int(w * s1 / dur)
+            _, bot, _ = self._palette_for_section(i)
+            draw.rectangle((x0, bar_y0 + 1, x1 - 1, bar_y1 - 1), fill=(*bot, 180))
+
+            # 3. Section label (skip if block too narrow)
+            if x1 - x0 > 20:
+                mid_x = (x0 + x1) / 2
+                label = sec.get("label", "")
+                try:
+                    draw.text((mid_x, bar_y0 + _TIMELINE_BAR_H / 2),
+                              label, fill=(255, 255, 255, 210),
+                              anchor="mm", font=self._timeline_font)
+                except Exception:
+                    pass
+
+        # 5. Section boundary lines
+        for sec in self._story_sections[1:]:
+            bx = int(w * float(sec.get("start_s", 0)) / dur)
+            draw.line((bx, bar_y0, bx, bar_y1), fill=(255, 255, 255, 200), width=1)
+
+        # 6. Playhead marker
+        px = int(w * max(0.0, min(t, dur)) / dur)
+        draw.line((px, bar_y0, px, bar_y1), fill=(255, 255, 255, 240), width=_TIMELINE_MARKER_W)
+        tri_h = 6
+        draw.polygon([(px - tri_h, bar_y1), (px + tri_h, bar_y1), (px, bar_y1 - tri_h)],
+                     fill=(255, 255, 255, 240))
 
     def _section_palette_blend(
         self, t: float, *, crossfade_s: float = 1.5
@@ -440,11 +514,13 @@ class Visualizer(_VisualizerBase):
                     act["active_word"],
                     act.get("word_confidence", 0.8),
                     cx=w / 2,
-                    cy=h * 0.84,
+                    cy=_TIMELINE_BAR_H + 22,
                     font=self._lyrics_font,
                     c_accent=self.c_accent,
                     active_word_index=act.get("active_word_index", -1),
                 )
+
+        self._draw_timeline_bar(draw, t, w=w, h=h)
 
         return img.tobytes()
 
@@ -722,7 +798,7 @@ class StemQuadVisualizer(_VisualizerBase):
                     act["active_word"],
                     act.get("word_confidence", 0.8),
                     cx=w / 2,
-                    cy=h * 0.88,
+                    cy=22,
                     font=self._lyrics_font,
                     c_accent=self.c_accent,
                     active_word_index=act.get("active_word_index", -1),
@@ -901,6 +977,8 @@ class StemGridVisualizer:
                 th = bbox[3] - bbox[1]
                 draw.rectangle((x0 + pad - 4, y0 + pad - 4, x0 + pad + tw + 6, y0 + pad + th + 4), fill=(0, 0, 0))
                 draw.text((x0 + pad, y0 + pad), label, fill=(255, 255, 255), font=self.font)
+
+        self._timing_ref._draw_timeline_bar(draw, t, w=self.cfg.width, h=self.cfg.height)
 
         return img.tobytes()
 

@@ -108,6 +108,12 @@ def generate_overview(analysis: dict[str, Any], out_dir: Path) -> Path:
         mid = (s0 + s1) / 2
         ax.text(mid, 0, lbl, ha="center", va="center",
                 color="#eeeeee", fontsize=8, fontweight="bold")
+        # Draw subsection dividers as thin dotted lines within the bar.
+        for sub in sec.get("subsections", [])[1:]:
+            sub_t = sub.get("start_s", 0.0)
+            if abs(sub_t - s0) > 0.5:
+                ax.axvline(sub_t, color="#eeeeee", linewidth=0.7,
+                           linestyle=":", alpha=0.6, ymin=0.2, ymax=0.8)
 
     ax.set_xlim(0, duration)
     ax.set_ylim(-0.5, 0.5)
