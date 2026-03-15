@@ -1,0 +1,16 @@
+{
+  "demucs_htdemucs": {
+    "vocal_voiced_frame_ratio": 0.33592273777031284,
+    "vocal_pitch_jump_count": 24,
+    "vocal_instrumental_rms_correlation": 0.04336676285841962,
+    "drum_onset_sharpness": 13.586687088012695,
+    "drum_onset_count": 812
+  },
+  "melband_roformer_plus_kuielab": {
+    "vocal_voiced_frame_ratio": 0.35387360906991394,
+    "vocal_pitch_jump_count": 31,
+    "vocal_instrumental_rms_correlation": 0.07838272792877594,
+    "drum_onset_sharpness": 13.48160457611084,
+    "drum_onset_count": 812
+  }
+}

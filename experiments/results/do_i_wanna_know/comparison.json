@@ -1,0 +1,47 @@
+{
+  "experiment_a_vocals": {
+    "demucs_htdemucs": {
+      "voiced_frame_ratio": 0.5136379133992499,
+      "voiced_frames": 6026,
+      "total_frames": 11732,
+      "pitch_jump_count_3st": 57,
+      "pitch_jump_count_5st": 32,
+      "vocal_instrumental_rms_corr": 0.1637483019521318
+    },
+    "melband_bleedless": {
+      "voiced_frame_ratio": 0.4538868053187862,
+      "voiced_frames": 5325,
+      "total_frames": 11732,
+      "pitch_jump_count_3st": 64,
+      "pitch_jump_count_5st": 38,
+      "vocal_instrumental_rms_corr": 0.14710310593586307
+    }
+  },
+  "experiment_b_drums": {
+    "per_band_correlation": {
+      "kick": 0.8593759008699635,
+      "snare": 0.5957549645963711,
+      "hats": 0.5689467780343505
+    },
+    "per_component_onsets": {
+      "kick": 348,
+      "snare": 304,
+      "hh": 788,
+      "toms": 416,
+      "ride": 521,
+      "crash": 353
+    },
+    "component_onset_sharpness": {
+      "kick": 29.529638290405273,
+      "snare": 35.48420333862305,
+      "hh": 14.171392440795898,
+      "toms": 34.780269622802734,
+      "ride": 11.830751419067383,
+      "crash": 25.55244255065918
+    },
+    "kick_energy_at_onsets": {
+      "heuristic_mean": 0.1687780975472201,
+      "drumsep_mean": 0.5432357154813349
+    }
+  }
+}
