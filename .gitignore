@@ -19,6 +19,10 @@ outputs/
 *.webm
 *.wav
 *.png
+*.npy
+
+# Lock files
+uv.lock
 
 # Local audio assets (keep private)
 assets/private/

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "songviz"
 version = "0.0.0"
-description = "Generate a music-reactive video from an audio file."
+description = "Understand and visualize what is happening in a song over time."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Proprietary"}
@@ -40,6 +40,9 @@ lyrics = [
 ]
 lyricsx = [
   "whisperx",
+]
+drumsep = [
+  "audio-separator",
 ]
 viz = [
   "matplotlib",

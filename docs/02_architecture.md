@@ -1,24 +1,40 @@
 # Architecture
 
-This file describes the pipeline shape. For current implementation status, see `docs/03_working_state.md`.
+This file describes the pipeline shape and key concepts.
+For current implementation status, see `docs/03_working_state.md`.
+For the phased plan, see `docs/01_roadmap.md`.
+
+## Key concepts
+
+- **Story**: the structural narrative of a song — section boundaries and roles (intro, build, payoff, valley, contrast, outro), tension arc, repetition patterns, energy dynamics. Not a text narrative; a model of how the song's structure unfolds over time.
+- **Separation**: splitting audio into stems (vocals, bass, drums, other) so each musical layer can be analyzed independently. A means to better analysis, not an end in itself.
+- **Features**: per-stem signals extracted from audio — vocal pitch track, bass pitch track, drum band energy, chroma. Currently frame-level (one value per ~23ms hop). Used today to drive the renderer.
+- **Reduced representation** (next phase): discrete musical events derived from features — note onsets/offsets, drum hits, chord labels — stripped of timbre. The goal is a simplified structural skeleton that is easier to analyze and compare across sections. See `docs/06_reduced_representation.md`.
+- **Timbre**: *how* notes sound (tone color, texture, instrument character). Deliberately excluded from the reduced representation. Can be layered back from original audio later as a separate descriptor.
 
 ## Pipeline
-1) ingest
+1) **ingest**
    - normalize input path
    - hash file contents into a stable `song_id`
    - decode to mono WAV at 22.05 kHz
-2) separate (optional)
+2) **separate** (optional)
    - stems: vocals/drums/bass/other via Demucs
-3) analyze
+   - drum sub-components: kick/snare/toms/hh/ride/crash via DrumSep (optional post-pass)
+3) **analyze**
    - beats + tempo
    - envelopes (RMS loudness + normalized onset strength)
-   - structural segmentation (MFCC-based A/B/C… labels; same letter = recurring motif)
+   - per-stem features: vocal pitch, bass pitch, drum band energy, other chroma
+   - structural segmentation (SSM + checkerboard novelty; role-based labels)
    - story signals: tension curve, drop candidates, buildup windows
-4) lyrics (optional)
+4) **reduce** (planned — see `docs/06_reduced_representation.md`)
+   - convert frame-level features into discrete musical events
+   - drum hits, note events, chord labels
+   - beat-quantized summaries for section comparison
+5) **lyrics** (optional)
    - query LRCLIB for human-verified synced lyrics
    - refine word timestamps via Whisper/stable-ts/whisperx backend
    - write `outputs/<song_id>/lyrics/alignment.json`
-5) render
+6) **render**
    - generate frames at configured fps/resolution
    - section-aware background gradients (crossfade at boundaries)
    - beat flash, tension buildup bar, drop strobe
