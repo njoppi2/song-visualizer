@@ -1,3 +1,5 @@
+> **Reference material.** Canonical pipeline: `docs/05_lyrics_playbook.md`. This file covers alternatives not yet implemented.
+
 # Extracting Lyrics With Word and Phoneme Timestamps From Singing Audio
 
 ## Executive summary

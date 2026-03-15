@@ -1,3 +1,5 @@
+> **Reference for Phase 4 (vocal note events).** pYIN is implemented; Basic Pitch is optional. See `docs/06_reduced_representation.md`.
+
 # Extracting Sung Pitch and Notes from Isolated Vocal FLAC with Free and Open-Source Tools
 
 ## Executive summary

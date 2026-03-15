@@ -4,14 +4,16 @@ This document is an execution-oriented map of the repository.
 For current status/priorities, use `docs/03_working_state.md`.
 
 ## High-level goal
-SongViz converts a local song file into an MP4 whose abstract visuals respond to beats, loudness, and story cues. The toolchain is intentionally deterministic, modular (ingest → analysis → story → render), and runnable via `python -m songviz render` or the provided `Makefile` shortcuts.
+SongViz aims to understand and visualize what is happening in a song over time — section structure, tension arcs, repetition, arrangement changes, and how melody/rhythm/bass/harmony interact. The current main output is a music-reactive MP4 video, but the core of the project is the analysis pipeline that derives interpretable musical signals from audio. The toolchain is intentionally deterministic, modular (ingest → separate → analyze → reduce → render), and runnable via `python -m songviz render` or the provided `Makefile` shortcuts. See `docs/01_roadmap.md` for the phased plan.
 
 ## Read order (for new contributors and LLMs)
-1. `README.md`
-2. `docs/03_working_state.md`
-3. `docs/04_repo_reference.md` (this file)
-4. `docs/05_lyrics_playbook.md` (if working on lyrics)
-5. `docs/research/lyrics_syncing_research.md` (background only)
+1. `README.md` (project direction + quickstart)
+2. `docs/01_roadmap.md` (phased plan)
+3. `docs/03_working_state.md` (what is implemented now)
+4. `docs/04_repo_reference.md` (this file — repo map)
+5. `docs/06_reduced_representation.md` (current phase design)
+6. `docs/05_lyrics_playbook.md` (if working on lyrics)
+7. `docs/research/lyrics_syncing_research.md` (background only)
 
 ## Repository layout
 - `songviz/` — Python package and CLI. Key modules: `ingest` (path normalization, decoding), `analyze` (beat/loudness/onset), `story` (sections, tension, drop candidates), `render` (frame generation + ffmpeg), `stems` (Demucs wrappers), `lyrics` (Whisper alignment, `alignment.json` I/O), `viz` (analysis PNGs + README generation), `ui` (terminal picker), `tidy` (outputs cleanup), and `cli` (`songviz` command definitions).
@@ -35,7 +37,7 @@ SongViz converts a local song file into an MP4 whose abstract visuals respond to
 | `songviz render <audio>` | run analysis + render + mux audio into `outputs/<song_id>/video.mp4` | `--layout mix|stems4`, `--seed`, `--fps`, `--audio-codec aac|mp3`, `--audio-bitrate`, `--stems-model`, `--stems-device`, `--stems-force` |
 | `songviz stems <audio>` | run Demucs (via `ensure_demucs_stems`) and dump WAV stems | `--model`, `--device`, `--force` |
 | `songviz ui` | terminal interface to pick a song from `songs/` and render it with `make ui`-like defaults | same rendering args as `render`, plus `--songs-dir`, `--outputs-dir` |
-| `songviz lyrics <audio>` | run lyrics alignment (LRCLIB + backend routing + auto calibration) and write `outputs/<song_id>/lyrics/alignment.json` | `--artist`, `--title` (override ID3 tags), `--language`, `--model` (tiny/base/small/medium/large), `--backend auto|whisper|whisperx`, `--no-auto-calibrate`, `--force` |
+| `songviz lyrics <audio>` | run lyrics alignment (LRCLIB + backend routing + auto calibration) and write `outputs/<song_id>/lyrics/alignment.json` | `--artist`, `--title` (override ID3 tags), `--language`, `--model` (tiny/base/small/medium/large), `--backend auto|whisper|stable_whisper|whisperx`, `--no-auto-calibrate`, `--force` |
 | `songviz tidy` | move stray files/legacy folders under `outputs/` into hidden `.songviz/*` areas | `--outputs-dir`, `--dry-run` |
 
 The package also exposes the console entry: `python -m songviz <subcommand>`. `pip install -e .` or `pip install -e '.[stems]'` registers the console script `songviz` for convenience.
@@ -53,35 +55,29 @@ The package also exposes the console entry: `python -m songviz <subcommand>`. `p
   - `lyrics/alignment.json` (optional) — backend word-level alignment (whisper/whisperx) with optional auto-offset calibration; written by `songviz lyrics`; requires `pip install -e '.[lyrics]'` (`.[lyricsx]` for whisperx backend).
 
 ## Storytelling signals (see `songviz/story.py`)
-- **Sections** are MFCC-driven clusters labelled `A`, `B`, `C`, … with neighbor merging (min length 7 s). Motif-aware: sections that sound alike get the same letter (e.g., two chorus passes both labelled `B`), so the renderer can apply a consistent palette to recurring song parts.
+- **Sections** are detected via **SSM (self-similarity matrix) + checkerboard novelty** boundary detection (min section length: 12 s for SSM, 15 s for agglomerative fallback). Each section gets a **role-based label** — `intro`, `build`, `payoff`, `valley`, `contrast`, `outro` — assigned from blended similarity (MFCC 40% + chroma 20% + energy 40%), rms_slope, contrast gating, and build boost heuristics. Letters `A`, `B`, `C`, … are derived from role + acoustic similarity clustering, so recurring similar sections share a letter.
 - **Tension** is a weighted blend of smoothed RMS, onset strength, and spectral centroid, normalized into `[0,1]`, and intended to mark buildups/drops.
 - **Events** include `drop_times_s` (sharp tension drops) and `buildups` (each entry has `buildup_start_s`, `buildup_peak_s`, `drop_time_s`).
+- Fallback chain: SSM → tension valley (songs >90 s with ≤2 sections) → agglomerative (exception).
 - Every renderer can consume `story` output to adjust visuals (background gradients per section, tightened composition during buildups, crossfade hints, etc.).
 
 ## Lyrics implementation status
 - **Implemented**: full pipeline — `songviz lyrics <audio>` → `alignment.json`; word overlay in rendered video.
-- **Fallback chain** (best to worst):
-  1. LRCLIB synced + backend timing → `lrclib+whisper_timing` / `lrclib+whisperx_timing` (real audio timestamps, human-verified text)
-  2. LRCLIB synced, no backend → `lrclib_synced` (proportional word timing)
-  3. LRCLIB plain text + backend → `whisper+lrclib_prompt` / `whisperx+lrclib_prompt`
-  4. No LRCLIB match → pure backend (`whisper` / `whisperx`)
-  5. Auto calibration estimates and applies a global timing offset when confidence is high enough.
-- LRCLIB lookup reads ID3/Vorbis tags via `mutagen`; `--artist`/`--title` CLI flags override.
-- `make ui` auto-runs lyrics alignment before each render (`force=False`; cached).
-- `songviz render --lyrics` draws the active word as a text overlay (mix: bottom-centre; stems4: vocals quadrant).
-- Module: `songviz/lyrics.py` — public API: `align_lyrics`, `load_alignment`, `lyric_activity_at`, `lyric_signals_for_timeline`.
-- Private helpers: `_read_audio_metadata`, `_fetch_lrclib`, `_parse_lrc`, `_split_line_into_words`, `_merge_lrc_with_whisper_timing`, `_assign_whisper_times_to_lrc_words`, `_normalize_plain_lyrics_for_prompt`.
-- Output: `outputs/<song_id>/lyrics/alignment.json` (see contract in `docs/05_lyrics_playbook.md`).
-- Requires optional dep: `pip install -e '.[lyrics]'` (openai-whisper + mutagen). For whisperx backend, add `pip install -e '.[lyricsx]'`.
-- Not yet done: MFA path, pYIN pitch summary.
+- Uses a 6-tier fallback chain with three backends (`stable_whisper`, `whisperx`, `whisper`); forced alignment via `stable_whisper` is the preferred path.
+- Requires `pip install -e '.[lyrics]'` (openai-whisper + stable-ts + mutagen); `.[lyricsx]` adds whisperx.
+- Module: `songviz/lyrics.py`; output: `outputs/<song_id>/lyrics/alignment.json`.
+- See `docs/05_lyrics_playbook.md` for the full pipeline specification, tier definitions, and output contract.
 
 ## Research & documentation references
-- `docs/02_architecture.md` → pipeline diagram and CLI/design notes.
+- `docs/01_roadmap.md` → phased plan (what is done, what is next, what is future).
+- `docs/02_architecture.md` → pipeline shape, key concepts, CLI/design notes.
 - `docs/03_working_state.md` → implementation status (updated constantly).
 - `docs/05_lyrics_playbook.md` → canonical lyrics implementation and output contract.
-- `docs/research/voice-notes-research.md` → ideas for how to "tell a story" and map narrative/scene logic onto sound.
-- `docs/research/lyrics_syncing_research.md` → detailed recommendations and tool comparison for lyric/phoneme alignment.
-- `docs/research/deep-research-report.md` and `docs/research/song-story-research.md` → supplemental studies captured by earlier collaborators.
+- `docs/06_reduced_representation.md` → design for the current phase: converting features into discrete musical events.
+- `experiments/README.md` → separation backend experiments and decisions (DrumSep integration rationale).
+- `docs/research/voice-notes-research.md` → pitch extraction tool survey (pYIN, Basic Pitch, CREPE).
+- `docs/research/song-story-research.md` → structural segmentation tool survey (SSM, MSAF, novelty detection).
+- `docs/research/lyrics_syncing_research.md` → lyric/phoneme alignment tool comparison.
 
 ## Running and testing
 - Setup: `python3 -m venv .songviz/venv && pip install -e .` (optional `.[stems]` for Demucs, `.[lyrics]` for Whisper, `.[lyricsx]` for whisperx backend, `.[viz]` for matplotlib analysis PNGs).

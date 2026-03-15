@@ -1,11 +1,15 @@
 # Working State (Source of Truth)
 
 Use this file for the current runtime state and near-term priorities.
-Backlog/future ideation lives in `docs/01_roadmap.md`.
+For the phased roadmap, see `docs/01_roadmap.md`.
+
+**Where we are**: Phases 0–3 are complete (core pipeline, stems, lyrics, story). Phase 4 (reduced representation) is the current focus — see `docs/06_reduced_representation.md` for the detailed design.
 
 ## Start here
+- Project roadmap and phases: `docs/01_roadmap.md`
 - Runtime status and commands: this file
 - Repo and module map: `docs/04_repo_reference.md`
+- Reduced-representation design (current phase): `docs/06_reduced_representation.md`
 - Canonical lyrics implementation path: `docs/05_lyrics_playbook.md`
 - Lyrics research notes (non-default): `docs/research/lyrics_syncing_research.md`
 
@@ -46,7 +50,7 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - `--layout stems4` renders a 2x2 stem grid with stem-specific visuals
   - `_VisualizerBase` base class shared by `Visualizer` (mix) and `StemQuadVisualizer` (stems4)
   - Drop flash is now a two-phase sharp white spike (decay 60 ms) + accent afterglow (decay 300 ms); section boundaries have a 150 ms color wash in the incoming palette; buildup fraction drives orb radius swell (+12% at peak).
-  - **Timeline bar**: thin 18 px bar at the bottom of every frame (mix + stems4). Colored blocks per section (palette `bot` color), section labels, section boundary lines, and a 3 px white playhead + downward triangle. Subsection dividers removed. Implemented via `_VisualizerBase._draw_timeline_bar(draw, t, w, h)`.
+  - **Timeline bar**: thin 24 px bar at the top of every frame (mix + stems4). Colored blocks per section (palette `bot` color), section labels, section boundary lines, and a 3 px white playhead + downward triangle. Subsection dividers removed. Implemented via `_VisualizerBase._draw_timeline_bar(draw, t, w, h)`.
 - Minimal pytest coverage for analysis keys/array lengths and `song_id` stability.
 - Analysis visualization:
   - `songviz analyze <audio>` and `songviz render <audio>` now auto-generate `analysis/overview.png` (2-panel dark-theme: envelopes + section timeline) and `analysis/README.md` (metadata table, sections, signal glossary, re-generate instructions).
@@ -89,6 +93,11 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
 - **Not yet done**: pYIN pitch summary, `lyrics-aligner` fallback (wav2vec2).
 
 ## Current priorities
+- **Reduced representation** (Phase 4 — current focus):
+  - Build `songviz/reduction.py`: convert per-stem features into discrete musical events
+  - First target: drum hit extraction from DrumSep components
+  - Then: vocal note events, bass note events
+  - Detailed plan: `docs/06_reduced_representation.md`
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word
   - `lyrics-aligner` fallback (wav2vec2, pip-installable)
@@ -96,6 +105,7 @@ Backlog/future ideation lives in `docs/01_roadmap.md`.
   - reduce section jitter and micro-sections further
 - Render improvements:
   - stronger chapter transition visuals (currently: smoothstep crossfade; want: more dramatic)
+- Separation stack is **frozen** — Demucs + DrumSep. Vocal model experiments deferred (see `experiments/README.md`).
 
 ## How to run locally
 

@@ -6,7 +6,13 @@ If this playbook conflicts with research notes, follow this file.
 ## Scope and status
 - **Implemented**: `songviz lyrics <audio>` → `outputs/<song_id>/lyrics/alignment.json` with word-level timestamps.
 - **Render integration done**: `songviz render --lyrics` draws the active word as a text overlay; `make ui` runs this automatically.
-- Current alignment chain: LRCLIB synced + backend timing (whisperx/whisper) → LRCLIB synced proportional → backend+prompt → pure backend. Automatic global offset calibration is applied by default.
+- **Alignment chain** (6 tiers, best to worst):
+  1. `lrclib+stable_whisper_forced` — forced alignment via `stable_whisper.load_model().align()` (1:1 word mapping, no difflib)
+  2. `lrclib+stable_whisper_timing` / `lrclib+whisperx_timing` / `lrclib+whisper_timing` — backend transcribes independently, difflib merges words to LRCLIB text
+  3. `lrclib_synced` — proportional word timing within each LRC line (no backend needed)
+  4. `stable_whisper+lrclib_prompt` / `whisper+lrclib_prompt` — LRCLIB plain text fed as prompt to backend
+  5. Pure backend: `stable_whisper` / `whisper` / `whisperx` (no LRCLIB match)
+  6. Auto calibration: pre-merge global offset for lrclib paths (preserves segment boundaries); post-merge for pure-backend paths
 - Background options and theory live in `docs/research/lyrics_syncing_research.md`.
 
 ## Source of truth
@@ -18,11 +24,12 @@ If this playbook conflicts with research notes, follow this file.
 1. **Audio source** — vocals stem (`outputs/<song_id>/stems/vocals.wav`) preferred; full mix as fallback. Used only for Whisper paths.
 2. **Metadata** — artist + title read from ID3/Vorbis tags via `mutagen`; `--artist`/`--title` CLI flags override.
 3. **LRCLIB lookup** — `GET https://lrclib.net/api/get?artist_name=X&track_name=Y&duration=Z` (stdlib urllib, no auth). Returns synced LRC and/or plain lyrics, or None on miss/timeout.
-4. **Alignment** — decided by what LRCLIB returned and which backend is available:
-   - **Synced LRC + backend** → parse LRC for line anchors; run backend (`whisperx` preferred in `auto`, then `whisper`) with plain text as `initial_prompt`; assign backend word timestamps to LRCLIB words with interpolation for uncovered words. `alignment_tool: "lrclib+whisper_timing"` or `"lrclib+whisperx_timing"`.
-   - **Synced LRC, no backend** → proportional word timing within each LRC line. `alignment_tool: "lrclib_synced"`.
-   - **Plain lyrics only + backend** → run backend with plain text as `initial_prompt`. `alignment_tool: "whisper+lrclib_prompt"` / `"whisperx+lrclib_prompt"`.
-   - **No LRCLIB match** → pure backend (`"whisper"` / `"whisperx"`).
+4. **Alignment** — decided by what LRCLIB returned and which backend is available. The preferred path is **forced alignment** via `stable_whisper` (`stable_whisper.load_model().align()`), which maps known LRCLIB text directly to audio without lossy difflib matching. Default backend order: `whisperx` > `stable_whisper` > `whisper`; default model: `small`.
+   - **Synced LRC + forced alignment** → `lrclib+stable_whisper_forced` (best quality).
+   - **Synced LRC + backend transcribe+merge** → `lrclib+stable_whisper_timing` / `lrclib+whisperx_timing` / `lrclib+whisper_timing` (fallback when FA fails).
+   - **Synced LRC, no backend** → `lrclib_synced` (proportional word timing).
+   - **Plain lyrics only + backend** → `stable_whisper+lrclib_prompt` / `whisper+lrclib_prompt`.
+   - **No LRCLIB match** → pure backend (`stable_whisper` / `whisper` / `whisperx`).
 5. **Auto calibration** — estimate and apply a global offset from vocal-energy vs word-activity correlation when confidence is sufficient.
 5a. **Onset snapping** — after calibration, `_snap_words_to_vocal_onset()` nudges each word start forward to the nearest spectral onset detected by `librosa.onset.onset_detect` (spectral flux). Lead-in before the onset is **per-word** based on the word-initial phoneme class (see table below), so plosive-initial words get more pre-roll than vowel-initial ones. The `phones` field on each word is populated with `[{"class": <class>, "source": "text_heuristic"}]`.
 
@@ -43,7 +50,8 @@ The class is determined by `_initial_phoneme_class(word)` — a pure-text heuris
 
 ## Fallback policy
 - LRCLIB is the primary text source; backend words provide audio-based timestamps.
-- `auto` backend routing prefers whisperx when installed, then falls back to whisper.
+- `auto` backend routing prefers `whisperx` when installed, then `stable_whisper` (stable-ts), then `whisper`.
+- Forced alignment (`stable_whisper`) is attempted first for synced LRC; transcribe+merge is the fallback.
 - Pure backend transcription is the last resort when no metadata or LRCLIB match exists.
 
 ## Required output contract
@@ -58,19 +66,10 @@ Minimum fields:
 - `pitch_summary`: per-word aggregates (`median_hz`, `mean_voiced_prob`) when available
 
 ## Implementation order (for contributors/LLMs)
-1. ~~Build normalizer that converts MFA output into `alignment.json`.~~ → **Done via Whisper** (word timestamps; MFA normalizer still pending).
-2. ~~Add optional Whisper pre-step when lyrics text is missing.~~ → **Done** (Whisper used end-to-end for MVP).
-3. ~~Add LRCLIB as primary lyrics text source with Whisper timing.~~ → **Done** (`lrclib+whisper_timing` hybrid; `difflib` sequence alignment merges LRC text with Whisper timestamps).
-4. ~~Wire lyric cues into render.~~ → **Done** (`--lyrics` flag on `songviz render`; auto-enabled in `make ui`).
+Steps 1–4 complete.
 5. Add pYIN-based word-level pitch summary.
 6. Add MFA forced alignment path (better phoneme-level accuracy for clean vocals).
 7. Add fallback path to `lyrics-aligner` (wav2vec2).
-
-## Acceptance criteria (MVP)
-- ✅ Running the lyrics pipeline produces `outputs/<song_id>/lyrics/alignment.json`.
-- ✅ At least 90% of aligned words have valid `start_s <= end_s`.
-- ✅ Alignment metadata identifies tool and source audio (vocals stem vs mix).
-- ✅ Story layer can read the file without schema errors (`load_alignment()` returns dict or None).
 
 ## Non-goals for this phase
 - Perfect semantic understanding of lyrics.

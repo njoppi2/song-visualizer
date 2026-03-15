@@ -1,10 +1,29 @@
 # SongViz
 
-Generate a music-reactive video from an audio file.
+Understand and visualize what is happening in a song over time.
+
+SongViz extracts structural information from audio — section boundaries, tension arcs, melody contour, rhythm skeleton, harmonic motion, arrangement changes — and uses it to generate meaningful visualizations. The current main output is a music-reactive MP4 video, but the core of the project is the analysis pipeline that derives interpretable musical signals from raw audio.
+
+### Project direction
+
+The long-term goal is a system that can explain the "story" of a song: where sections begin and end, which sections repeat, how energy and density rise and fall, how melody/bass/drums/harmony interact, and what changes between one part and the next.
+
+Our current approach is to **simplify the song first** — remove timbral complexity while preserving the structural core (melody, rhythm, bass movement, harmonic motion, section changes, repetition, dynamics). We suspect that a simplified, low-timbre version of a song preserves enough structural information to make analysis clearer. Timbral detail from the original audio can be layered back in later if needed.
+
+In concrete terms:
+- **Separation** (Demucs) isolates musical layers so we can analyze them independently — it is a means to better analysis, not an end in itself
+- **Feature extraction** captures per-stem musical content (pitch tracks, drum hits, chroma, energy envelopes)
+- **Reduced representation** (next phase) will convert those features into discrete musical events — note onsets, drum hits, chord labels — stripped of timbre
+- **Story / structural analysis** identifies sections, roles, tension, and repetition patterns
+- **Rendering** visualizes the analysis as video — the current primary output, but not the only goal
+
+See `docs/01_roadmap.md` for the phased plan and `docs/06_reduced_representation.md` for the detailed design of the next phase.
 
 ## Start Here (Humans + LLMs)
+- Project roadmap and phases: `docs/01_roadmap.md`
 - Current runtime status and priorities: `docs/03_working_state.md`
 - Repo map and command reference: `docs/04_repo_reference.md`
+- Reduced-representation design (next phase): `docs/06_reduced_representation.md`
 - Canonical lyrics implementation path: `docs/05_lyrics_playbook.md`
 - Lyrics research and alternatives (non-default): `docs/research/lyrics_syncing_research.md`
 
@@ -62,21 +81,14 @@ pip install -e '.[lyrics]'
 python3 -m songviz lyrics songs/my.flac
 ```
 
-Optional forced-alignment backend:
+Optional extra backend (whisperx):
 
 ```bash
 pip install -e '.[lyricsx]'
 python3 -m songviz lyrics songs/my.flac --backend whisperx
 ```
 
-This writes `outputs/<song_name>/lyrics/alignment.json` with word-level timestamps. The alignment uses a backend-aware fallback chain:
-
-1. **LRCLIB synced + backend timing** (`lrclib+whisper_timing` or `lrclib+whisperx_timing`) — queries [lrclib.net](https://lrclib.net) (free, no auth) for human-verified lyrics, then assigns real audio timing from backend words.
-2. **LRCLIB synced, no Whisper** (`lrclib_synced`) — same text, proportional word timing.
-3. **LRCLIB plain text + backend** (`whisper+lrclib_prompt` / `whisperx+lrclib_prompt`) — correct text fed to backend as a prompt.
-4. **Pure backend** (`whisper` / `whisperx`) — when no metadata or LRCLIB match is found.
-
-SongViz also runs automatic global offset calibration (enabled by default) to reduce constant early/late drift between aligned words and vocal energy.
+This writes `outputs/<song_name>/lyrics/alignment.json` with word-level timestamps. The alignment uses a 6-tier fallback chain that combines LRCLIB text with audio-based timing from one of three backends (`stable_whisper`, `whisperx`, or `whisper`), with automatic global offset calibration enabled by default. See `docs/05_lyrics_playbook.md` for the full pipeline specification and output contract.
 
 LRCLIB lookup uses ID3/Vorbis tags automatically. Override them with `--artist`/`--title` if tags are missing.
 
@@ -86,8 +98,8 @@ Options:
 - `--artist "Name"` — artist name (overrides ID3 tag)
 - `--title "Name"` — track title (overrides ID3 tag)
 - `--language en` — language code for Whisper (default: en)
-- `--model base` — Whisper model size: tiny, base, small, medium, large (default: small)
-- `--backend auto` — alignment backend: auto, whisper, whisperx (default: auto)
+- `--model small` — Whisper model size: tiny, base, small, medium, large (default: small)
+- `--backend auto` — alignment backend: auto, whisper, stable_whisper, whisperx (default: auto)
 - `--no-auto-calibrate` — disable automatic global timing calibration
 - `--force` — re-run alignment even if a cached file exists
 

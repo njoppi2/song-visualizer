@@ -1,3 +1,5 @@
+> **Historical research.** Actual implementation uses librosa SSM + custom novelty + role-based labels. See `songviz/story.py`.
+
 # Building a JSON “song story” from audio using free and open-source tools
 
 ## Executive summary
