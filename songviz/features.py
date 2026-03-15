@@ -237,6 +237,54 @@ def drums_band_energy_3(
     return out
 
 
+def drums_band_energy_3_from_components(
+    components: dict[str, np.ndarray],
+    sr: int,
+    *,
+    hop_length: int = 512,
+) -> np.ndarray:
+    """
+    3-band energy from DrumSep component stems: (N, 3) => [kick, snare, hats].
+
+    Maps the 6 DrumSep components to our 3-band scheme:
+    - kick: kick
+    - snare: snare + toms
+    - hats: hh + ride + crash
+
+    Same output shape and normalization as drums_band_energy_3() — drop-in replacement.
+    """
+    # Check for empty input early
+    if all(v.size == 0 for v in components.values()):
+        return np.zeros((0, 3), dtype=np.float32)
+
+    def _rms(y: np.ndarray) -> np.ndarray:
+        if y.size == 0:
+            return np.zeros((0,), dtype=np.float32)
+        return librosa.feature.rms(y=y, hop_length=int(hop_length))[0].astype(np.float32, copy=False)
+
+    band_rms: list[np.ndarray] = []
+    for group in [("kick",), ("snare", "toms"), ("hh", "ride", "crash")]:
+        parts = [_rms(components[k]) for k in group if k in components and components[k].size > 0]
+        if not parts:
+            band_rms.append(np.zeros((0,), dtype=np.float32))
+            continue
+        n = min(p.size for p in parts)
+        combined = sum(p[:n] for p in parts)
+        band_rms.append(combined)
+
+    if not band_rms or any(b.size == 0 for b in band_rms):
+        return np.zeros((0, 3), dtype=np.float32)
+
+    n = min(b.size for b in band_rms)
+    out = np.zeros((n, 3), dtype=np.float32)
+    for i, b in enumerate(band_rms):
+        v = b[:n]
+        cap = float(np.percentile(v, 99)) if v.size else 0.0
+        cap = max(cap, float(v.max()) if v.size else 0.0, 1e-9)
+        out[:, i] = np.clip(v / cap, 0.0, 1.0)
+    return out
+
+
 def vocals_note_events_basic_pitch(
     audio_path: str,
     *,

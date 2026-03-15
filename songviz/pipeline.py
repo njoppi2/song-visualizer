@@ -16,6 +16,7 @@ from .analyze import analyze_audio
 from .features import (
     bass_pitch_hz,
     drums_band_energy_3,
+    drums_band_energy_3_from_components,
     other_chroma_12,
     vocals_note_events_basic_pitch,
     vocals_pitch_hz,
@@ -26,7 +27,7 @@ from .paths import (
     video_path_for_output_dir,
 )
 from .render import RenderConfig, render_mp4, render_mp4_stems4
-from .stems import ensure_demucs_stems
+from .stems import ensure_demucs_stems, ensure_drumsep_components
 
 
 def _write_analysis_artifacts(analysis: dict[str, Any], out_dir: Path) -> None:
@@ -70,7 +71,20 @@ def _build_stem_analyses(
 
         feats: dict[str, Any] = {}
         if name == "drums":
-            feats["drums_bands_3"] = drums_band_energy_3(y, int(sr), hop_length=hop_length, n_fft=frame_length)
+            heuristic = drums_band_energy_3(y, int(sr), hop_length=hop_length, n_fft=frame_length)
+            feats["drums_bands_3_heuristic"] = heuristic
+            feats["drums_bands_3"] = heuristic
+
+            drumsep = ensure_drumsep_components(stem_path, out_dir=out_dir)
+            if drumsep is not None:
+                comp_audio = {
+                    comp: np.asarray(librosa.load(str(cp), sr=int(sr), mono=True)[0], dtype=np.float32)
+                    for comp, cp in drumsep.components.items()
+                }
+                drumsep_energy = drums_band_energy_3_from_components(comp_audio, int(sr), hop_length=hop_length)
+                if drumsep_energy.size > 0:
+                    feats["drums_bands_3_drumsep"] = drumsep_energy
+                    feats["drums_bands_3"] = drumsep_energy
         elif name == "bass":
             feats["pitch_hz"] = bass_pitch_hz(y, int(sr), hop_length=hop_length, frame_length=frame_length)
         elif name == "vocals":
