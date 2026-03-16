@@ -28,9 +28,6 @@ stems = [
 ]
 notes = [
   "basic-pitch",
-  # basic-pitch currently pulls native wheels (e.g., tflite-runtime) that may not
-  # be compatible with NumPy 2.x on all platforms.
-  "numpy<2",
 ]
 lyrics = [
   "openai-whisper",

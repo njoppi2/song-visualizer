@@ -66,6 +66,14 @@ def story_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "analysis" / "story.json"
 
 
+def reduced_path_for_output_dir(out_dir: Path) -> Path:
+    return out_dir / "analysis" / "reduced.json"
+
+
+def sonify_path_for_output_dir(out_dir: Path) -> Path:
+    return out_dir / "analysis" / "reduced.wav"
+
+
 def video_path_for_output_dir(out_dir: Path) -> Path:
     return out_dir / "video.mp4"
 

@@ -14,6 +14,7 @@ import numpy as np
 
 from .analyze import analyze_audio
 from .features import (
+    bass_note_events_basic_pitch,
     bass_pitch_hz,
     drums_band_energy_3,
     drums_band_energy_3_from_components,
@@ -23,8 +24,16 @@ from .features import (
 )
 from .paths import (
     analysis_path_for_output_dir,
+    reduced_path_for_output_dir,
     story_path_for_output_dir,
     video_path_for_output_dir,
+)
+from .reduction import (
+    _REDUCED_SCHEMA_VERSION,
+    extract_bass_notes,
+    extract_drum_hits,
+    extract_drum_hits_fallback,
+    extract_vocal_notes,
 )
 from .render import RenderConfig, render_mp4, render_mp4_stems4
 from .stems import ensure_demucs_stems, ensure_drumsep_components
@@ -76,6 +85,7 @@ def _build_stem_analyses(
             feats["drums_bands_3"] = heuristic
 
             drumsep = ensure_drumsep_components(stem_path, out_dir=out_dir)
+            comp_audio: dict[str, np.ndarray] | None = None
             if drumsep is not None:
                 comp_audio = {
                     comp: np.asarray(librosa.load(str(cp), sr=int(sr), mono=True)[0], dtype=np.float32)
@@ -85,14 +95,96 @@ def _build_stem_analyses(
                 if drumsep_energy.size > 0:
                     feats["drums_bands_3_drumsep"] = drumsep_energy
                     feats["drums_bands_3"] = drumsep_energy
+
+            # ── Drum hit extraction (reduced representation) ──
+            beat_times = analysis.get("beats", {}).get("beat_times_s")
+            if drumsep is not None and comp_audio is not None:
+                drum_hits = extract_drum_hits(
+                    comp_audio, int(sr), hop_length=hop_length, beat_times_s=beat_times,
+                )
+            else:
+                drum_hits = extract_drum_hits_fallback(
+                    y, int(sr), hop_length=hop_length, n_fft=frame_length,
+                    beat_times_s=beat_times,
+                )
+            feats["drum_hits"] = drum_hits
+
+            # Write/update reduced.json (unified reduced representation)
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            reduced_path.parent.mkdir(parents=True, exist_ok=True)
+            reduced: dict[str, Any] = {}
+            if reduced_path.exists():
+                try:
+                    reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["drums"] = drum_hits
+            reduced_path.write_text(
+                json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+            )
         elif name == "bass":
             feats["pitch_hz"] = bass_pitch_hz(y, int(sr), hop_length=hop_length, frame_length=frame_length)
+            try:
+                feats["note_events"] = bass_note_events_basic_pitch(str(stem_path))
+            except Exception:
+                pass
+
+            # ── Bass note extraction (reduced representation) ──
+            beat_times = analysis.get("beats", {}).get("beat_times_s")
+            bass_notes = extract_bass_notes(
+                note_events=feats.get("note_events"),
+                pitch_hz=feats.get("pitch_hz"),
+                y=y, sr=int(sr), hop_length=hop_length,
+                beat_times_s=beat_times,
+            )
+            feats["bass_notes"] = bass_notes
+
+            # Write/update reduced.json
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            reduced_path.parent.mkdir(parents=True, exist_ok=True)
+            reduced: dict[str, Any] = {}
+            if reduced_path.exists():
+                try:
+                    reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["bass"] = bass_notes
+            reduced_path.write_text(
+                json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+            )
         elif name == "vocals":
             feats["pitch_hz"] = vocals_pitch_hz(y, int(sr), hop_length=hop_length, frame_length=frame_length)
             try:
                 feats["note_events"] = vocals_note_events_basic_pitch(str(stem_path))
             except Exception:
                 pass
+
+            # ── Vocal note extraction (reduced representation) ──
+            beat_times = analysis.get("beats", {}).get("beat_times_s")
+            vocal_notes = extract_vocal_notes(
+                note_events=feats.get("note_events"),
+                pitch_hz=feats.get("pitch_hz"),
+                y=y, sr=int(sr), hop_length=hop_length,
+                beat_times_s=beat_times,
+            )
+            feats["vocal_notes"] = vocal_notes
+
+            # Write/update reduced.json
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            reduced_path.parent.mkdir(parents=True, exist_ok=True)
+            reduced: dict[str, Any] = {}
+            if reduced_path.exists():
+                try:
+                    reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["vocals"] = vocal_notes
+            reduced_path.write_text(
+                json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+            )
         elif name == "other":
             feats["chroma_12"] = other_chroma_12(y, int(sr), hop_length=hop_length, n_fft=frame_length)
         if feats:

@@ -11,6 +11,8 @@ from .ingest import song_id_for_path
 from .paths import (
     analysis_path_for_output_dir,
     output_dir_for_audio,
+    reduced_path_for_output_dir,
+    sonify_path_for_output_dir,
     story_path_for_output_dir,
     video_path_for_output_dir,
 )
@@ -119,6 +121,11 @@ def _build_parser() -> argparse.ArgumentParser:
     lyrics_preview = sub.add_parser("lyrics-preview", help="Render a lyrics-only preview video")
     lyrics_preview.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
     lyrics_preview.add_argument("--out", default=None, help="Output mp4 path (optional)")
+
+    sonify_p = sub.add_parser("sonify", help="Sonify reduced.json into a debug WAV")
+    sonify_p.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
+    sonify_p.add_argument("--out", default=None, help="Output WAV path (optional)")
+    sonify_p.add_argument("--diagnose", action="store_true", help="Print diagnostic stats, warnings, and write per-layer debug WAVs")
 
     return p
 
@@ -370,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.cmd == "lyrics-preview":
             from .lyrics import load_alignment
-            from .render import RenderConfig, render_mp4_lyrics_only
+            from .render import render_mp4_lyrics_only
 
             song_id = song_id_for_path(args.audio_path)
             out_dir = output_dir_for_audio(args.audio_path, str(song_id))
@@ -396,6 +403,62 @@ def main(argv: list[str] | None = None) -> int:
                 duration_s=duration_s,
             )
             print(str(out_mp4))
+            return 0
+
+        if args.cmd == "sonify":
+            from .sonify import diagnose_reduced, sonify_reduced, sonify_reduced_layers
+
+            song_id = song_id_for_path(args.audio_path)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            if not reduced_path.exists():
+                print(
+                    f"error: {reduced_path} not found — run the reduction pipeline first "
+                    "(e.g. `songviz render --layout stems4`).",
+                    file=sys.stderr,
+                )
+                return 2
+            reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+            wav_path = Path(args.out) if args.out else sonify_path_for_output_dir(out_dir)
+            sonify_reduced(reduced, wav_path)
+            print(str(wav_path))
+
+            if args.diagnose:
+                diag = diagnose_reduced(reduced)
+                analysis_dir = out_dir / "analysis"
+
+                # Print stats table
+                print(f"\n{'=== Diagnostic Report ===':=^60}")
+                print(f"Song duration: {diag['song_duration_s']:.1f}s\n")
+
+                d = diag["drums"]
+                print(f"--- Drums ---")
+                print(f"  hits: {d['event_count']}  density: {d['density_hits_per_s']:.1f}/s")
+                print(f"  components: {d['component_counts']}")
+                print(f"  RMS: {d['rms']:.5f}  energy: {d['energy_pct']:.1f}%")
+
+                for layer in ("vocals", "bass"):
+                    s = diag[layer]
+                    print(f"\n--- {layer.capitalize()} (source: {s['source']}) ---")
+                    print(f"  notes: {s['event_count']}  coverage: {s['coverage_pct']:.1f}%  active: {s['total_active_s']:.1f}s")
+                    if s["event_count"] > 0:
+                        print(f"  duration: mean={s['mean_duration_s']:.3f}s  median={s['median_duration_s']:.3f}s")
+                        print(f"  MIDI: {s['midi_min']:.0f}-{s['midi_max']:.0f}  mean={s['midi_mean']:.1f}  median={s['midi_median']:.1f}")
+                    print(f"  RMS: {s['rms']:.5f}  energy: {s['energy_pct']:.1f}%")
+
+                if diag["warnings"]:
+                    print(f"\n{'!!! Warnings !!!':!^60}")
+                    for w in diag["warnings"]:
+                        print(f"  - {w}")
+                else:
+                    print("\nNo warnings.")
+
+                # Write per-layer debug WAVs
+                layer_paths = sonify_reduced_layers(reduced, analysis_dir)
+                print(f"\nDebug WAVs:")
+                for name, p in sorted(layer_paths.items()):
+                    print(f"  {name}: {p}")
+
             return 0
 
     except Exception as e:

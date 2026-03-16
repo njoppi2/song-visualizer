@@ -65,6 +65,35 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - `lyrics.load_alignment()` / `lyrics.lyric_activity_at()` / `lyrics.lyric_signals_for_timeline()` expose derived signals.
   - `songviz render <audio> --lyrics` loads `alignment.json` and renders a **full-line overlay**: active word in accent color, remaining words dimmed (mix layout: bottom-center; stems4: vocals quadrant bottom-center).
 - `cli.py` has a local `_copy_or_link` helper (intentional — separate from `stems.py`'s internal copy logic).
+- Drum hit extraction (`songviz/reduction.py`):
+  - First piece of the reduced representation (`analysis/reduced.json`, `"drums"` key).
+  - DrumSep path: per-component onset strength + peak-picking with tuned per-instrument parameters.
+  - Heuristic fallback: onset detect on full drum stem + spectral band classification (kick <150Hz, snare 150–2500Hz, hh >2500Hz).
+  - Dual velocity: `velocity` (per-component normalized 0–1) for dynamics, `velocity_raw` (unnormalized RMS) for cross-component loudness.
+  - Beat alignment: `beat_idx` + `beat_phase` [0.0, 1.0) preserving syncopation/offbeat info.
+  - Auto-wired into `_build_stem_analyses()` in `pipeline.py`; writes `reduced.json` with read-merge-write pattern for future stem extensions.
+- Vocal note extraction (`songviz/reduction.py`):
+  - Second piece of the reduced representation (`analysis/reduced.json`, `"vocals"` key).
+  - Primary: basic-pitch note events (from `vocals_note_events_basic_pitch`) → remap field names + beat alignment.
+  - **basic-pitch ONNX fix**: `vocals_note_events_basic_pitch` now resolves the ONNX model path (`nmp.onnx`) and passes it via `model_or_model_path`, bypassing `tflite-runtime` incompatibility with numpy 2.x. Falls back to default (tflite) if ONNX model not found.
+  - Fallback: pYIN pitch track → group consecutive same-MIDI frames into notes, RMS-based velocity with 99th-percentile normalization.
+  - Schema: `onset_s`/`offset_s` (duration), `midi` (float, 2dp), `velocity` (normalized [0,1]), `beat_idx`/`beat_phase`.
+  - Auto-wired into `_build_stem_analyses()` vocals block; read-merge-write into `reduced.json`.
+- Bass note extraction (`songviz/reduction.py`):
+  - Third piece of the reduced representation (`analysis/reduced.json`, `"bass"` key).
+  - **Primary: basic-pitch** note events (from `bass_note_events_basic_pitch`) → same dispatcher pattern as vocals. Bass-specific thresholds: onset=0.50, frame=0.25, min_note=150ms, freq 30–400 Hz (exposed as `_BASS_BP_*` constants in `features.py`).
+  - **Octave cleanup** (basic-pitch path only): `_dedup_octave_overlaps` removes simultaneous same-pitch-class notes at different octaves (keeps louder); `_correct_octave_by_context` shifts ±12 semitones when local median strongly disagrees (window=5, min_gain=6). Reduces octave-jump artifacts from 48% to 11% of transitions.
+  - **Energy gating**: `_gate_and_prune_bass_notes` removes false-positive notes in near-silent stem regions (RMS threshold = 0.5 × 10th-percentile of nonzero per-note RMS); `_rescale_velocity_to_stem_energy` replaces basic-pitch confidence / pYIN self-normalized velocity with stem-energy-based velocity. Isolated weak notes (>4s gap to neighbors AND velocity <0.35) also pruned. Applied in both basic-pitch and pYIN paths.
+  - **Fallback: pYIN** pitch track → note events with gap-merge (`max_gap_frames=3`).
+  - Same schema as vocals: `onset_s`/`offset_s`/`midi`/`velocity`/`beat_idx`/`beat_phase`.
+  - `source`: `"basic_pitch"`, `"pyin"`, or `"none"`.
+  - Auto-wired into `_build_stem_analyses()` bass block; read-merge-write into `reduced.json`.
+- Sonifier (`songviz/sonify.py`):
+  - `songviz sonify <audio>` reads `analysis/reduced.json` and writes `analysis/reduced.wav`.
+  - Debug/validation tool: noise/sine bursts for drums (6 distinct templates), sine for vocals, triangle wave for bass.
+  - Per-layer WAVs: `reduced_{drums,vocals,bass}_only.wav`, `reduced_vocals_plus_bass.wav`, `reduced_bass_only_up1oct.wav`.
+  - `--diagnose` flag prints per-layer stats + warning heuristics. Bass diagnostics include `velocity_min/max/p10`, `isolated_note_count`, and warnings `many_isolated_bass_notes` / `bass_velocity_floor_high`.
+  - No new deps — numpy + soundfile only.
 
 ## Lyrics status
 - **Implemented**: `songviz lyrics <audio>` runs the fallback chain below and writes `outputs/<song_id>/lyrics/alignment.json`.
@@ -93,10 +122,13 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - **Not yet done**: pYIN pitch summary, `lyrics-aligner` fallback (wav2vec2).
 
 ## Current priorities
-- **Reduced representation** (Phase 4 — current focus):
-  - Build `songviz/reduction.py`: convert per-stem features into discrete musical events
-  - First target: drum hit extraction from DrumSep components
-  - Then: vocal note events, bass note events
+- **Reduced representation** (Phase 4 — in progress):
+  - `songviz/reduction.py`: all three layers implemented — drums (DrumSep + heuristic fallback), vocals (basic-pitch + pYIN fallback), bass (basic-pitch + pYIN fallback + octave cleanup + energy gating)
+  - Output: `analysis/reduced.json` — unified file with `schema_version` and `"drums"`, `"vocals"`, `"bass"` keys
+  - Wired into `pipeline.py` `_build_stem_analyses()` — auto-generates `reduced.json` during stems4 render
+  - Sonifier done: `songviz sonify <audio>` → `analysis/reduced.wav` + per-layer debug WAVs + `--diagnose` stats
+  - **Validated on Feel Good Inc**: bass energy gating removed 32 false positives (notes in near-silent stem regions), 0 real notes lost; velocity rescaled to stem energy (range 0.23–1.00 vs old 0.22–0.75); sections with real bass untouched (71.8% coverage preserved)
+  - Next: human listening pass on sonifier outputs, evaluate whether reduced repr is structurally useful for story/render, or do another vocal-quality round (vocal MIDI centroid still low — median 56, sub-harmonic tracking)
   - Detailed plan: `docs/06_reduced_representation.md`
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word
@@ -127,6 +159,7 @@ make ui UI_LAYOUT=mix        # sem stems, mais rápido
 - `python3 -m songviz lyrics-template path/to/song.flac` (generate blank corrections.yaml)
 - `python3 -m songviz lyrics-correct path/to/song.flac` (apply corrections + print quality stats)
 - `python3 -m songviz lyrics-preview path/to/song.flac` (fast lyrics-only video preview)
+- `python3 -m songviz sonify path/to/song.flac` (sonify reduced.json → `analysis/reduced.wav` for debug)
 - `python3 -m songviz tidy` (limpeza de outputs antigos)
 - `pytest -q` (ou `pip install -e '.[test]' && pytest -q`)
 

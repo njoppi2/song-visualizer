@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Final
 
 import numpy as np
@@ -285,39 +286,46 @@ def drums_band_energy_3_from_components(
     return out
 
 
-def vocals_note_events_basic_pitch(
+def _basic_pitch_predict(
     audio_path: str,
     *,
-    onset_threshold: float = 0.55,
-    frame_threshold: float = 0.30,
-    minimum_note_length_ms: float = 120.0,
-    minimum_frequency: float = 60.0,
-    maximum_frequency: float = 1100.0,
+    onset_threshold: float,
+    frame_threshold: float,
+    minimum_note_length_ms: float,
+    minimum_frequency: float,
+    maximum_frequency: float,
+    melodia_trick: bool = True,
 ) -> list[dict[str, float]]:
-    """
-    Extract note events from (isolated) vocals using Spotify's Basic Pitch.
+    """Run basic-pitch and normalize output to ``[{start_s, end_s, midi, velocity}]``.
 
-    Returns a list of events: {"start_s","end_s","midi","velocity"}.
-    This is intentionally a small, renderer-friendly schema.
+    Shared core for both vocal and bass extraction — handles all known
+    basic-pitch return formats (dicts, tuples, structured arrays, 2-D arrays).
     """
     try:
         from basic_pitch.inference import predict  # type: ignore
+        import basic_pitch as _bp  # type: ignore
     except Exception as e:  # pragma: no cover (optional dependency)
         raise RuntimeError(
-            "basic_pitch is not installed. Install it to enable vocal note events:\n"
+            "basic_pitch is not installed. Install it to enable note extraction:\n"
             "  pip install -e '.[notes]'\n"
             "or:\n"
             "  python3 -m pip install basic-pitch"
         ) from e
 
+    # Prefer ONNX backend — tflite-runtime may not support numpy 2.x.
+    _bp_pkg = Path(_bp.__file__).parent
+    _onnx_model = _bp_pkg / "saved_models" / "icassp_2022" / "nmp.onnx"
+    model_path = _onnx_model if _onnx_model.exists() else None
+
     _, _, note_events = predict(
         audio_path,
+        **({"model_or_model_path": model_path} if model_path else {}),
         onset_threshold=float(onset_threshold),
         frame_threshold=float(frame_threshold),
         minimum_note_length=float(minimum_note_length_ms),
         minimum_frequency=float(minimum_frequency),
         maximum_frequency=float(maximum_frequency),
-        melodia_trick=True,
+        melodia_trick=melodia_trick,
     )
 
     events: list[dict[str, float]] = []
@@ -333,8 +341,16 @@ def vocals_note_events_basic_pitch(
                 if not np.isfinite(m):
                     continue
                 events.append({"start_s": s, "end_s": e, "midi": float(m), "velocity": float(v)})
+            elif isinstance(it, (tuple, list)) and len(it) >= 4:
+                # basic-pitch ≥0.3 returns tuples: (start, end, midi, velocity, pitch_bends)
+                s = float(it[0])
+                e = float(it[1])
+                m = float(it[2])
+                v = float(it[3])
+                if not np.isfinite(m):
+                    continue
+                events.append({"start_s": s, "end_s": e, "midi": m, "velocity": v})
             else:
-                # unknown element type
                 continue
         return events
 
@@ -369,3 +385,61 @@ def vocals_note_events_basic_pitch(
                 continue
             events.append({"start_s": s, "end_s": e, "midi": m, "velocity": vel})
     return events
+
+
+def vocals_note_events_basic_pitch(
+    audio_path: str,
+    *,
+    onset_threshold: float = 0.55,
+    frame_threshold: float = 0.30,
+    minimum_note_length_ms: float = 120.0,
+    minimum_frequency: float = 60.0,
+    maximum_frequency: float = 1100.0,
+) -> list[dict[str, float]]:
+    """
+    Extract note events from (isolated) vocals using Spotify's Basic Pitch.
+
+    Returns a list of events: {"start_s","end_s","midi","velocity"}.
+    """
+    return _basic_pitch_predict(
+        audio_path,
+        onset_threshold=onset_threshold,
+        frame_threshold=frame_threshold,
+        minimum_note_length_ms=minimum_note_length_ms,
+        minimum_frequency=minimum_frequency,
+        maximum_frequency=maximum_frequency,
+    )
+
+
+# ── Bass-appropriate thresholds for basic-pitch ──
+_BASS_BP_ONSET_THRESHOLD: Final[float] = 0.50
+_BASS_BP_FRAME_THRESHOLD: Final[float] = 0.25
+_BASS_BP_MIN_NOTE_LENGTH_MS: Final[float] = 150.0
+_BASS_BP_MIN_FREQ_HZ: Final[float] = 30.0
+_BASS_BP_MAX_FREQ_HZ: Final[float] = 400.0
+
+
+def bass_note_events_basic_pitch(
+    audio_path: str,
+    *,
+    onset_threshold: float = _BASS_BP_ONSET_THRESHOLD,
+    frame_threshold: float = _BASS_BP_FRAME_THRESHOLD,
+    minimum_note_length_ms: float = _BASS_BP_MIN_NOTE_LENGTH_MS,
+    minimum_frequency: float = _BASS_BP_MIN_FREQ_HZ,
+    maximum_frequency: float = _BASS_BP_MAX_FREQ_HZ,
+) -> list[dict[str, float]]:
+    """
+    Extract note events from (isolated) bass using Spotify's Basic Pitch.
+
+    Returns a list of events: {"start_s","end_s","midi","velocity"}.
+    Same schema as :func:`vocals_note_events_basic_pitch` but with
+    bass-appropriate thresholds and frequency range.
+    """
+    return _basic_pitch_predict(
+        audio_path,
+        onset_threshold=onset_threshold,
+        frame_threshold=frame_threshold,
+        minimum_note_length_ms=minimum_note_length_ms,
+        minimum_frequency=minimum_frequency,
+        maximum_frequency=maximum_frequency,
+    )
