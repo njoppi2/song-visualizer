@@ -83,6 +83,7 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - Third piece of the reduced representation (`analysis/reduced.json`, `"bass"` key).
   - **Primary: basic-pitch** note events (from `bass_note_events_basic_pitch`) → same dispatcher pattern as vocals. Bass-specific thresholds: onset=0.50, frame=0.25, min_note=150ms, freq 30–400 Hz (exposed as `_BASS_BP_*` constants in `features.py`).
   - **Octave cleanup** (basic-pitch path only): `_dedup_octave_overlaps` removes simultaneous same-pitch-class notes at different octaves (keeps louder); `_correct_octave_by_context` shifts ±12 semitones when local median strongly disagrees (window=5, min_gain=6). Reduces octave-jump artifacts from 48% to 11% of transitions.
+  - **Key-aware pitch quantization**: `estimate_key_scale` estimates the song key from "other" stem chroma (Pearson correlation against major/minor templates for all 12 roots). `_snap_bass_to_scale` snaps each bass note's MIDI ±1 semitone to the nearest scale degree. Applied after octave correction, before energy gating. Fixes pitch-class smearing where basic-pitch reports F# instead of G, G# instead of G, etc. Pipeline pre-computes chroma from "other" stem before the main loop so key estimate is available for bass extraction regardless of stem processing order.
   - **Energy gating**: `_gate_and_prune_bass_notes` removes false-positive notes in near-silent stem regions (RMS threshold = 0.5 × 10th-percentile of nonzero per-note RMS); `_rescale_velocity_to_stem_energy` replaces basic-pitch confidence / pYIN self-normalized velocity with stem-energy-based velocity. Isolated weak notes (>4s gap to neighbors AND velocity <0.35) also pruned. Applied in both basic-pitch and pYIN paths.
   - **Fallback: pYIN** pitch track → note events with gap-merge (`max_gap_frames=3`).
   - Same schema as vocals: `onset_s`/`offset_s`/`midi`/`velocity`/`beat_idx`/`beat_phase`.
@@ -94,6 +95,12 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - Per-layer WAVs: `reduced_{drums,vocals,bass}_only.wav`, `reduced_vocals_plus_bass.wav`, `reduced_bass_only_up1oct.wav`.
   - `--diagnose` flag prints per-layer stats + warning heuristics. Bass diagnostics include `velocity_min/max/p10`, `isolated_note_count`, and warnings `many_isolated_bass_notes` / `bass_velocity_floor_high`.
   - No new deps — numpy + soundfile only.
+- Evaluation framework (`songviz/eval.py`):
+  - `songviz eval <audio>` compares `reduced.json` against human-curated reference annotations in `benchmark/references/`.
+  - Three evidence levels: gold (synthetic ground truth), silver (tabs/listening), weak (rough annotations).
+  - Metrics: section-level activity F1 (is the layer playing?), silent-region false positive count/rate, pitch range accuracy (% in expected MIDI range, below/above breakdown), onset matching P/R/F1 (when per-note references available).
+  - `benchmark/songs.json` maps song_id → reference subdirectory. Feel Good Inc references included (bass from guitar tabs, vocals and drums from listening).
+  - `--json` flag outputs raw JSON for programmatic use. `--reference-dir` for custom references.
 
 ## Lyrics status
 - **Implemented**: `songviz lyrics <audio>` runs the fallback chain below and writes `outputs/<song_id>/lyrics/alignment.json`.
@@ -128,7 +135,13 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - Wired into `pipeline.py` `_build_stem_analyses()` — auto-generates `reduced.json` during stems4 render
   - Sonifier done: `songviz sonify <audio>` → `analysis/reduced.wav` + per-layer debug WAVs + `--diagnose` stats
   - **Validated on Feel Good Inc**: bass energy gating removed 32 false positives (notes in near-silent stem regions), 0 real notes lost; velocity rescaled to stem energy (range 0.23–1.00 vs old 0.22–0.75); sections with real bass untouched (71.8% coverage preserved)
-  - Next: human listening pass on sonifier outputs, evaluate whether reduced repr is structurally useful for story/render, or do another vocal-quality round (vocal MIDI centroid still low — median 56, sub-harmonic tracking)
+  - **Eval framework results on Feel Good Inc** (`songviz eval`):
+    - Eval split into **octave-invariant** (high trust) and **octave-sensitive** (provisional)
+    - Bass octave-invariant: cross-section consistency excellent (PC overlap 0.90, contour sim 0.97, IOI ratio 0.92); pitch-class match poor — 0% on expected root G, dominant PC is D# (Eb); G mass leaked to F# (12.8%) and G# (16.1%) — semitone precision problem, not just octave; register: 11.8% octave jumps, median interval 3st
+    - Bass octave-sensitive (provisional): median MIDI 34, 83.5% below range
+    - Vocals octave-invariant: cross-section PC overlap 0.50 (expected — different content per section), contour sim 0.86, 7% octave jumps
+    - Vocals octave-sensitive (provisional): 67.9% in range, 31.4% below
+  - Next: bass pitch-class precision is the primary issue — G-to-F#/G# split suggests basic-pitch frequency resolution degradation at low frequencies, not a simple octave shift that could be corrected post-hoc
   - Detailed plan: `docs/06_reduced_representation.md`
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word

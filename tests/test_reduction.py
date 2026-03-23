@@ -7,8 +7,12 @@ from songviz.reduction import (
     _correct_octave_by_context,
     _dedup_octave_overlaps,
     _gate_and_prune_bass_notes,
+    _neighbour_cost,
     _notes_from_pitch_track,
     _rescale_velocity_to_stem_energy,
+    _smooth_vocal_octave_jumps,
+    _snap_bass_to_scale,
+    estimate_key_scale,
     extract_bass_notes,
     extract_drum_hits,
     extract_drum_hits_fallback,
@@ -664,3 +668,357 @@ def test_bass_energy_gate_basic_pitch_path() -> None:
     # The silent-region note should be gated
     assert len(result["notes"]) == 2
     assert all(n["onset_s"] < 2.0 for n in result["notes"])
+
+
+# ── Vocal octave correction tests ──
+
+
+def test_vocal_octave_context_correction_basic_pitch() -> None:
+    """extract_vocal_notes (basic-pitch path) corrects a sub-harmonic outlier."""
+    # 10 notes at ~MIDI 65 (F4), one outlier at MIDI 53 (F3 — one octave below)
+    events = [
+        {"start_s": float(i) * 0.3, "end_s": float(i) * 0.3 + 0.25,
+         "midi": 53.0 if i == 5 else 65.0, "velocity": 0.6}
+        for i in range(10)
+    ]
+    y = np.zeros(SR * 4, dtype=np.float32)
+    result = extract_vocal_notes(events, None, y, SR)
+    assert result["source"] == "basic_pitch"
+    midis = [n["midi"] for n in result["notes"]]
+    # The outlier at index 5 should have been shifted from 53 to 65
+    assert midis[5] == 65.0, f"Expected 65.0 but got {midis[5]}"
+
+
+def test_vocal_octave_context_correction_pyin() -> None:
+    """extract_vocal_notes (pYIN fallback) also applies octave correction."""
+    # Build a pitch track with a sub-harmonic dip in the middle
+    # 10 segments of 10 frames each at MIDI 65 (~349.2 Hz),
+    # except segment 5 at MIDI 53 (~174.6 Hz = one octave below F4)
+    segments = []
+    for i in range(10):
+        freq = 174.6 if i == 5 else 349.2
+        segments.append(np.full(10, freq, dtype=np.float64))
+        segments.append(np.full(3, np.nan, dtype=np.float64))  # gap
+    pitch_hz = np.concatenate(segments)
+    y = np.ones(len(pitch_hz) * HOP, dtype=np.float32) * 0.3
+    result = extract_vocal_notes(None, pitch_hz, y, SR)
+    assert result["source"] == "pyin"
+    midis = [n["midi"] for n in result["notes"]]
+    # All notes should be at MIDI 65 (the outlier corrected from 53)
+    assert all(m == 65.0 for m in midis), f"Expected all 65.0, got {midis}"
+
+
+def test_smooth_vocal_octave_jumps_fixes_single_dip() -> None:
+    """A single note an octave below neighbours gets shifted up."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.3, "midi": 65.0, "velocity": 0.5},
+        {"onset_s": 0.5, "offset_s": 0.8, "midi": 53.0, "velocity": 0.5},  # outlier
+        {"onset_s": 1.0, "offset_s": 1.3, "midi": 67.0, "velocity": 0.5},
+    ]
+    result = _smooth_vocal_octave_jumps(notes)
+    # 53 -> 65 (shift +12) reduces cost from |65-53|+|53-67| = 26 to |65-65|+|65-67| = 2
+    assert result[1]["midi"] == 65.0
+
+
+def test_smooth_vocal_octave_jumps_fixes_single_spike() -> None:
+    """A single note an octave above neighbours gets shifted down."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.3, "midi": 60.0, "velocity": 0.5},
+        {"onset_s": 0.5, "offset_s": 0.8, "midi": 74.0, "velocity": 0.5},  # outlier
+        {"onset_s": 1.0, "offset_s": 1.3, "midi": 62.0, "velocity": 0.5},
+    ]
+    result = _smooth_vocal_octave_jumps(notes)
+    # 74 -> 62 (shift -12) reduces cost from |60-74|+|74-62| = 26 to |60-62|+|62-62| = 2
+    assert result[1]["midi"] == 62.0
+
+
+def test_smooth_vocal_octave_jumps_no_change_when_smooth() -> None:
+    """Notes within threshold are not modified."""
+    notes = [
+        {"onset_s": i * 0.5, "offset_s": i * 0.5 + 0.3, "midi": float(m), "velocity": 0.5}
+        for i, m in enumerate([60, 62, 64, 65, 67])
+    ]
+    result = _smooth_vocal_octave_jumps(notes)
+    for orig, fixed in zip(notes, result):
+        assert orig["midi"] == fixed["midi"]
+
+
+def test_smooth_vocal_octave_jumps_respects_midi_bounds() -> None:
+    """Shift that would go below midi_lo is not applied."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.3, "midi": 40.0, "velocity": 0.5},
+        {"onset_s": 0.5, "offset_s": 0.8, "midi": 52.0, "velocity": 0.5},  # jump = 12
+        {"onset_s": 1.0, "offset_s": 1.3, "midi": 40.0, "velocity": 0.5},
+    ]
+    # With midi_lo=36, shift down to 40 is valid
+    result = _smooth_vocal_octave_jumps(notes, midi_lo=36)
+    assert result[1]["midi"] == 40.0
+    # With midi_lo=45, shift down to 40 is blocked
+    result2 = _smooth_vocal_octave_jumps(notes, midi_lo=45)
+    assert result2[1]["midi"] == 52.0
+
+
+def test_smooth_vocal_octave_jumps_single_note() -> None:
+    """Single note list returned unchanged."""
+    notes = [{"onset_s": 0.0, "offset_s": 0.3, "midi": 60.0, "velocity": 0.5}]
+    result = _smooth_vocal_octave_jumps(notes)
+    assert len(result) == 1
+    assert result[0]["midi"] == 60.0
+
+
+def test_smooth_vocal_octave_jumps_empty() -> None:
+    """Empty list returned unchanged."""
+    assert _smooth_vocal_octave_jumps([]) == []
+
+
+def test_neighbour_cost_both_neighbours() -> None:
+    """Cost is sum of absolute distances to both neighbours."""
+    assert _neighbour_cost(60.0, 55.0, 65.0) == 10.0
+
+
+def test_neighbour_cost_one_neighbour() -> None:
+    """With one None neighbour, cost is distance to the other."""
+    assert _neighbour_cost(60.0, None, 65.0) == 5.0
+    assert _neighbour_cost(60.0, 55.0, None) == 5.0
+
+
+def test_neighbour_cost_no_neighbours() -> None:
+    """With both None, cost is zero."""
+    assert _neighbour_cost(60.0, None, None) == 0.0
+
+
+def test_correct_octave_by_context_respects_vocal_range() -> None:
+    """With midi_lo=36, midi_hi=96, corrections happen within vocal range."""
+    # Notes around MIDI 65, outlier at MIDI 77 (an octave above would be 89, within range)
+    notes = [
+        {"onset_s": i * 0.5, "offset_s": i * 0.5 + 0.3, "midi": float(m), "velocity": 0.5}
+        for i, m in enumerate([65, 66, 77, 64, 65])
+    ]
+    # With default bass range (20-80): shift 77 -> 65 gain = |77-65| - |65-65| = 12 >= 6
+    result_bass = _correct_octave_by_context(notes, midi_lo=20, midi_hi=80)
+    assert result_bass[2]["midi"] == 65.0
+
+    # With vocal range: same behaviour since 65 is within 36-96
+    result_vocal = _correct_octave_by_context(notes, midi_lo=36, midi_hi=96)
+    assert result_vocal[2]["midi"] == 65.0
+
+
+def test_smooth_vocal_octave_jumps_edge_note_unchanged() -> None:
+    """Edge notes (first/last) are not shifted by the smoother.
+
+    Edge notes only have one neighbour so it's ambiguous which note is
+    the outlier.  _correct_octave_by_context handles these using a wider
+    window.
+    """
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.3, "midi": 53.0, "velocity": 0.5},  # edge
+        {"onset_s": 0.5, "offset_s": 0.8, "midi": 65.0, "velocity": 0.5},
+        {"onset_s": 1.0, "offset_s": 1.3, "midi": 67.0, "velocity": 0.5},
+    ]
+    result = _smooth_vocal_octave_jumps(notes)
+    # Edge note is NOT shifted by the smoother
+    assert result[0]["midi"] == 53.0
+
+
+def test_vocal_notes_basic_pitch_applies_both_corrections() -> None:
+    """extract_vocal_notes applies context correction then octave-jump smoothing."""
+    # Build a sequence where context correction alone wouldn't fix the last jump
+    # but the smoother will
+    events = [
+        {"start_s": 0.0, "end_s": 0.25, "midi": 60.0, "velocity": 0.6},
+        {"start_s": 0.3, "end_s": 0.55, "midi": 62.0, "velocity": 0.6},
+        {"start_s": 0.6, "end_s": 0.85, "midi": 64.0, "velocity": 0.6},
+        # Outlier: one octave below — context correction should fix this
+        {"start_s": 0.9, "end_s": 1.15, "midi": 52.0, "velocity": 0.6},
+        {"start_s": 1.2, "end_s": 1.45, "midi": 65.0, "velocity": 0.6},
+    ]
+    y = np.zeros(SR * 2, dtype=np.float32)
+    result = extract_vocal_notes(events, None, y, SR)
+    midis = [n["midi"] for n in result["notes"]]
+    # MIDI 52 should be corrected to 64 (shift +12)
+    assert midis[3] == 64.0, f"Expected 64.0 but got {midis[3]}"
+
+
+# ── Key estimation tests ──
+
+
+def test_estimate_key_scale_c_major() -> None:
+    """Chroma concentrated on C major tones -> scale contains C, D, E, F, G, A, B."""
+    chroma = np.zeros((100, 12), dtype=np.float64)
+    # C=0, D=2, E=4, F=5, G=7, A=9, B=11
+    for pc in [0, 2, 4, 5, 7, 9, 11]:
+        chroma[:, pc] = 1.0
+    scale = estimate_key_scale(chroma)
+    assert len(scale) == 7
+    # All C major PCs should be present
+    assert set(scale) == {0, 2, 4, 5, 7, 9, 11}
+
+
+def test_estimate_key_scale_a_minor() -> None:
+    """Chroma concentrated on A minor tones -> scale contains A minor PCs."""
+    chroma = np.zeros((100, 12), dtype=np.float64)
+    # A=9, B=11, C=0, D=2, E=4, F=5, G=7 (natural minor)
+    a_minor_pcs = {9, 11, 0, 2, 4, 5, 7}
+    for pc in a_minor_pcs:
+        chroma[:, pc] = 1.0
+    # Give A slightly more weight to make it clearly the tonic
+    chroma[:, 9] = 1.5
+    scale = estimate_key_scale(chroma)
+    assert len(scale) == 7
+    # A minor and C major share the same notes, so either is valid
+    assert set(scale) == a_minor_pcs
+
+
+def test_estimate_key_scale_single_dominant_pc() -> None:
+    """Chroma with one strongly dominant PC -> scale includes that PC."""
+    chroma = np.zeros((100, 12), dtype=np.float64)
+    # G strongly dominant (pc=7), with some D (pc=2) and B (pc=11)
+    chroma[:, 7] = 5.0
+    chroma[:, 2] = 2.0
+    chroma[:, 11] = 1.5
+    scale = estimate_key_scale(chroma)
+    assert 7 in scale  # G must be in the scale
+
+
+def test_estimate_key_scale_empty_input() -> None:
+    """Empty or invalid chroma -> returns all 12 PCs (no filtering)."""
+    assert estimate_key_scale(np.zeros((0, 12))) == list(range(12))
+    assert estimate_key_scale(np.zeros((10, 5))) == list(range(12))
+    assert estimate_key_scale(np.zeros((10, 12))) == list(range(12))  # all-zero energy
+
+
+def test_estimate_key_scale_mode_major() -> None:
+    """mode='major' only considers major templates."""
+    chroma = np.zeros((100, 12), dtype=np.float64)
+    for pc in [0, 2, 4, 5, 7, 9, 11]:  # C major
+        chroma[:, pc] = 1.0
+    scale = estimate_key_scale(chroma, mode="major")
+    assert len(scale) == 7
+
+
+def test_estimate_key_scale_mode_minor() -> None:
+    """mode='minor' only considers minor templates."""
+    chroma = np.zeros((100, 12), dtype=np.float64)
+    for pc in [9, 11, 0, 2, 4, 5, 7]:  # A minor
+        chroma[:, pc] = 1.0
+    scale = estimate_key_scale(chroma, mode="minor")
+    assert len(scale) == 7
+
+
+# ── Scale snap tests ──
+
+
+def test_snap_bass_to_scale_no_change_when_on_scale() -> None:
+    """Notes already on scale degrees -> no change."""
+    scale_pcs = [0, 2, 4, 5, 7, 9, 11]  # C major
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 36.0, "velocity": 0.5},  # C2 (pc=0)
+        {"onset_s": 1.0, "offset_s": 1.5, "midi": 43.0, "velocity": 0.5},  # G2 (pc=7)
+    ]
+    result = _snap_bass_to_scale(notes, scale_pcs)
+    assert [n["midi"] for n in result] == [36.0, 43.0]
+
+
+def test_snap_bass_to_scale_shifts_by_one() -> None:
+    """F# (pc=6) is off C major scale; nearest scale tones are F (5) or G (7)."""
+    scale_pcs = [0, 2, 4, 5, 7, 9, 11]  # C major
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 42.0, "velocity": 0.5},  # F#2 (pc=6)
+    ]
+    result = _snap_bass_to_scale(notes, scale_pcs)
+    # Should snap to either F2 (41) or G2 (43) -- both are 1 semitone away
+    assert result[0]["midi"] in (41.0, 43.0)
+
+
+def test_snap_bass_to_scale_no_shift_beyond_max() -> None:
+    """With max_shift=1, a note 2+ semitones from any scale tone is left as-is."""
+    # Scale missing both neighbours of Bb (pc=10): [0, 2, 4, 7]
+    scale_pcs = [0, 2, 4, 7]
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 34.0, "velocity": 0.5},  # Bb1 (pc=10)
+    ]
+    result = _snap_bass_to_scale(notes, scale_pcs, max_shift=1)
+    # pc=9 (A) is NOT in this scale, pc=11 (B) is NOT either -> no snap within +/-1
+    assert result[0]["midi"] == 34.0
+
+
+def test_snap_bass_to_scale_empty_notes() -> None:
+    """Empty notes -> empty result."""
+    assert _snap_bass_to_scale([], [0, 2, 4, 5, 7, 9, 11]) == []
+
+
+def test_snap_bass_to_scale_full_chromatic_noop() -> None:
+    """All 12 PCs in scale -> no snapping (every note is already on scale)."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 42.0, "velocity": 0.5},
+    ]
+    result = _snap_bass_to_scale(notes, list(range(12)))
+    assert result[0]["midi"] == 42.0
+
+
+def test_snap_bass_to_scale_preserves_other_fields() -> None:
+    """Snapping preserves onset_s, offset_s, velocity and other note fields."""
+    scale_pcs = [0, 2, 4, 5, 7, 9, 11]  # C major
+    notes = [
+        {"onset_s": 1.5, "offset_s": 2.0, "midi": 42.0, "velocity": 0.7, "beat_idx": 3},
+    ]
+    result = _snap_bass_to_scale(notes, scale_pcs)
+    assert result[0]["onset_s"] == 1.5
+    assert result[0]["offset_s"] == 2.0
+    assert result[0]["velocity"] == 0.7
+    assert result[0]["beat_idx"] == 3
+    assert result[0]["midi"] in (41.0, 43.0)  # snapped from F#
+
+
+def test_snap_bass_g_to_f_sharp_fix() -> None:
+    """G (pc=7) smeared to F# (pc=6) -- scale with G snaps it back."""
+    # This is the exact problem: basic-pitch reports F# when the real note is G
+    scale_pcs = [7, 10, 2, 3]  # G minor pentatonic subset
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 42.0, "velocity": 0.5},  # F#2 (pc=6)
+        {"onset_s": 1.0, "offset_s": 1.5, "midi": 44.0, "velocity": 0.5},  # G#2 (pc=8)
+    ]
+    result = _snap_bass_to_scale(notes, scale_pcs)
+    # F# (6) should snap to G (7) -- 1 semitone
+    assert result[0]["midi"] == 43.0  # G2
+    # G# (8): pc=8 is 1 away from pc=7 (G) -> snaps to G
+    assert result[1]["midi"] == 43.0  # snapped to G2
+
+
+def test_extract_bass_notes_with_scale_pcs() -> None:
+    """extract_bass_notes with scale_pcs applies snapping to basic-pitch events."""
+    events = [
+        {"start_s": 0.0, "end_s": 0.5, "midi": 42.0, "velocity": 0.6},  # F#2 -> snap to G2
+        {"start_s": 0.6, "end_s": 1.0, "midi": 43.0, "velocity": 0.5},  # G2 -> on scale
+    ]
+    y = np.ones(int(SR * 2), dtype=np.float32) * 0.3
+    scale_pcs = [7, 10, 2, 3]  # G, Bb, D, Eb
+    result = extract_bass_notes(events, None, y, SR, scale_pcs=scale_pcs)
+    assert result["source"] == "basic_pitch"
+    midis = [n["midi"] for n in result["notes"]]
+    # Both should be G2 (43) after snapping
+    assert all(m == 43.0 for m in midis)
+
+
+def test_extract_bass_notes_pyin_with_scale_pcs() -> None:
+    """extract_bass_notes pYIN fallback also applies scale snapping."""
+    pitch_hz, y = _pitch_track_from_tones([(41.20, 0.3)])  # E1 -> MIDI 28 (pc=4)
+    # Scale that doesn't include E (pc=4) but includes Eb (pc=3) and F (pc=5)
+    scale_pcs = [0, 2, 3, 5, 7, 9, 11]  # no pc=4
+    result = extract_bass_notes(None, pitch_hz, y, SR, hop_length=HOP, scale_pcs=scale_pcs)
+    assert result["source"] == "pyin"
+    assert len(result["notes"]) >= 1
+    # MIDI 28 (pc=4) should snap to either 27 (pc=3, Eb) or 29 (pc=5, F)
+    for n in result["notes"]:
+        assert int(round(n["midi"])) % 12 in scale_pcs
+
+
+def test_extract_bass_notes_scale_pcs_none_skips_snapping() -> None:
+    """scale_pcs=None -> no snapping applied, notes unchanged."""
+    events = [
+        {"start_s": 0.0, "end_s": 0.5, "midi": 42.0, "velocity": 0.6},  # F#2
+    ]
+    y = np.ones(int(SR * 2), dtype=np.float32) * 0.3
+    result = extract_bass_notes(events, None, y, SR, scale_pcs=None)
+    assert result["source"] == "basic_pitch"
+    assert result["notes"][0]["midi"] == 42.0  # unchanged

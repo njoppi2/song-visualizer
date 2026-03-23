@@ -30,6 +30,7 @@ from .paths import (
 )
 from .reduction import (
     _REDUCED_SCHEMA_VERSION,
+    estimate_key_scale,
     extract_bass_notes,
     extract_drum_hits,
     extract_drum_hits_fallback,
@@ -71,6 +72,17 @@ def _build_stem_analyses(
     stem_analyses: dict[str, dict[str, Any]] = {}
     hop_length = 512
     frame_length = 2048
+
+    # Pre-compute key estimation from "other" stem chroma so bass extraction
+    # can use it (the "other" stem may be processed after "bass" in the loop).
+    key_scale_pcs: list[int] | None = None
+    if "other" in stems.stems:
+        other_path = stems.stems["other"]
+        y_other, sr_other = librosa.load(other_path, sr=22050, mono=True)
+        y_other = np.asarray(y_other, dtype=np.float32)
+        other_chroma = other_chroma_12(y_other, int(sr_other), hop_length=hop_length, n_fft=frame_length)
+        key_scale_pcs = estimate_key_scale(other_chroma)
+
     for name, stem_path in stems.stems.items():
         y, sr = librosa.load(stem_path, sr=22050, mono=True)
         y = np.asarray(y, dtype=np.float32)
@@ -137,6 +149,7 @@ def _build_stem_analyses(
                 pitch_hz=feats.get("pitch_hz"),
                 y=y, sr=int(sr), hop_length=hop_length,
                 beat_times_s=beat_times,
+                scale_pcs=key_scale_pcs,
             )
             feats["bass_notes"] = bass_notes
 

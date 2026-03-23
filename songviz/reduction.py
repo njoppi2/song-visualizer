@@ -385,15 +385,26 @@ def extract_vocal_notes(
             if beat_arr is not None:
                 note.update(_compute_beat_alignment(note["onset_s"], beat_arr))
             notes.append(note)
+
+        # Clean up octave artifacts from basic-pitch (vocal range 36--96)
+        notes = _correct_octave_by_context(notes, midi_lo=36, midi_hi=96)
+        notes = _smooth_vocal_octave_jumps(notes)
+
         return {"source": "basic_pitch", "notes": notes}
 
     # Fallback: pYIN pitch track
     if pitch_hz is not None and np.any(np.isfinite(pitch_hz)):
-        return extract_vocal_notes_from_pitch_track(
+        result = extract_vocal_notes_from_pitch_track(
             pitch_hz, y, sr,
             hop_length=hop_length,
             beat_times_s=beat_times_s,
         )
+        # Clean up octave artifacts from pYIN (vocal range 36--96)
+        result["notes"] = _correct_octave_by_context(
+            result["notes"], midi_lo=36, midi_hi=96,
+        )
+        result["notes"] = _smooth_vocal_octave_jumps(result["notes"])
+        return result
 
     # No data
     return {"source": "none", "notes": []}
@@ -448,6 +459,8 @@ def _correct_octave_by_context(
     *,
     window: int = _OCTAVE_CORRECT_WINDOW,
     min_gain: int = _OCTAVE_CORRECT_MIN_GAIN,
+    midi_lo: float = 20,
+    midi_hi: float = 80,
 ) -> list[dict[str, Any]]:
     """Shift notes ±12 semitones when local context strongly suggests a
     different octave.
@@ -455,6 +468,11 @@ def _correct_octave_by_context(
     For each note, if moving it up or down by 12 brings it at least
     *min_gain* semitones closer to the median MIDI of its *window*
     nearest neighbours, apply the shift.
+
+    Parameters
+    ----------
+    midi_lo, midi_hi : allowable MIDI range for shifted candidates.
+        Defaults (20--80) suit bass; use ~36--96 for vocals.
     """
     notes = [dict(n) for n in notes]
     midis = np.array([n["midi"] for n in notes])
@@ -470,7 +488,7 @@ def _correct_octave_by_context(
         best_m, best_dist = m, dist_orig
         for shift in (-12, 12):
             cand = m + shift
-            if cand < 20 or cand > 80:
+            if cand < midi_lo or cand > midi_hi:
                 continue
             d = abs(cand - med)
             if d < best_dist:
@@ -479,6 +497,80 @@ def _correct_octave_by_context(
         if best_m != m and (dist_orig - best_dist) >= min_gain:
             notes[i] = dict(notes[i], midi=round(float(best_m), 2))
             midis[i] = best_m
+    return notes
+
+
+# ── Vocal octave-jump smoother ──
+
+_VOCAL_OCTAVE_JUMP_THRESHOLD = 10  # semitones — jumps >= this are suspicious
+
+
+def _neighbour_cost(
+    m: float,
+    prev_m: float | None,
+    next_m: float | None,
+) -> float:
+    """Sum of absolute intervals to immediate neighbours (lower = smoother)."""
+    cost = 0.0
+    if prev_m is not None:
+        cost += abs(m - prev_m)
+    if next_m is not None:
+        cost += abs(m - next_m)
+    return cost
+
+
+def _smooth_vocal_octave_jumps(
+    notes: list[dict[str, Any]],
+    *,
+    jump_threshold: int = _VOCAL_OCTAVE_JUMP_THRESHOLD,
+    midi_lo: float = 36,
+    midi_hi: float = 96,
+) -> list[dict[str, Any]]:
+    """Resolve octave jumps between consecutive vocal notes.
+
+    For each note, if it has a large jump (>= *jump_threshold* semitones)
+    to **every** available neighbour (both sides for interior notes, single
+    side for edge notes), it is considered an outlier.  If shifting it
+    +/-12 semitones reduces the total neighbour cost, the shift is applied.
+
+    This ensures only true outliers are corrected -- a note that jumps
+    from its left neighbour but agrees with its right neighbour is a
+    legitimate pitch change, not an octave error.
+    """
+    if len(notes) < 2:
+        return notes
+    notes = [dict(n) for n in notes]
+    midis = np.array([n["midi"] for n in notes], dtype=float)
+    n = len(midis)
+
+    for i in range(n):
+        m = midis[i]
+        prev_m = midis[i - 1] if i > 0 else None
+        next_m = midis[i + 1] if i < n - 1 else None
+
+        # An outlier must have large jumps to BOTH neighbours.
+        # Edge notes (only one neighbour) are left to _correct_octave_by_context.
+        if prev_m is None or next_m is None:
+            continue
+        if abs(m - prev_m) < jump_threshold or abs(m - next_m) < jump_threshold:
+            continue
+
+        # This interior note jumps from both neighbours.  Try +/-12 shifts.
+        best_m = m
+        best_cost = _neighbour_cost(m, prev_m, next_m)
+        for shift in (-12, 12):
+            cand = m + shift
+            if cand < midi_lo or cand > midi_hi:
+                continue
+            cost = _neighbour_cost(cand, prev_m, next_m)
+            if cost < best_cost:
+                best_cost = cost
+                best_m = cand
+
+        if best_m != m:
+            notes[i] = dict(notes[i], midi=round(float(best_m), 2))
+            midis[i] = best_m
+
     return notes
 
 
@@ -536,6 +628,122 @@ def _gate_and_prune_bass_notes(
     return keep
 
 
+def estimate_key_scale(
+    chroma: np.ndarray,
+    *,
+    mode: str = "both",
+) -> list[int]:
+    """Estimate the key from a chroma matrix and return scale pitch classes.
+
+    Parameters
+    ----------
+    chroma : (N, 12) chroma feature matrix (e.g. from ``other_chroma_12``).
+    mode : ``"major"``, ``"minor"``, or ``"both"`` (default).
+        When ``"both"``, the template with the highest correlation wins.
+
+    Returns
+    -------
+    list of pitch classes (0–11) forming the estimated key's diatonic scale.
+    """
+    chroma = np.asarray(chroma, dtype=np.float64)
+    if chroma.ndim != 2 or chroma.shape[1] != 12 or chroma.shape[0] == 0:
+        # Cannot estimate — return chromatic (all 12 PCs, i.e. no filtering)
+        return list(range(12))
+
+    # Energy-weighted chroma profile (sum across frames)
+    profile = chroma.sum(axis=0)
+    total = profile.sum()
+    if total < 1e-12:
+        return list(range(12))
+    profile = profile / total
+
+    # Scale templates (intervals from root, in semitones)
+    major_intervals = [0, 2, 4, 5, 7, 9, 11]   # Ionian
+    minor_intervals = [0, 2, 3, 5, 7, 8, 10]    # Aeolian (natural minor)
+
+    templates: list[tuple[str, list[int]]] = []
+    if mode in ("major", "both"):
+        templates.append(("major", major_intervals))
+    if mode in ("minor", "both"):
+        templates.append(("minor", minor_intervals))
+
+    best_corr = -np.inf
+    best_pcs: list[int] = list(range(12))
+
+    for _mode_name, intervals in templates:
+        for root in range(12):
+            # Build binary template
+            tmpl = np.zeros(12, dtype=np.float64)
+            pcs = [(root + iv) % 12 for iv in intervals]
+            for pc in pcs:
+                tmpl[pc] = 1.0
+            tmpl /= tmpl.sum()
+            # Pearson correlation
+            corr = float(np.corrcoef(profile, tmpl)[0, 1])
+            if corr > best_corr:
+                best_corr = corr
+                best_pcs = pcs
+
+    return best_pcs
+
+
+def _snap_bass_to_scale(
+    notes: list[dict[str, Any]],
+    scale_pcs: list[int],
+    *,
+    max_shift: int = 1,
+) -> list[dict[str, Any]]:
+    """Snap each bass note's MIDI to the nearest scale degree.
+
+    Only shifts notes by at most *max_shift* semitones (default 1).
+    Notes already on a scale degree are left unchanged.
+
+    Parameters
+    ----------
+    notes : list of note dicts with ``"midi"`` key.
+    scale_pcs : list of pitch classes (0–11) forming the target scale.
+    max_shift : maximum semitone correction (default 1).
+
+    Returns
+    -------
+    New list of note dicts with adjusted ``"midi"`` values.
+    """
+    if not notes or not scale_pcs or len(scale_pcs) >= 12:
+        return notes
+
+    scale_set = set(int(pc) % 12 for pc in scale_pcs)
+
+    out: list[dict[str, Any]] = []
+    for n in notes:
+        midi = n["midi"]
+        midi_int = int(round(midi))
+        pc = midi_int % 12
+
+        if pc in scale_set:
+            out.append(n)
+            continue
+
+        # Find nearest scale PC within max_shift
+        best_shift = 0
+        best_dist = max_shift + 1  # sentinel — larger than allowed
+        for delta in range(-max_shift, max_shift + 1):
+            if delta == 0:
+                continue
+            candidate_pc = (midi_int + delta) % 12
+            if candidate_pc in scale_set and abs(delta) < best_dist:
+                best_dist = abs(delta)
+                best_shift = delta
+
+        if best_dist <= max_shift:
+            new_midi = round(float(midi_int + best_shift), 2)
+            out.append(dict(n, midi=new_midi))
+        else:
+            # Beyond max_shift — keep original
+            out.append(n)
+
+    return out
+
+
 def extract_bass_notes(
     note_events: list[dict[str, float]] | None,
     pitch_hz: np.ndarray | None,
@@ -544,6 +752,7 @@ def extract_bass_notes(
     *,
     hop_length: int = 512,
     beat_times_s: Sequence[float] | np.ndarray | None = None,
+    scale_pcs: list[int] | None = None,
 ) -> dict[str, Any]:
     """Top-level bass note dispatcher — picks best available source.
 
@@ -555,6 +764,10 @@ def extract_bass_notes(
     sr : sample rate
     hop_length : analysis hop
     beat_times_s : beat grid for alignment (optional)
+    scale_pcs : estimated key's scale pitch classes (0–11), or None to skip
+        quantization.  When provided, notes are snapped to the nearest
+        scale degree (±1 semitone) after octave correction and before
+        energy gating.
 
     Returns
     -------
@@ -583,6 +796,10 @@ def extract_bass_notes(
         notes = _dedup_octave_overlaps(notes)
         notes = _correct_octave_by_context(notes)
 
+        # Snap to estimated key scale (±1 semitone correction)
+        if scale_pcs is not None:
+            notes = _snap_bass_to_scale(notes, scale_pcs)
+
         # Energy gating & velocity rescaling
         notes = _rescale_velocity_to_stem_energy(notes, y, sr)
         notes = _gate_and_prune_bass_notes(notes, y, sr)
@@ -598,6 +815,9 @@ def extract_bass_notes(
             max_gap_frames=3,
             beat_times_s=beat_times_s,
         )
+        # Snap to estimated key scale (±1 semitone correction)
+        if scale_pcs is not None:
+            result["notes"] = _snap_bass_to_scale(result["notes"], scale_pcs)
         result["notes"] = _rescale_velocity_to_stem_energy(result["notes"], y, sr)
         result["notes"] = _gate_and_prune_bass_notes(result["notes"], y, sr)
         return result
