@@ -82,8 +82,8 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - Bass note extraction (`songviz/reduction.py`):
   - Third piece of the reduced representation (`analysis/reduced.json`, `"bass"` key).
   - **Primary: basic-pitch** note events (from `bass_note_events_basic_pitch`) → same dispatcher pattern as vocals. Bass-specific thresholds: onset=0.50, frame=0.25, min_note=150ms, freq 30–400 Hz (exposed as `_BASS_BP_*` constants in `features.py`).
-  - **Octave cleanup** (basic-pitch path only): `_dedup_octave_overlaps` removes simultaneous same-pitch-class notes at different octaves (keeps louder); `_correct_octave_by_context` shifts ±12 semitones when local median strongly disagrees (window=5, min_gain=6). Reduces octave-jump artifacts from 48% to 11% of transitions.
-  - **Key-aware pitch quantization**: `estimate_key_scale` estimates the song key from "other" stem chroma (Pearson correlation against major/minor templates for all 12 roots). `_snap_bass_to_scale` snaps each bass note's MIDI ±1 semitone to the nearest scale degree. Applied after octave correction, before energy gating. Fixes pitch-class smearing where basic-pitch reports F# instead of G, G# instead of G, etc. Pipeline pre-computes chroma from "other" stem before the main loop so key estimate is available for bass extraction regardless of stem processing order.
+  - **Octave correction pipeline** (both basic-pitch and pYIN paths): (1) `_bass_global_octave_fix` shifts ALL notes ±12 when median MIDI is outside expected bass register (36–55); (2) `_refine_bass_pitch_cqt` per-note CQT harmonic ratio test — if octave-above has more energy than detected frequency, shift up 12 (sub-harmonic artifact fix); (3) `_correct_octave_by_context` shifts ±12 toward local median (window=5, min_gain=6). Benchmark: in_range_pct 50%→84%, below_range_pct 49%→11%, octave_jump_pct 6%→3%.
+  - **Key estimation disabled**: `estimate_key_scale` (Krumhansl-Kessler profiles) and `_snap_bass_to_scale` exist but are NOT used in the pipeline — Demucs stems consistently yield wrong key estimates (e.g. F# major for G minor songs), and scale snapping with the wrong key degrades pitch-class accuracy. Re-enable when a reliable key estimator is available.
   - **Energy gating**: `_gate_and_prune_bass_notes` removes false-positive notes in near-silent stem regions (RMS threshold = 0.5 × 10th-percentile of nonzero per-note RMS); `_rescale_velocity_to_stem_energy` replaces basic-pitch confidence / pYIN self-normalized velocity with stem-energy-based velocity. Isolated weak notes (>4s gap to neighbors AND velocity <0.35) also pruned. Applied in both basic-pitch and pYIN paths.
   - **Fallback: pYIN** pitch track → note events with gap-merge (`max_gap_frames=3`).
   - Same schema as vocals: `onset_s`/`offset_s`/`midi`/`velocity`/`beat_idx`/`beat_phase`.
@@ -98,9 +98,16 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - Evaluation framework (`songviz/eval.py`):
   - `songviz eval <audio>` compares `reduced.json` against human-curated reference annotations in `benchmark/references/`.
   - Three evidence levels: gold (synthetic ground truth), silver (tabs/listening), weak (rough annotations).
-  - Metrics: section-level activity F1 (is the layer playing?), silent-region false positive count/rate, pitch range accuracy (% in expected MIDI range, below/above breakdown), onset matching P/R/F1 (when per-note references available).
-  - `benchmark/songs.json` maps song_id → reference subdirectory. Feel Good Inc references included (bass from guitar tabs, vocals and drums from listening).
+  - Metrics: section-level activity F1 (is the layer playing?), silent-region false positive count/rate, pitch range accuracy (% in expected MIDI range, below/above breakdown), onset matching P/R/F1 (when per-note references available), octave-invariant pitch-class analysis (in_scale_pct, root_pc_pct, cross-section consistency).
+  - `benchmark/songs.json` maps song_id → reference subdirectory. 5 benchmark songs: feel-good-inc, do-i-wanna-know, feeling-this, shy-away, die-for-you.
   - `--json` flag outputs raw JSON for programmatic use. `--reference-dir` for custom references.
+- Benchmark runner (`songviz/bench.py`):
+  - `songviz bench --songs-dir songs` evaluates all benchmark songs, reports per-song + aggregate metrics.
+  - `--save-baseline` saves results to `benchmark/baselines/baseline_<timestamp>.json` + `latest.json`.
+  - `--baseline <path>` compares current results against saved baseline, flags regressions (exit code 1).
+  - `--force-reduce` regenerates `reduced.json` from stems (skips cache).
+  - `--json` outputs machine-readable JSON for agent automation.
+  - Aggregate metrics: mean/min/max/n per metric per layer across all songs.
 
 ## Lyrics status
 - **Implemented**: `songviz lyrics <audio>` runs the fallback chain below and writes `outputs/<song_id>/lyrics/alignment.json`.
@@ -129,19 +136,22 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - **Not yet done**: pYIN pitch summary, `lyrics-aligner` fallback (wav2vec2).
 
 ## Current priorities
-- **Reduced representation** (Phase 4 — in progress):
-  - `songviz/reduction.py`: all three layers implemented — drums (DrumSep + heuristic fallback), vocals (basic-pitch + pYIN fallback), bass (basic-pitch + pYIN fallback + octave cleanup + energy gating)
+- **Milestone 2: Extraction quality** (mostly complete):
+  - Bass octave accuracy: ✓ (in_range 84%, below_range 11%, octave_jump 3%)
+  - Vocal octave accuracy: ✓ (in_range 94%, octave_jump 0.8%)
+  - Bass pitch-class accuracy: ✗ (in_scale 45%, root 6%) — blocked on key estimation
+  - **Next milestone**: M3 Harmony + Arrangement (chord detection may enable bass pitch correction)
+- **Reduced representation** (Phase 4 — operational):
+  - `songviz/reduction.py`: all three layers implemented — drums (DrumSep + heuristic fallback), vocals (basic-pitch + pYIN + octave correction), bass (basic-pitch + pYIN + global octave fix + CQT harmonic test + context correction + energy gating)
   - Output: `analysis/reduced.json` — unified file with `schema_version` and `"drums"`, `"vocals"`, `"bass"` keys
   - Wired into `pipeline.py` `_build_stem_analyses()` — auto-generates `reduced.json` during stems4 render
   - Sonifier done: `songviz sonify <audio>` → `analysis/reduced.wav` + per-layer debug WAVs + `--diagnose` stats
-  - **Validated on Feel Good Inc**: bass energy gating removed 32 false positives (notes in near-silent stem regions), 0 real notes lost; velocity rescaled to stem energy (range 0.23–1.00 vs old 0.22–0.75); sections with real bass untouched (71.8% coverage preserved)
-  - **Eval framework results on Feel Good Inc** (`songviz eval`):
-    - Eval split into **octave-invariant** (high trust) and **octave-sensitive** (provisional)
-    - Bass octave-invariant: cross-section consistency excellent (PC overlap 0.90, contour sim 0.97, IOI ratio 0.92); pitch-class match poor — 0% on expected root G, dominant PC is D# (Eb); G mass leaked to F# (12.8%) and G# (16.1%) — semitone precision problem, not just octave; register: 11.8% octave jumps, median interval 3st
-    - Bass octave-sensitive (provisional): median MIDI 34, 83.5% below range
-    - Vocals octave-invariant: cross-section PC overlap 0.50 (expected — different content per section), contour sim 0.86, 7% octave jumps
-    - Vocals octave-sensitive (provisional): 67.9% in range, 31.4% below
-  - Next: bass pitch-class precision is the primary issue — G-to-F#/G# split suggests basic-pitch frequency resolution degradation at low frequencies, not a simple octave shift that could be corrected post-hoc
+  - Benchmark: `songviz bench --songs-dir songs` runs eval across 5 songs with aggregate metrics
+  - **Benchmark results (5 songs aggregate, 2026-03-23)**:
+    - **Bass**: activity_f1=0.88, in_range_pct=84.3% (target ≥70% ✓), below_range_pct=10.5% (target <15% ✓), octave_jump_pct=3.3% (target <8% ✓), in_scale_pct=44.7% (target ≥70% ✗), root_pc_pct=6.0% (target ≥25% ✗)
+    - **Vocals**: activity_f1=0.90, in_range_pct=93.8% (target >80% ✓), below_range_pct=6.2% (target <15% ✓), octave_jump_pct=0.8% (target <8% ✓)
+    - **Drums**: activity_f1=0.85
+  - **Known limitation**: bass pitch-class accuracy (in_scale_pct, root_pc_pct) remains poor across all pitch trackers (basic-pitch, pYIN, CREPE). ±1-2 semitone errors at 30-100 Hz are fundamental to current extractors. Key estimation (Krumhansl-Kessler) on Demucs stems is unreliable, making scale snapping counterproductive. May require chord-aware pitch correction from harmony analysis (Milestone 3).
   - Detailed plan: `docs/06_reduced_representation.md`
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word
