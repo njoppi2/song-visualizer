@@ -73,15 +73,11 @@ def _build_stem_analyses(
     hop_length = 512
     frame_length = 2048
 
-    # Pre-compute key estimation from "other" stem chroma so bass extraction
-    # can use it (the "other" stem may be processed after "bass" in the loop).
+    # Key estimation is disabled — Krumhansl-Kessler profiles on Demucs stems
+    # consistently estimate the wrong key, and scale snapping with the wrong key
+    # degrades pitch-class accuracy.  Once a reliable key estimator is available,
+    # re-enable this block and pass key_scale_pcs to extract_bass_notes().
     key_scale_pcs: list[int] | None = None
-    if "other" in stems.stems:
-        other_path = stems.stems["other"]
-        y_other, sr_other = librosa.load(other_path, sr=22050, mono=True)
-        y_other = np.asarray(y_other, dtype=np.float32)
-        other_chroma = other_chroma_12(y_other, int(sr_other), hop_length=hop_length, n_fft=frame_length)
-        key_scale_pcs = estimate_key_scale(other_chroma)
 
     for name, stem_path in stems.stems.items():
         y, sr = librosa.load(stem_path, sr=22050, mono=True)
