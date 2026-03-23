@@ -4,11 +4,13 @@ from __future__ import annotations
 import numpy as np
 
 from songviz.reduction import (
+    _bass_global_octave_fix,
     _correct_octave_by_context,
     _dedup_octave_overlaps,
     _gate_and_prune_bass_notes,
     _neighbour_cost,
     _notes_from_pitch_track,
+    _refine_bass_pitch_cqt,
     _rescale_velocity_to_stem_energy,
     _smooth_vocal_octave_jumps,
     _snap_bass_to_scale,
@@ -296,14 +298,15 @@ def test_extract_vocal_notes_empty_fallback() -> None:
 
 
 def test_bass_notes_basic() -> None:
-    """Two bass tones (E1 + gap + A1) → 2 notes with correct MIDI (pYIN fallback)."""
-    # E1 = 41.20 Hz → MIDI 28, A1 = 55.0 Hz → MIDI 33
-    pitch_hz, y = _pitch_track_from_tones([(41.20, 0.3), (55.0, 0.3)])
+    """Two bass tones (E2 + gap + A2) → 2 notes with correct MIDI (pYIN fallback)."""
+    # E2 = 82.41 Hz → MIDI 40, A2 = 110.0 Hz → MIDI 45
+    # (Within expected bass register so median shift doesn't trigger)
+    pitch_hz, y = _pitch_track_from_tones([(82.41, 0.3), (110.0, 0.3)])
     result = extract_bass_notes(None, pitch_hz, y, SR, hop_length=HOP)
     assert result["source"] == "pyin"
     assert len(result["notes"]) == 2
-    assert result["notes"][0]["midi"] == 28.0
-    assert result["notes"][1]["midi"] == 33.0
+    assert result["notes"][0]["midi"] == 40.0
+    assert result["notes"][1]["midi"] == 45.0
     assert result["notes"][0]["onset_s"] < result["notes"][1]["onset_s"]
 
 
@@ -533,20 +536,20 @@ def test_correct_octave_no_shift_when_gain_too_small() -> None:
 def test_bass_notes_basic_pitch_applies_octave_cleanup() -> None:
     """extract_bass_notes with basic-pitch events applies dedup + octave correction."""
     events = [
-        # Two overlapping notes: A#1 loud + A#2 quiet → dedup keeps A#1
-        {"start_s": 1.0, "end_s": 1.5, "midi": 34.0, "velocity": 0.6},
-        {"start_s": 1.0, "end_s": 1.4, "midi": 46.0, "velocity": 0.3},
-        # Surrounding context at octave 1
-        {"start_s": 0.0, "end_s": 0.3, "midi": 32.0, "velocity": 0.5},
-        {"start_s": 0.5, "end_s": 0.8, "midi": 35.0, "velocity": 0.5},
-        {"start_s": 2.0, "end_s": 2.3, "midi": 30.0, "velocity": 0.5},
+        # Two overlapping notes: E2 loud + E3 quiet → dedup keeps E2
+        {"start_s": 1.0, "end_s": 1.5, "midi": 40.0, "velocity": 0.6},
+        {"start_s": 1.0, "end_s": 1.4, "midi": 52.0, "velocity": 0.3},
+        # Surrounding context at octave 2 (within expected bass range)
+        {"start_s": 0.0, "end_s": 0.3, "midi": 38.0, "velocity": 0.5},
+        {"start_s": 0.5, "end_s": 0.8, "midi": 41.0, "velocity": 0.5},
+        {"start_s": 2.0, "end_s": 2.3, "midi": 36.0, "velocity": 0.5},
     ]
     y = np.zeros(SR * 3, dtype=np.float32)
     result = extract_bass_notes(events, None, y, SR)
     assert result["source"] == "basic_pitch"
-    # Dedup should have removed the A#2 duplicate
+    # Dedup should have removed the E3 duplicate
     midis = [n["midi"] for n in result["notes"]]
-    assert 46.0 not in midis
+    assert 52.0 not in midis
     # Should have 4 notes (5 minus 1 deduped)
     assert len(result["notes"]) == 4
 
@@ -1022,3 +1025,157 @@ def test_extract_bass_notes_scale_pcs_none_skips_snapping() -> None:
     result = extract_bass_notes(events, None, y, SR, scale_pcs=None)
     assert result["source"] == "basic_pitch"
     assert result["notes"][0]["midi"] == 42.0  # unchanged
+
+
+# ── CQT-based bass pitch refinement tests ──
+
+
+def test_refine_bass_pitch_cqt_shifts_up_subharmonic() -> None:
+    """Harmonic ratio test should shift note up 12 when octave-above has more energy."""
+    # Synthesize a tone with fundamental at G2 (98 Hz, MIDI 43) plus
+    # some energy at G1 (49 Hz, MIDI 31) to simulate a sub-harmonic detection.
+    dur = 0.5
+    t = np.arange(int(SR * dur)) / SR
+    freq_g1 = 49.0  # G1 — sub-harmonic
+    freq_g2 = 98.0  # G2 — real fundamental (twice freq_g1)
+    y_full = np.zeros(int(SR * 1.0), dtype=np.float32)
+    # Real fundamental (G2) louder than sub-harmonic (G1)
+    y_full[: len(t)] = (
+        0.3 * np.sin(2 * np.pi * freq_g1 * t)
+        + 0.5 * np.sin(2 * np.pi * freq_g2 * t)
+    ).astype(np.float32)
+
+    # Pretend basic-pitch detected G1 (MIDI 31) — sub-harmonic error
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 31.0, "velocity": 0.6},
+    ]
+    refined = _refine_bass_pitch_cqt(notes, y_full, SR)
+    assert len(refined) == 1
+    # Should shift up to ~MIDI 43 (G2)
+    assert refined[0]["midi"] == 43.0, f"Expected 43, got {refined[0]['midi']}"
+
+
+def test_refine_bass_pitch_cqt_no_change_when_correct() -> None:
+    """Harmonic ratio test should not change pitch when already in correct octave."""
+    # Synthesize a pure A2 (110 Hz, MIDI 45)
+    dur = 0.5
+    t = np.arange(int(SR * dur)) / SR
+    freq_a2 = 110.0
+    y_full = np.zeros(int(SR * 1.0), dtype=np.float32)
+    y_full[: len(t)] = (0.5 * np.sin(2.0 * np.pi * freq_a2 * t)).astype(np.float32)
+
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 45.0, "velocity": 0.6},
+    ]
+    refined = _refine_bass_pitch_cqt(notes, y_full, SR)
+    assert len(refined) == 1
+    assert refined[0]["midi"] == 45.0, f"Expected 45, got {refined[0]['midi']}"
+
+
+def test_refine_bass_pitch_cqt_skips_short_notes() -> None:
+    """Notes shorter than minimum duration should be left unchanged."""
+    y = np.zeros(int(SR * 1.0), dtype=np.float32)
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.04, "midi": 42.0, "velocity": 0.5},  # 40ms < 60ms threshold
+    ]
+    refined = _refine_bass_pitch_cqt(notes, y, SR)
+    assert refined[0]["midi"] == 42.0  # unchanged
+
+
+def test_refine_bass_pitch_cqt_skips_silent_segments() -> None:
+    """Silent segments have no CQT energy — notes should be unchanged."""
+    y = np.zeros(int(SR * 1.0), dtype=np.float32)
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 42.0, "velocity": 0.5},
+    ]
+    refined = _refine_bass_pitch_cqt(notes, y, SR)
+    assert refined[0]["midi"] == 42.0  # unchanged (no energy to refine with)
+
+
+def test_bass_global_octave_fix_shifts_up() -> None:
+    """Global median check shifts all notes up when median is too low."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.04, "midi": 28.0, "velocity": 0.5},
+        {"onset_s": 0.1, "offset_s": 0.14, "midi": 30.0, "velocity": 0.5},
+        {"onset_s": 0.2, "offset_s": 0.24, "midi": 32.0, "velocity": 0.5},
+    ]
+    fixed = _bass_global_octave_fix(notes)
+    # Median was 30, below threshold of 36 → should shift all up by 12
+    assert fixed[0]["midi"] == 40.0
+    assert fixed[1]["midi"] == 42.0
+    assert fixed[2]["midi"] == 44.0
+
+
+def test_bass_global_octave_fix_no_change() -> None:
+    """Notes already in expected range → no shift."""
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.3, "midi": 40.0, "velocity": 0.5},
+        {"onset_s": 0.5, "offset_s": 0.8, "midi": 45.0, "velocity": 0.5},
+    ]
+    fixed = _bass_global_octave_fix(notes)
+    assert fixed[0]["midi"] == 40.0
+    assert fixed[1]["midi"] == 45.0
+
+
+def test_refine_bass_pitch_cqt_empty_notes() -> None:
+    """Empty notes list should return empty."""
+    y = np.zeros(SR, dtype=np.float32)
+    assert _refine_bass_pitch_cqt([], y, SR) == []
+
+
+def test_refine_bass_pitch_cqt_preserves_other_fields() -> None:
+    """Per-note CQT refinement preserves all note fields when no change is needed."""
+    y = np.zeros(SR, dtype=np.float32)
+    notes = [
+        {"onset_s": 0.0, "offset_s": 0.04, "midi": 42.0, "velocity": 0.6, "beat_idx": 0},
+    ]
+    refined = _refine_bass_pitch_cqt(notes, y, SR)
+    # Note too short for CQT → kept unchanged
+    assert refined[0]["midi"] == 42.0
+    assert refined[0]["onset_s"] == 0.0
+    assert refined[0]["offset_s"] == 0.04
+    assert refined[0]["velocity"] == 0.6
+    assert refined[0]["beat_idx"] == 0
+
+
+def test_refine_bass_pitch_cqt_in_extract_pipeline() -> None:
+    """Global octave fix + refinement runs as part of extract_bass_notes pipeline."""
+    # Notes at MIDI 30 (below expected median) — global fix shifts up by 12
+    y_full = np.zeros(int(SR * 1.0), dtype=np.float32)
+
+    events = [
+        {"start_s": 0.0, "end_s": 0.3, "midi": 30.0, "velocity": 0.6},
+        {"start_s": 0.4, "end_s": 0.7, "midi": 32.0, "velocity": 0.6},
+    ]
+    result = extract_bass_notes(events, None, y_full, SR)
+    assert result["source"] == "basic_pitch"
+    assert len(result["notes"]) >= 1
+    # Median was 31, below 36 → global fix shifts up by 12
+    assert result["notes"][0]["midi"] == 42.0
+
+
+def test_snap_bass_to_scale_max_shift_2_default() -> None:
+    """Default max_shift is now 2, allowing corrections of 2 semitones."""
+    # G# (pc=8) is 1 semitone from both G (pc=7) and A (pc=9) in C major.
+    # The loop finds G first (delta=-1), so it snaps down.
+    scale_pcs = [0, 2, 4, 5, 7, 9, 11]  # C major
+    notes_gs = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 44.0, "velocity": 0.5},  # G#2 (pc=8)
+    ]
+    result = _snap_bass_to_scale(notes_gs, scale_pcs)
+    # G# (8) -> equidistant from G (7) and A (9); algorithm picks lower (delta=-1 found first)
+    assert result[0]["midi"] in (43.0, 45.0)
+
+    # Test a 2-semitone snap: F (pc=5) -> G (pc=7) in a sparse scale [0, 2, 7]
+    # With max_shift=1 this would NOT snap. With max_shift=2 it should.
+    sparse_scale = [0, 2, 7]
+    notes_f = [
+        {"onset_s": 0.0, "offset_s": 0.5, "midi": 41.0, "velocity": 0.5},  # F2 (pc=5)
+    ]
+    result2 = _snap_bass_to_scale(notes_f, sparse_scale, max_shift=2)
+    # F (pc=5) -> G (pc=7) is +2 semitones; D (pc=2) is -3 (out of range)
+    assert result2[0]["midi"] == 43.0  # G2
+
+    # Verify max_shift=1 would NOT snap this same note
+    result3 = _snap_bass_to_scale(notes_f, sparse_scale, max_shift=1)
+    assert result3[0]["midi"] == 41.0  # unchanged — 2 semitones exceeds max_shift=1

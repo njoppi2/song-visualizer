@@ -687,22 +687,179 @@ def estimate_key_scale(
     return best_pcs
 
 
+# ── Bass pitch refinement ──
+
+_CQT_REFINE_FMIN_HZ: float = 30.0   # lowest frequency bin (B0)
+_CQT_REFINE_FMAX_HZ: float = 400.0  # highest frequency bin (~G4)
+_CQT_REFINE_MIN_DUR_S: float = 0.06  # skip notes shorter than this
+_CQT_REFINE_CONFIDENCE: float = 2.0  # peak must be >= this * mean energy
+_CQT_REFINE_BINS_PER_OCTAVE: int = 36  # 3 bins per semitone for fine resolution
+_CQT_REFINE_MAX_SHIFT_ST: float = 4.0  # reject refinements > this many semitones
+_CQT_REFINE_HARMONIC_MARGIN: float = 4.0  # librosa.effects.harmonic margin
+_BASS_EXPECTED_MIDI_LO: float = 28.0   # lowest expected bass MIDI (E1)
+_BASS_EXPECTED_MIDI_HI: float = 60.0   # highest expected bass MIDI (C4)
+_BASS_EXPECTED_MEDIAN_LO: float = 36.0 # median bass MIDI should be above this (C2)
+_BASS_EXPECTED_MEDIAN_HI: float = 55.0 # median bass MIDI should be below this (G3)
+
+
+def _bass_global_octave_fix(
+    notes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Shift all bass notes ±12 if the median MIDI is outside expected range.
+
+    Both basic-pitch and pYIN frequently detect bass notes an octave too
+    low (sub-harmonic artifact).  When the median MIDI of all notes falls
+    below ``_BASS_EXPECTED_MEDIAN_LO`` or above ``_BASS_EXPECTED_MEDIAN_HI``,
+    every note is shifted by ±12 semitones to bring the distribution into
+    the expected bass register.
+
+    This should run BEFORE ``_correct_octave_by_context`` so that
+    the local-median context correction operates in the right octave.
+    """
+    if not notes:
+        return notes
+
+    midis = np.array([n["midi"] for n in notes])
+    median_midi = float(np.median(midis))
+    shift = 0
+    if median_midi < _BASS_EXPECTED_MEDIAN_LO:
+        shift = 12
+    elif median_midi > _BASS_EXPECTED_MEDIAN_HI:
+        shift = -12
+
+    if shift == 0:
+        return notes
+
+    return [
+        dict(n, midi=round(n["midi"] + shift, 2))
+        if _BASS_EXPECTED_MIDI_LO <= n["midi"] + shift <= _BASS_EXPECTED_MIDI_HI
+        else n
+        for n in notes
+    ]
+
+
+def _refine_bass_pitch_cqt(
+    notes: list[dict[str, Any]],
+    y: np.ndarray,
+    sr: int,
+) -> list[dict[str, Any]]:
+    """Fix per-note sub-harmonic errors using CQT harmonic ratio test.
+
+    For each note at MIDI *m*, computes CQT energy at the detected
+    frequency *f* and at *2f* (one octave above).  If 2f has more
+    energy, the note is shifted up by 12 semitones (sub-harmonic
+    artifact).  Similarly shifts down if *f/2* has more energy.
+
+    Parameters
+    ----------
+    notes : list of note dicts with ``"onset_s"``, ``"offset_s"``, ``"midi"``.
+    y : mono waveform of the bass stem.
+    sr : sample rate.
+
+    Returns
+    -------
+    New list of note dicts with corrected octaves.
+    """
+    if not notes or len(y) == 0 or sr <= 0:
+        return notes
+
+    bpo = _CQT_REFINE_BINS_PER_OCTAVE
+    fmin = _CQT_REFINE_FMIN_HZ
+    fmax = _CQT_REFINE_FMAX_HZ
+    n_octaves = np.log2(fmax / fmin)
+    n_bins = int(np.ceil(n_octaves * bpo))
+    cqt_freqs = fmin * (2.0 ** (np.arange(n_bins) / bpo))
+    cqt_midis = 69.0 + 12.0 * np.log2(cqt_freqs / 440.0)
+
+    def _cqt_energy_at_midi(seg: np.ndarray, target_midi: float) -> float:
+        """Return average CQT energy near *target_midi* in *seg*."""
+        if len(seg) < 512 or target_midi < cqt_midis[0] or target_midi > cqt_midis[-1]:
+            return 0.0
+        try:
+            C = np.abs(librosa.cqt(
+                y=seg.astype(np.float32), sr=sr,
+                fmin=fmin, n_bins=n_bins,
+                bins_per_octave=bpo, hop_length=512,
+            ))
+        except Exception:
+            return 0.0
+        if C.size == 0:
+            return 0.0
+        energy = C.mean(axis=1)
+        mask = np.abs(cqt_midis - target_midi) <= 1.5
+        if not mask.any():
+            return 0.0
+        return float(energy[mask].max())
+
+    out: list[dict[str, Any]] = []
+    for n in notes:
+        dur = n["offset_s"] - n["onset_s"]
+        if dur < _CQT_REFINE_MIN_DUR_S:
+            out.append(n)
+            continue
+
+        s0 = int(n["onset_s"] * sr)
+        s1 = int(n["offset_s"] * sr)
+        seg = y[s0:s1]
+        if len(seg) < 512:
+            out.append(n)
+            continue
+
+        midi = n["midi"]
+
+        # Compute full CQT for this segment to get overall energy level
+        try:
+            C_full = np.abs(librosa.cqt(
+                y=seg.astype(np.float32), sr=sr,
+                fmin=fmin, n_bins=n_bins,
+                bins_per_octave=bpo, hop_length=512,
+            ))
+        except Exception:
+            out.append(n)
+            continue
+
+        if C_full.size == 0:
+            out.append(n)
+            continue
+
+        energy_full = C_full.mean(axis=1)
+        mean_energy = float(energy_full.mean())
+
+        e_at = _cqt_energy_at_midi(seg, midi)
+        # Current frequency must have clear tonal content above noise floor
+        if e_at < mean_energy * _CQT_REFINE_CONFIDENCE:
+            out.append(n)
+            continue
+
+        e_up = _cqt_energy_at_midi(seg, midi + 12)
+        e_dn = _cqt_energy_at_midi(seg, midi - 12)
+
+        if e_up > e_at * 1.2 and (midi + 12) <= _BASS_EXPECTED_MIDI_HI:
+            out.append(dict(n, midi=round(midi + 12, 2)))
+        elif e_dn > e_at * 1.5 and (midi - 12) >= _BASS_EXPECTED_MIDI_LO:
+            out.append(dict(n, midi=round(midi - 12, 2)))
+        else:
+            out.append(n)
+
+    return out
+
+
 def _snap_bass_to_scale(
     notes: list[dict[str, Any]],
     scale_pcs: list[int],
     *,
-    max_shift: int = 1,
+    max_shift: int = 2,
 ) -> list[dict[str, Any]]:
     """Snap each bass note's MIDI to the nearest scale degree.
 
-    Only shifts notes by at most *max_shift* semitones (default 1).
+    Only shifts notes by at most *max_shift* semitones (default 2).
     Notes already on a scale degree are left unchanged.
 
     Parameters
     ----------
     notes : list of note dicts with ``"midi"`` key.
     scale_pcs : list of pitch classes (0–11) forming the target scale.
-    max_shift : maximum semitone correction (default 1).
+    max_shift : maximum semitone correction (default 2).
 
     Returns
     -------
@@ -766,7 +923,7 @@ def extract_bass_notes(
     beat_times_s : beat grid for alignment (optional)
     scale_pcs : estimated key's scale pitch classes (0–11), or None to skip
         quantization.  When provided, notes are snapped to the nearest
-        scale degree (±1 semitone) after octave correction and before
+        scale degree (±2 semitones) after CQT pitch refinement and before
         energy gating.
 
     Returns
@@ -794,9 +951,14 @@ def extract_bass_notes(
 
         # Clean up octave artifacts from basic-pitch
         notes = _dedup_octave_overlaps(notes)
+        # Global octave fix first — shift ALL notes if median is wrong octave
+        notes = _bass_global_octave_fix(notes)
+        # Then per-note CQT harmonic ratio test for remaining outliers
+        notes = _refine_bass_pitch_cqt(notes, y, sr)
+        # Finally, context-based smoothing within the corrected register
         notes = _correct_octave_by_context(notes)
 
-        # Snap to estimated key scale (±1 semitone correction)
+        # Snap to estimated key scale (±2 semitone correction)
         if scale_pcs is not None:
             notes = _snap_bass_to_scale(notes, scale_pcs)
 
@@ -815,7 +977,12 @@ def extract_bass_notes(
             max_gap_frames=3,
             beat_times_s=beat_times_s,
         )
-        # Snap to estimated key scale (±1 semitone correction)
+        # Octave correction: global shift, per-note harmonic test, context smoothing
+        result["notes"] = _bass_global_octave_fix(result["notes"])
+        result["notes"] = _refine_bass_pitch_cqt(result["notes"], y, sr)
+        result["notes"] = _correct_octave_by_context(result["notes"])
+
+        # Snap to estimated key scale (±2 semitone correction)
         if scale_pcs is not None:
             result["notes"] = _snap_bass_to_scale(result["notes"], scale_pcs)
         result["notes"] = _rescale_velocity_to_stem_energy(result["notes"], y, sr)
