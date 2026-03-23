@@ -127,6 +127,18 @@ def _build_parser() -> argparse.ArgumentParser:
     sonify_p.add_argument("--out", default=None, help="Output WAV path (optional)")
     sonify_p.add_argument("--diagnose", action="store_true", help="Print diagnostic stats, warnings, and write per-layer debug WAVs")
 
+    eval_p = sub.add_parser("eval", help="Evaluate reduced.json against reference annotations")
+    eval_p.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
+    eval_p.add_argument("--reference-dir", default=None, help="Path to reference directory (auto-detected if omitted)")
+    eval_p.add_argument("--json", action="store_true", dest="json_output", help="Output raw JSON instead of formatted report")
+
+    bench_p = sub.add_parser("bench", help="Run eval across all benchmark songs")
+    bench_p.add_argument("--songs-dir", default="songs", help="Directory containing audio files (default: songs/)")
+    bench_p.add_argument("--json", action="store_true", dest="json_output", help="Output raw JSON instead of formatted report")
+    bench_p.add_argument("--save-baseline", action="store_true", help="Save current results as the new baseline")
+    bench_p.add_argument("--baseline", default=None, help="Path to baseline JSON for regression comparison")
+    bench_p.add_argument("--force-reduce", action="store_true", help="Re-run reduction even if reduced.json is cached")
+
     return p
 
 
@@ -458,6 +470,96 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"\nDebug WAVs:")
                 for name, p in sorted(layer_paths.items()):
                     print(f"  {name}: {p}")
+
+            return 0
+
+        if args.cmd == "eval":
+            from .eval import evaluate_reduced, format_report, references_dir_for_song
+
+            song_id = song_id_for_path(args.audio_path)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            if not reduced_path.exists():
+                print(
+                    f"error: {reduced_path} not found — run the reduction pipeline first "
+                    "(e.g. `songviz render --layout stems4`).",
+                    file=sys.stderr,
+                )
+                return 2
+            reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+
+            if args.reference_dir:
+                ref_dir = Path(args.reference_dir)
+            else:
+                ref_dir = references_dir_for_song(str(song_id))
+                if ref_dir is None:
+                    print(
+                        f"error: no references found for '{song_id}' in benchmark/songs.json. "
+                        "Use --reference-dir to specify manually.",
+                        file=sys.stderr,
+                    )
+                    return 2
+
+            results = evaluate_reduced(reduced, ref_dir)
+
+            if args.json_output:
+                print(json.dumps(results, indent=2))
+            else:
+                print(f"=== Evaluation: {song_id} ===")
+                print(f"References: {ref_dir}")
+                print(format_report(results))
+
+            return 0
+
+        if args.cmd == "bench":
+            from .bench import (
+                compare_to_baseline,
+                evaluate_all_songs,
+                format_bench_report,
+                format_comparison_report,
+                save_baseline,
+            )
+
+            songs_dir = Path(args.songs_dir)
+            if not songs_dir.is_dir():
+                print(f"error: songs directory not found: {songs_dir}", file=sys.stderr)
+                return 2
+
+            bench_results = evaluate_all_songs(
+                songs_dir, force_reduce=bool(args.force_reduce),
+            )
+
+            if bench_results.get("song_count", 0) == 0:
+                print(
+                    "error: no benchmark songs found. "
+                    "Check that benchmark/songs.json maps song_ids to reference directories "
+                    "and that audio files are in the songs directory.",
+                    file=sys.stderr,
+                )
+                return 2
+
+            if args.json_output:
+                print(json.dumps(bench_results, indent=2, default=str))
+            else:
+                print(format_bench_report(bench_results))
+
+            if args.save_baseline:
+                path = save_baseline(bench_results)
+                print(f"\nBaseline saved: {path}", file=sys.stderr)
+
+            if args.baseline:
+                baseline_path = Path(args.baseline)
+                if not baseline_path.exists():
+                    print(f"error: baseline not found: {baseline_path}", file=sys.stderr)
+                    return 2
+                baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+                comparison = compare_to_baseline(bench_results, baseline)
+                print(f"\n{'='*60}")
+                print("BASELINE COMPARISON")
+                print(f"{'='*60}")
+                print(format_comparison_report(comparison))
+                if comparison["has_regressions"]:
+                    return 1  # non-zero exit for CI/agent detection
 
             return 0
 

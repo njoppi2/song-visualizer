@@ -1,0 +1,20 @@
+{
+  "layer": "vocals",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Dual vocals from Tom DeLonge and Mark Hoppus. Tom sings verses, Mark sings choruses, and they overlap in the bridge. Tenor range for both.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 4.0,   "active": false, "label": "intro (instrumental)"},
+    {"start_s": 4.0,   "end_s": 36.0,  "active": true,  "label": "verse1 (Tom)"},
+    {"start_s": 36.0,  "end_s": 60.0,  "active": true,  "label": "chorus1 (Mark)"},
+    {"start_s": 60.0,  "end_s": 90.0,  "active": true,  "label": "verse2 (Tom)"},
+    {"start_s": 90.0,  "end_s": 116.0, "active": true,  "label": "chorus2 (Mark)"},
+    {"start_s": 116.0, "end_s": 140.0, "active": true,  "label": "bridge (overlapping)"},
+    {"start_s": 140.0, "end_s": 172.0, "active": true,  "label": "chorus3+outro"}
+  ],
+  "pitch": {
+    "range": [52, 72],
+    "range_names": ["E3", "C5"],
+    "description": "Both Tom and Mark sing in tenor range, roughly E3 to C5. Tom's verses sit slightly lower, Mark's choruses push higher."
+  }
+}

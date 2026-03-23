@@ -1,0 +1,27 @@
+{
+  "layer": "bass",
+  "confidence": "silver",
+  "source": "Guitar tabs + listening",
+  "description": "Iconic descending bass riff in G. Bass is active from the very start and runs throughout almost the entire song, with only a brief reduction during the bridge.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 24.0,  "active": true,  "label": "intro (bass riff)"},
+    {"start_s": 24.0,  "end_s": 68.0,  "active": true,  "label": "verse1"},
+    {"start_s": 68.0,  "end_s": 92.0,  "active": true,  "label": "pre-chorus1"},
+    {"start_s": 92.0,  "end_s": 116.0, "active": true,  "label": "chorus1"},
+    {"start_s": 116.0, "end_s": 156.0, "active": true,  "label": "verse2"},
+    {"start_s": 156.0, "end_s": 180.0, "active": true,  "label": "pre-chorus2"},
+    {"start_s": 180.0, "end_s": 204.0, "active": true,  "label": "chorus2"},
+    {"start_s": 204.0, "end_s": 228.0, "active": false, "label": "bridge (reduced)"},
+    {"start_s": 228.0, "end_s": 272.0, "active": true,  "label": "outro"}
+  ],
+  "pitch": {
+    "root_midi": 43,
+    "root_name": "G2",
+    "root_pc": 7,
+    "scale_pcs": [7, 11, 2],
+    "scale_names": ["G", "B", "D"],
+    "range": [38, 50],
+    "range_names": ["D2", "D3"],
+    "description": "Root is G2 (43). The riff primarily uses G, B, D (major triad tones) with some passing tones. Range spans roughly D2 to D3."
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "layer": "bass",
+  "confidence": "silver",
+  "source": "Guitar tabs + listening",
+  "description": "Bass plays a distinctive G2 octave riff. Drops out completely during rap verse and windmill section.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 12.5,  "active": false, "label": "intro"},
+    {"start_s": 12.5,  "end_s": 63.0,  "active": true,  "label": "verse1+chorus1"},
+    {"start_s": 63.0,  "end_s": 95.0,  "active": false, "label": "rap verse"},
+    {"start_s": 95.0,  "end_s": 138.0, "active": true,  "label": "chorus2"},
+    {"start_s": 138.0, "end_s": 167.0, "active": false, "label": "windmill/bridge"},
+    {"start_s": 167.0, "end_s": 222.0, "active": true,  "label": "verse3+chorus3+outro"}
+  ],
+  "pitch": {
+    "root_midi": 43,
+    "root_name": "G2",
+    "root_pc": 7,
+    "scale_pcs": [7, 10, 2, 3],
+    "scale_names": ["G", "Bb", "D", "Eb"],
+    "range": [38, 50],
+    "range_names": ["D2", "D3"],
+    "description": "Mainly G2 (43) with octave jumps to G3 (55) and passing tones around D2-D3. Riff uses G minor pentatonic subset: G, Bb, D, Eb."
+  }
+}

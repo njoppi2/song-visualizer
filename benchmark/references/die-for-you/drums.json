@@ -1,0 +1,17 @@
+{
+  "layer": "drums",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Electronic drums with characteristic EDM build-and-drop structure. No drums in intro, builds with risers, full drums during drops, sparse during breakdowns.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 20.0,  "active": false, "label": "intro (no drums)"},
+    {"start_s": 20.0,  "end_s": 40.0,  "active": true,  "label": "buildup1 (building drums)"},
+    {"start_s": 40.0,  "end_s": 72.0,  "active": true,  "label": "drop1 (full drums)"},
+    {"start_s": 72.0,  "end_s": 96.0,  "active": false, "label": "breakdown1 (minimal drums)"},
+    {"start_s": 96.0,  "end_s": 112.0, "active": true,  "label": "buildup2"},
+    {"start_s": 112.0, "end_s": 152.0, "active": true,  "label": "drop2 (full drums)"},
+    {"start_s": 152.0, "end_s": 180.0, "active": false, "label": "breakdown2 (sparse)"},
+    {"start_s": 180.0, "end_s": 210.0, "active": true,  "label": "outro (drums active)"},
+    {"start_s": 210.0, "end_s": 222.0, "active": false, "label": "outro fade"}
+  ]
+}

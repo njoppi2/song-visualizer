@@ -1,0 +1,10 @@
+{
+  "layer": "drums",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Electronic/acoustic hybrid drums. No drums in the intro, then active from verse onward with brief transitions between sections.",
+  "activity": [
+    {"start_s": 0.0,  "end_s": 14.0,  "active": false, "label": "intro (no drums)"},
+    {"start_s": 14.0, "end_s": 167.0, "active": true,  "label": "verse1 through outro"}
+  ]
+}

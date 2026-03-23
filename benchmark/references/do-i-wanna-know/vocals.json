@@ -1,0 +1,23 @@
+{
+  "layer": "vocals",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Alex Turner sings in a low-to-mid tenor range. No vocals in the intro. Vocals present through verses, pre-choruses, and choruses. Bridge has some vocals before the final outro.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 24.0,  "active": false, "label": "intro (instrumental)"},
+    {"start_s": 24.0,  "end_s": 68.0,  "active": true,  "label": "verse1"},
+    {"start_s": 68.0,  "end_s": 92.0,  "active": true,  "label": "pre-chorus1"},
+    {"start_s": 92.0,  "end_s": 116.0, "active": true,  "label": "chorus1"},
+    {"start_s": 116.0, "end_s": 156.0, "active": true,  "label": "verse2"},
+    {"start_s": 156.0, "end_s": 180.0, "active": true,  "label": "pre-chorus2"},
+    {"start_s": 180.0, "end_s": 204.0, "active": true,  "label": "chorus2"},
+    {"start_s": 204.0, "end_s": 228.0, "active": true,  "label": "bridge"},
+    {"start_s": 228.0, "end_s": 252.0, "active": true,  "label": "outro vocals"},
+    {"start_s": 252.0, "end_s": 272.0, "active": false, "label": "outro fade (instrumental)"}
+  ],
+  "pitch": {
+    "range": [55, 72],
+    "range_names": ["G3", "C5"],
+    "description": "Alex Turner sings in a low tenor range, mostly G3 to C5. Verses sit lower, choruses push higher."
+  }
+}

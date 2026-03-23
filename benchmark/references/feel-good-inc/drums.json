@@ -1,0 +1,10 @@
+{
+  "layer": "drums",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Standard rock beat with kick, snare, hi-hat throughout most of the song. Beat enters very early.",
+  "activity": [
+    {"start_s": 0.0, "end_s": 2.5,   "active": false, "label": "very start (keyboard)"},
+    {"start_s": 2.5, "end_s": 222.0, "active": true,  "label": "drums throughout"}
+  ]
+}

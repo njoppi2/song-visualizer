@@ -1,0 +1,22 @@
+{
+  "layer": "vocals",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Tyler Joseph sings in a high tenor/alto range. No vocals in the intro. Vocals present through all verses, pre-choruses, and choruses.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 14.0,  "active": false, "label": "intro (instrumental)"},
+    {"start_s": 14.0,  "end_s": 42.0,  "active": true,  "label": "verse1"},
+    {"start_s": 42.0,  "end_s": 56.0,  "active": true,  "label": "pre-chorus1"},
+    {"start_s": 56.0,  "end_s": 80.0,  "active": true,  "label": "chorus1"},
+    {"start_s": 80.0,  "end_s": 100.0, "active": true,  "label": "verse2"},
+    {"start_s": 100.0, "end_s": 114.0, "active": true,  "label": "pre-chorus2"},
+    {"start_s": 114.0, "end_s": 140.0, "active": true,  "label": "chorus2"},
+    {"start_s": 140.0, "end_s": 155.0, "active": true,  "label": "bridge"},
+    {"start_s": 155.0, "end_s": 167.0, "active": true,  "label": "outro"}
+  ],
+  "pitch": {
+    "range": [55, 76],
+    "range_names": ["G3", "E5"],
+    "description": "Tyler Joseph sings in a high tenor range, roughly G3 to E5. Choruses reach the highest notes."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "layer": "bass",
+  "confidence": "silver",
+  "source": "Listening + chord charts",
+  "description": "Synth bass in E major. Minimal in the intro, then becomes prominent from the verse onward. Particularly strong during choruses.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 14.0,  "active": false, "label": "intro (minimal bass)"},
+    {"start_s": 14.0,  "end_s": 42.0,  "active": true,  "label": "verse1"},
+    {"start_s": 42.0,  "end_s": 56.0,  "active": true,  "label": "pre-chorus1"},
+    {"start_s": 56.0,  "end_s": 80.0,  "active": true,  "label": "chorus1"},
+    {"start_s": 80.0,  "end_s": 100.0, "active": true,  "label": "verse2"},
+    {"start_s": 100.0, "end_s": 114.0, "active": true,  "label": "pre-chorus2"},
+    {"start_s": 114.0, "end_s": 140.0, "active": true,  "label": "chorus2"},
+    {"start_s": 140.0, "end_s": 167.0, "active": true,  "label": "bridge+outro"}
+  ],
+  "pitch": {
+    "root_midi": 40,
+    "root_name": "E2",
+    "root_pc": 4,
+    "scale_pcs": [4, 8, 11],
+    "scale_names": ["E", "G#", "B"],
+    "range": [36, 48],
+    "range_names": ["C2", "C3"],
+    "description": "Synth bass rooted on E2 (40). Primarily uses E, G#, B (major triad). Range spans C2 to C3."
+  }
+}

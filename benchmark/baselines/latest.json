@@ -1,0 +1,4066 @@
+{
+  "timestamp": "2026-03-23T05:15:02.385165+00:00",
+  "song_count": 5,
+  "success_count": 5,
+  "errors": [],
+  "songs": {
+    "do-i-wanna-know": {
+      "song_id": "f1133a00b470c773",
+      "audio_file": "Arctic Monkeys - Do I Wanna Know_.flac",
+      "results": {
+        "layers": {
+          "drums": {
+            "layer": "drums",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "drumsep",
+            "event_count": 6144,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 24.0,
+                  "label": "intro (bass riff only)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 491,
+                  "match": false
+                },
+                {
+                  "start_s": 24.0,
+                  "end_s": 204.0,
+                  "label": "verse1 through chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 4052,
+                  "match": true
+                },
+                {
+                  "start_s": 204.0,
+                  "end_s": 228.0,
+                  "label": "bridge (lighter pattern)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 588,
+                  "match": true
+                },
+                {
+                  "start_s": 228.0,
+                  "end_s": 272.0,
+                  "label": "outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 1013,
+                  "match": true
+                }
+              ],
+              "tp": 3,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.75,
+              "recall": 1.0,
+              "f1": 0.8571,
+              "silent_fp_count": 491,
+              "silent_fp_rate": 0.0799
+            }
+          },
+          "vocals": {
+            "layer": "vocals",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 660,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 24.0,
+                  "label": "intro (instrumental)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 19,
+                  "match": false
+                },
+                {
+                  "start_s": 24.0,
+                  "end_s": 68.0,
+                  "label": "verse1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 103,
+                  "match": true
+                },
+                {
+                  "start_s": 68.0,
+                  "end_s": 92.0,
+                  "label": "pre-chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 66,
+                  "match": true
+                },
+                {
+                  "start_s": 92.0,
+                  "end_s": 116.0,
+                  "label": "chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 52,
+                  "match": true
+                },
+                {
+                  "start_s": 116.0,
+                  "end_s": 156.0,
+                  "label": "verse2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 91,
+                  "match": true
+                },
+                {
+                  "start_s": 156.0,
+                  "end_s": 180.0,
+                  "label": "pre-chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 65,
+                  "match": true
+                },
+                {
+                  "start_s": 180.0,
+                  "end_s": 204.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 57,
+                  "match": true
+                },
+                {
+                  "start_s": 204.0,
+                  "end_s": 228.0,
+                  "label": "bridge",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 71,
+                  "match": true
+                },
+                {
+                  "start_s": 228.0,
+                  "end_s": 252.0,
+                  "label": "outro vocals",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 62,
+                  "match": true
+                },
+                {
+                  "start_s": 252.0,
+                  "end_s": 272.0,
+                  "label": "outro fade (instrumental)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 74,
+                  "match": false
+                }
+              ],
+              "tp": 8,
+              "fp": 2,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.8,
+              "recall": 1.0,
+              "f1": 0.8889,
+              "silent_fp_count": 93,
+              "silent_fp_rate": 0.1409
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 567,
+                "dominant_pc": 0,
+                "dominant_pc_name": "C",
+                "dominant_pc_pct": 26.5
+              },
+              "cross_section": {
+                "section_count": 8,
+                "pairs": [
+                  {
+                    "sections": "verse1 vs pre-chorus1",
+                    "pc_overlap": 0.7174,
+                    "contour_similarity": 0.9155,
+                    "ioi_ratio": 0.9952,
+                    "density_ratio": 0.8509
+                  },
+                  {
+                    "sections": "verse1 vs chorus1",
+                    "pc_overlap": 0.7836,
+                    "contour_similarity": 0.9607,
+                    "ioi_ratio": 0.9566,
+                    "density_ratio": 0.9274
+                  },
+                  {
+                    "sections": "verse1 vs verse2",
+                    "pc_overlap": 0.8197,
+                    "contour_similarity": 0.981,
+                    "ioi_ratio": 0.9197,
+                    "density_ratio": 0.9701
+                  },
+                  {
+                    "sections": "verse1 vs pre-chorus2",
+                    "pc_overlap": 0.6418,
+                    "contour_similarity": 0.9623,
+                    "ioi_ratio": 0.9348,
+                    "density_ratio": 0.8635
+                  },
+                  {
+                    "sections": "verse1 vs chorus2",
+                    "pc_overlap": 0.7527,
+                    "contour_similarity": 0.9779,
+                    "ioi_ratio": 1.0,
+                    "density_ratio": 0.9832
+                  },
+                  {
+                    "sections": "verse1 vs bridge",
+                    "pc_overlap": 0.7026,
+                    "contour_similarity": 0.9529,
+                    "ioi_ratio": 0.9783,
+                    "density_ratio": 0.7905
+                  },
+                  {
+                    "sections": "verse1 vs outro vocals",
+                    "pc_overlap": 0.6101,
+                    "contour_similarity": 0.9103,
+                    "ioi_ratio": 0.9131,
+                    "density_ratio": 0.907
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus1",
+                    "pc_overlap": 0.7273,
+                    "contour_similarity": 0.9164,
+                    "ioi_ratio": 0.9519,
+                    "density_ratio": 0.7891
+                  },
+                  {
+                    "sections": "pre-chorus1 vs verse2",
+                    "pc_overlap": 0.7471,
+                    "contour_similarity": 0.8965,
+                    "ioi_ratio": 0.9242,
+                    "density_ratio": 0.8255
+                  },
+                  {
+                    "sections": "pre-chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.811,
+                    "contour_similarity": 0.8803,
+                    "ioi_ratio": 0.9303,
+                    "density_ratio": 0.9855
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus2",
+                    "pc_overlap": 0.7129,
+                    "contour_similarity": 0.9115,
+                    "ioi_ratio": 0.9952,
+                    "density_ratio": 0.8655
+                  },
+                  {
+                    "sections": "pre-chorus1 vs bridge",
+                    "pc_overlap": 0.8792,
+                    "contour_similarity": 0.8758,
+                    "ioi_ratio": 0.9735,
+                    "density_ratio": 0.9291
+                  },
+                  {
+                    "sections": "pre-chorus1 vs outro vocals",
+                    "pc_overlap": 0.6769,
+                    "contour_similarity": 0.9074,
+                    "ioi_ratio": 0.9087,
+                    "density_ratio": 0.9382
+                  },
+                  {
+                    "sections": "chorus1 vs verse2",
+                    "pc_overlap": 0.75,
+                    "contour_similarity": 0.9417,
+                    "ioi_ratio": 0.8798,
+                    "density_ratio": 0.9559
+                  },
+                  {
+                    "sections": "chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.7308,
+                    "contour_similarity": 0.9623,
+                    "ioi_ratio": 0.9773,
+                    "density_ratio": 0.8007
+                  },
+                  {
+                    "sections": "chorus1 vs chorus2",
+                    "pc_overlap": 0.7095,
+                    "contour_similarity": 0.9779,
+                    "ioi_ratio": 0.9566,
+                    "density_ratio": 0.9118
+                  },
+                  {
+                    "sections": "chorus1 vs bridge",
+                    "pc_overlap": 0.7432,
+                    "contour_similarity": 0.9594,
+                    "ioi_ratio": 0.9778,
+                    "density_ratio": 0.7331
+                  },
+                  {
+                    "sections": "chorus1 vs outro vocals",
+                    "pc_overlap": 0.7035,
+                    "contour_similarity": 0.9496,
+                    "ioi_ratio": 0.9546,
+                    "density_ratio": 0.8411
+                  },
+                  {
+                    "sections": "verse2 vs pre-chorus2",
+                    "pc_overlap": 0.6967,
+                    "contour_similarity": 0.9538,
+                    "ioi_ratio": 0.8598,
+                    "density_ratio": 0.8376
+                  },
+                  {
+                    "sections": "verse2 vs chorus2",
+                    "pc_overlap": 0.685,
+                    "contour_similarity": 0.9638,
+                    "ioi_ratio": 0.9197,
+                    "density_ratio": 0.9538
+                  },
+                  {
+                    "sections": "verse2 vs bridge",
+                    "pc_overlap": 0.6739,
+                    "contour_similarity": 0.9445,
+                    "ioi_ratio": 0.8998,
+                    "density_ratio": 0.7669
+                  },
+                  {
+                    "sections": "verse2 vs outro vocals",
+                    "pc_overlap": 0.6209,
+                    "contour_similarity": 0.9003,
+                    "ioi_ratio": 0.8398,
+                    "density_ratio": 0.8798
+                  },
+                  {
+                    "sections": "pre-chorus2 vs chorus2",
+                    "pc_overlap": 0.6038,
+                    "contour_similarity": 0.9688,
+                    "ioi_ratio": 0.9348,
+                    "density_ratio": 0.8782
+                  },
+                  {
+                    "sections": "pre-chorus2 vs bridge",
+                    "pc_overlap": 0.7612,
+                    "contour_similarity": 0.9906,
+                    "ioi_ratio": 0.9556,
+                    "density_ratio": 0.9155
+                  },
+                  {
+                    "sections": "pre-chorus2 vs outro vocals",
+                    "pc_overlap": 0.6427,
+                    "contour_similarity": 0.9209,
+                    "ioi_ratio": 0.9768,
+                    "density_ratio": 0.952
+                  },
+                  {
+                    "sections": "chorus2 vs bridge",
+                    "pc_overlap": 0.6469,
+                    "contour_similarity": 0.9643,
+                    "ioi_ratio": 0.9783,
+                    "density_ratio": 0.8041
+                  },
+                  {
+                    "sections": "chorus2 vs outro vocals",
+                    "pc_overlap": 0.7569,
+                    "contour_similarity": 0.9324,
+                    "ioi_ratio": 0.9131,
+                    "density_ratio": 0.9225
+                  },
+                  {
+                    "sections": "bridge vs outro vocals",
+                    "pc_overlap": 0.6224,
+                    "contour_similarity": 0.9258,
+                    "ioi_ratio": 0.9334,
+                    "density_ratio": 0.8716
+                  }
+                ],
+                "avg_pc_overlap": 0.7118,
+                "avg_contour_similarity": 0.9395,
+                "avg_ioi_ratio": 0.9407,
+                "sections": [
+                  {
+                    "label": "verse1",
+                    "start_s": 24.0,
+                    "end_s": 68.0,
+                    "n_notes": 103,
+                    "density": 2.34,
+                    "contour_props": {
+                      "up": 0.3922,
+                      "down": 0.3529,
+                      "same": 0.2549
+                    },
+                    "ioi_median": 0.267,
+                    "midi_median": 58.0,
+                    "midi_std": 4.82
+                  },
+                  {
+                    "label": "pre-chorus1",
+                    "start_s": 68.0,
+                    "end_s": 92.0,
+                    "n_notes": 66,
+                    "density": 2.75,
+                    "contour_props": {
+                      "up": 0.3077,
+                      "down": 0.3538,
+                      "same": 0.3385
+                    },
+                    "ioi_median": 0.2683,
+                    "midi_median": 60.0,
+                    "midi_std": 3.27
+                  },
+                  {
+                    "label": "chorus1",
+                    "start_s": 92.0,
+                    "end_s": 116.0,
+                    "n_notes": 52,
+                    "density": 2.17,
+                    "contour_props": {
+                      "up": 0.3529,
+                      "down": 0.3922,
+                      "same": 0.2549
+                    },
+                    "ioi_median": 0.2554,
+                    "midi_median": 60.0,
+                    "midi_std": 4.8
+                  },
+                  {
+                    "label": "verse2",
+                    "start_s": 116.0,
+                    "end_s": 156.0,
+                    "n_notes": 91,
+                    "density": 2.27,
+                    "contour_props": {
+                      "up": 0.4111,
+                      "down": 0.3444,
+                      "same": 0.2444
+                    },
+                    "ioi_median": 0.2903,
+                    "midi_median": 58.0,
+                    "midi_std": 4.31
+                  },
+                  {
+                    "label": "pre-chorus2",
+                    "start_s": 156.0,
+                    "end_s": 180.0,
+                    "n_notes": 65,
+                    "density": 2.71,
+                    "contour_props": {
+                      "up": 0.3906,
+                      "down": 0.3906,
+                      "same": 0.2188
+                    },
+                    "ioi_median": 0.2496,
+                    "midi_median": 60.0,
+                    "midi_std": 4.73
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 180.0,
+                    "end_s": 204.0,
+                    "n_notes": 57,
+                    "density": 2.38,
+                    "contour_props": {
+                      "up": 0.375,
+                      "down": 0.375,
+                      "same": 0.25
+                    },
+                    "ioi_median": 0.267,
+                    "midi_median": 58.0,
+                    "midi_std": 4.98
+                  },
+                  {
+                    "label": "bridge",
+                    "start_s": 204.0,
+                    "end_s": 228.0,
+                    "n_notes": 71,
+                    "density": 2.96,
+                    "contour_props": {
+                      "up": 0.3857,
+                      "down": 0.4,
+                      "same": 0.2143
+                    },
+                    "ioi_median": 0.2612,
+                    "midi_median": 60.0,
+                    "midi_std": 5.86
+                  },
+                  {
+                    "label": "outro vocals",
+                    "start_s": 228.0,
+                    "end_s": 252.0,
+                    "n_notes": 62,
+                    "density": 2.58,
+                    "contour_props": {
+                      "up": 0.3115,
+                      "down": 0.4426,
+                      "same": 0.2459
+                    },
+                    "ioi_median": 0.2438,
+                    "midi_median": 62.0,
+                    "midi_std": 4.5
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 567,
+                "midi_std": 4.93,
+                "midi_range": 44.0,
+                "octave_jump_count": 79,
+                "octave_jump_pct": 14.0,
+                "large_jump_count": 107,
+                "large_jump_pct": 18.9,
+                "median_abs_interval": 2.0,
+                "mean_abs_interval": 3.64
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 567,
+                "in_range_count": 529,
+                "in_range_pct": 93.3,
+                "midi_median": 60.0,
+                "midi_mean": 59.8,
+                "below_range_pct": 4.9,
+                "above_range_pct": 1.8
+              }
+            }
+          },
+          "bass": {
+            "layer": "bass",
+            "confidence": "silver",
+            "ref_source": "Guitar tabs + listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 298,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 24.0,
+                  "label": "intro (bass riff)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 10,
+                  "match": true
+                },
+                {
+                  "start_s": 24.0,
+                  "end_s": 68.0,
+                  "label": "verse1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 27,
+                  "match": true
+                },
+                {
+                  "start_s": 68.0,
+                  "end_s": 92.0,
+                  "label": "pre-chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 33,
+                  "match": true
+                },
+                {
+                  "start_s": 92.0,
+                  "end_s": 116.0,
+                  "label": "chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 43,
+                  "match": true
+                },
+                {
+                  "start_s": 116.0,
+                  "end_s": 156.0,
+                  "label": "verse2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 24,
+                  "match": true
+                },
+                {
+                  "start_s": 156.0,
+                  "end_s": 180.0,
+                  "label": "pre-chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 34,
+                  "match": true
+                },
+                {
+                  "start_s": 180.0,
+                  "end_s": 204.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 44,
+                  "match": true
+                },
+                {
+                  "start_s": 204.0,
+                  "end_s": 228.0,
+                  "label": "bridge (reduced)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 40,
+                  "match": false
+                },
+                {
+                  "start_s": 228.0,
+                  "end_s": 272.0,
+                  "label": "outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 43,
+                  "match": true
+                }
+              ],
+              "tp": 8,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.8889,
+              "recall": 1.0,
+              "f1": 0.9412,
+              "silent_fp_count": 40,
+              "silent_fp_rate": 0.1342
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 258,
+                "dominant_pc": 7,
+                "dominant_pc_name": "G",
+                "dominant_pc_pct": 27.5,
+                "expected_root_pc": 7,
+                "expected_root_name": "G",
+                "root_pc_match": true,
+                "root_pc_pct": 27.5,
+                "root_neighbor_pct": 0.8,
+                "in_scale_pct": 44.6,
+                "scale_overlap": 0.4457,
+                "per_class": [
+                  {
+                    "expected": "G",
+                    "pc": 7,
+                    "pct": 27.5,
+                    "neighbor_left_pct": 0.8,
+                    "neighbor_right_pct": 0.0
+                  },
+                  {
+                    "expected": "B",
+                    "pc": 11,
+                    "pct": 0.4,
+                    "neighbor_left_pct": 12.0,
+                    "neighbor_right_pct": 19.0
+                  },
+                  {
+                    "expected": "D",
+                    "pc": 2,
+                    "pct": 16.7,
+                    "neighbor_left_pct": 1.6,
+                    "neighbor_right_pct": 12.8
+                  }
+                ]
+              },
+              "cross_section": {
+                "section_count": 8,
+                "pairs": [
+                  {
+                    "sections": "intro (bass riff) vs verse1",
+                    "pc_overlap": 0.7852,
+                    "contour_similarity": 0.7265,
+                    "ioi_ratio": 0.567,
+                    "density_ratio": 0.6885
+                  },
+                  {
+                    "sections": "intro (bass riff) vs pre-chorus1",
+                    "pc_overlap": 0.7848,
+                    "contour_similarity": 0.8194,
+                    "ioi_ratio": 0.4913,
+                    "density_ratio": 0.3043
+                  },
+                  {
+                    "sections": "intro (bass riff) vs chorus1",
+                    "pc_overlap": 0.6581,
+                    "contour_similarity": 0.7539,
+                    "ioi_ratio": 0.4064,
+                    "density_ratio": 0.2346
+                  },
+                  {
+                    "sections": "intro (bass riff) vs verse2",
+                    "pc_overlap": 0.7667,
+                    "contour_similarity": 0.7198,
+                    "ioi_ratio": 0.525,
+                    "density_ratio": 0.7
+                  },
+                  {
+                    "sections": "intro (bass riff) vs pre-chorus2",
+                    "pc_overlap": 0.6824,
+                    "contour_similarity": 0.808,
+                    "ioi_ratio": 0.4212,
+                    "density_ratio": 0.2958
+                  },
+                  {
+                    "sections": "intro (bass riff) vs chorus2",
+                    "pc_overlap": 0.6682,
+                    "contour_similarity": 0.77,
+                    "ioi_ratio": 0.3744,
+                    "density_ratio": 0.2295
+                  },
+                  {
+                    "sections": "intro (bass riff) vs outro",
+                    "pc_overlap": 0.7953,
+                    "contour_similarity": 0.7063,
+                    "ioi_ratio": 0.4446,
+                    "density_ratio": 0.4286
+                  },
+                  {
+                    "sections": "verse1 vs pre-chorus1",
+                    "pc_overlap": 0.8182,
+                    "contour_similarity": 0.7404,
+                    "ioi_ratio": 0.2786,
+                    "density_ratio": 0.442
+                  },
+                  {
+                    "sections": "verse1 vs chorus1",
+                    "pc_overlap": 0.5805,
+                    "contour_similarity": 0.8535,
+                    "ioi_ratio": 0.2305,
+                    "density_ratio": 0.3408
+                  },
+                  {
+                    "sections": "verse1 vs verse2",
+                    "pc_overlap": 0.8704,
+                    "contour_similarity": 0.9933,
+                    "ioi_ratio": 0.9259,
+                    "density_ratio": 0.9836
+                  },
+                  {
+                    "sections": "verse1 vs pre-chorus2",
+                    "pc_overlap": 0.7974,
+                    "contour_similarity": 0.7973,
+                    "ioi_ratio": 0.2388,
+                    "density_ratio": 0.4296
+                  },
+                  {
+                    "sections": "verse1 vs chorus2",
+                    "pc_overlap": 0.5227,
+                    "contour_similarity": 0.7782,
+                    "ioi_ratio": 0.2123,
+                    "density_ratio": 0.3333
+                  },
+                  {
+                    "sections": "verse1 vs outro",
+                    "pc_overlap": 0.7907,
+                    "contour_similarity": 0.9267,
+                    "ioi_ratio": 0.2521,
+                    "density_ratio": 0.6224
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus1",
+                    "pc_overlap": 0.7287,
+                    "contour_similarity": 0.8869,
+                    "ioi_ratio": 0.8272,
+                    "density_ratio": 0.7709
+                  },
+                  {
+                    "sections": "pre-chorus1 vs verse2",
+                    "pc_overlap": 0.7424,
+                    "contour_similarity": 0.7337,
+                    "ioi_ratio": 0.258,
+                    "density_ratio": 0.4348
+                  },
+                  {
+                    "sections": "pre-chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.8939,
+                    "contour_similarity": 0.9432,
+                    "ioi_ratio": 0.8573,
+                    "density_ratio": 0.9718
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus2",
+                    "pc_overlap": 0.7045,
+                    "contour_similarity": 0.9506,
+                    "ioi_ratio": 0.7621,
+                    "density_ratio": 0.7541
+                  },
+                  {
+                    "sections": "pre-chorus1 vs outro",
+                    "pc_overlap": 0.9084,
+                    "contour_similarity": 0.7679,
+                    "ioi_ratio": 0.9048,
+                    "density_ratio": 0.7101
+                  },
+                  {
+                    "sections": "chorus1 vs verse2",
+                    "pc_overlap": 0.5814,
+                    "contour_similarity": 0.8468,
+                    "ioi_ratio": 0.2134,
+                    "density_ratio": 0.3352
+                  },
+                  {
+                    "sections": "chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.7285,
+                    "contour_similarity": 0.9437,
+                    "ioi_ratio": 0.9649,
+                    "density_ratio": 0.7933
+                  },
+                  {
+                    "sections": "chorus1 vs chorus2",
+                    "pc_overlap": 0.8716,
+                    "contour_similarity": 0.9247,
+                    "ioi_ratio": 0.9213,
+                    "density_ratio": 0.9781
+                  },
+                  {
+                    "sections": "chorus1 vs outro",
+                    "pc_overlap": 0.7442,
+                    "contour_similarity": 0.881,
+                    "ioi_ratio": 0.9142,
+                    "density_ratio": 0.5475
+                  },
+                  {
+                    "sections": "verse2 vs pre-chorus2",
+                    "pc_overlap": 0.7255,
+                    "contour_similarity": 0.7905,
+                    "ioi_ratio": 0.2211,
+                    "density_ratio": 0.4225
+                  },
+                  {
+                    "sections": "verse2 vs chorus2",
+                    "pc_overlap": 0.5227,
+                    "contour_similarity": 0.7714,
+                    "ioi_ratio": 0.1966,
+                    "density_ratio": 0.3279
+                  },
+                  {
+                    "sections": "verse2 vs outro",
+                    "pc_overlap": 0.7907,
+                    "contour_similarity": 0.9234,
+                    "ioi_ratio": 0.2334,
+                    "density_ratio": 0.6122
+                  },
+                  {
+                    "sections": "pre-chorus2 vs chorus2",
+                    "pc_overlap": 0.6698,
+                    "contour_similarity": 0.9429,
+                    "ioi_ratio": 0.889,
+                    "density_ratio": 0.776
+                  },
+                  {
+                    "sections": "pre-chorus2 vs outro",
+                    "pc_overlap": 0.8023,
+                    "contour_similarity": 0.8248,
+                    "ioi_ratio": 0.9474,
+                    "density_ratio": 0.6901
+                  },
+                  {
+                    "sections": "chorus2 vs outro",
+                    "pc_overlap": 0.732,
+                    "contour_similarity": 0.8057,
+                    "ioi_ratio": 0.8422,
+                    "density_ratio": 0.5355
+                  }
+                ],
+                "avg_pc_overlap": 0.7381,
+                "avg_contour_similarity": 0.8332,
+                "avg_ioi_ratio": 0.5472,
+                "sections": [
+                  {
+                    "label": "intro (bass riff)",
+                    "start_s": 0.0,
+                    "end_s": 24.0,
+                    "n_notes": 10,
+                    "density": 0.42,
+                    "contour_props": {
+                      "up": 0.5556,
+                      "down": 0.3333,
+                      "same": 0.1111
+                    },
+                    "ioi_median": 0.7443,
+                    "midi_median": 36.0,
+                    "midi_std": 4.04
+                  },
+                  {
+                    "label": "verse1",
+                    "start_s": 24.0,
+                    "end_s": 68.0,
+                    "n_notes": 27,
+                    "density": 0.61,
+                    "contour_props": {
+                      "up": 0.3077,
+                      "down": 0.3077,
+                      "same": 0.3846
+                    },
+                    "ioi_median": 1.3126,
+                    "midi_median": 36.0,
+                    "midi_std": 3.31
+                  },
+                  {
+                    "label": "pre-chorus1",
+                    "start_s": 68.0,
+                    "end_s": 92.0,
+                    "n_notes": 33,
+                    "density": 1.38,
+                    "contour_props": {
+                      "up": 0.375,
+                      "down": 0.5,
+                      "same": 0.125
+                    },
+                    "ioi_median": 0.3657,
+                    "midi_median": 36.0,
+                    "midi_std": 3.56
+                  },
+                  {
+                    "label": "chorus1",
+                    "start_s": 92.0,
+                    "end_s": 116.0,
+                    "n_notes": 43,
+                    "density": 1.79,
+                    "contour_props": {
+                      "up": 0.3095,
+                      "down": 0.4524,
+                      "same": 0.2381
+                    },
+                    "ioi_median": 0.3025,
+                    "midi_median": 36.0,
+                    "midi_std": 3.39
+                  },
+                  {
+                    "label": "verse2",
+                    "start_s": 116.0,
+                    "end_s": 156.0,
+                    "n_notes": 24,
+                    "density": 0.6,
+                    "contour_props": {
+                      "up": 0.3043,
+                      "down": 0.3043,
+                      "same": 0.3913
+                    },
+                    "ioi_median": 1.4177,
+                    "midi_median": 36.0,
+                    "midi_std": 3.47
+                  },
+                  {
+                    "label": "pre-chorus2",
+                    "start_s": 156.0,
+                    "end_s": 180.0,
+                    "n_notes": 34,
+                    "density": 1.42,
+                    "contour_props": {
+                      "up": 0.3636,
+                      "down": 0.4545,
+                      "same": 0.1818
+                    },
+                    "ioi_median": 0.3135,
+                    "midi_median": 36.0,
+                    "midi_std": 3.31
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 180.0,
+                    "end_s": 204.0,
+                    "n_notes": 44,
+                    "density": 1.83,
+                    "contour_props": {
+                      "up": 0.3256,
+                      "down": 0.5116,
+                      "same": 0.1628
+                    },
+                    "ioi_median": 0.2787,
+                    "midi_median": 36.0,
+                    "midi_std": 3.83
+                  },
+                  {
+                    "label": "outro",
+                    "start_s": 228.0,
+                    "end_s": 272.0,
+                    "n_notes": 43,
+                    "density": 0.98,
+                    "contour_props": {
+                      "up": 0.2619,
+                      "down": 0.381,
+                      "same": 0.3571
+                    },
+                    "ioi_median": 0.3309,
+                    "midi_median": 36.0,
+                    "midi_std": 3.68
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 258,
+                "midi_std": 3.6,
+                "midi_range": 14.0,
+                "octave_jump_count": 20,
+                "octave_jump_pct": 7.8,
+                "large_jump_count": 60,
+                "large_jump_pct": 23.3,
+                "median_abs_interval": 2.0,
+                "mean_abs_interval": 3.19
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 258,
+                "in_range_count": 109,
+                "in_range_pct": 42.2,
+                "midi_median": 36.0,
+                "midi_mean": 35.9,
+                "below_range_pct": 57.8,
+                "above_range_pct": 0.0
+              }
+            }
+          }
+        }
+      }
+    },
+    "feel-good-inc": {
+      "song_id": "657af9333edafbb6",
+      "audio_file": "Gorillaz - Feel Good Inc (featuring De La Soul).flac",
+      "results": {
+        "layers": {
+          "drums": {
+            "layer": "drums",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "drumsep",
+            "event_count": 5108,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 2.5,
+                  "label": "very start (keyboard)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 58,
+                  "match": false
+                },
+                {
+                  "start_s": 2.5,
+                  "end_s": 222.0,
+                  "label": "drums throughout",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 5050,
+                  "match": true
+                }
+              ],
+              "tp": 1,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.5,
+              "recall": 1.0,
+              "f1": 0.6667,
+              "silent_fp_count": 58,
+              "silent_fp_rate": 0.0114
+            }
+          },
+          "vocals": {
+            "layer": "vocals",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 286,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 5.0,
+                  "label": "intro (keyboard only)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 3,
+                  "match": false
+                },
+                {
+                  "start_s": 5.0,
+                  "end_s": 12.5,
+                  "label": "intro vocals (ha ha)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 5,
+                  "match": true
+                },
+                {
+                  "start_s": 12.5,
+                  "end_s": 63.0,
+                  "label": "verse1+chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 31,
+                  "match": true
+                },
+                {
+                  "start_s": 63.0,
+                  "end_s": 95.0,
+                  "label": "rap verse (De La Soul)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 76,
+                  "match": true
+                },
+                {
+                  "start_s": 95.0,
+                  "end_s": 138.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 53,
+                  "match": true
+                },
+                {
+                  "start_s": 138.0,
+                  "end_s": 167.0,
+                  "label": "windmill chanting",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 33,
+                  "match": true
+                },
+                {
+                  "start_s": 167.0,
+                  "end_s": 206.0,
+                  "label": "verse3+chorus3",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 73,
+                  "match": true
+                },
+                {
+                  "start_s": 206.0,
+                  "end_s": 222.0,
+                  "label": "outro (instrumental fade)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 12,
+                  "match": false
+                }
+              ],
+              "tp": 6,
+              "fp": 2,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.75,
+              "recall": 1.0,
+              "f1": 0.8571,
+              "silent_fp_count": 15,
+              "silent_fp_rate": 0.0524
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 271,
+                "dominant_pc": 8,
+                "dominant_pc_name": "G#",
+                "dominant_pc_pct": 19.6
+              },
+              "cross_section": {
+                "section_count": 6,
+                "pairs": [
+                  {
+                    "sections": "intro vocals (ha ha) vs verse1+chorus1",
+                    "pc_overlap": 0.3871,
+                    "contour_similarity": 0.8334,
+                    "ioi_ratio": 0.4903,
+                    "density_ratio": 0.9104
+                  },
+                  {
+                    "sections": "intro vocals (ha ha) vs rap verse (De La Soul)",
+                    "pc_overlap": 0.1974,
+                    "contour_similarity": 0.8133,
+                    "ioi_ratio": 0.2213,
+                    "density_ratio": 0.2815
+                  },
+                  {
+                    "sections": "intro vocals (ha ha) vs chorus2",
+                    "pc_overlap": 0.1698,
+                    "contour_similarity": 0.7308,
+                    "ioi_ratio": 0.2649,
+                    "density_ratio": 0.5447
+                  },
+                  {
+                    "sections": "intro vocals (ha ha) vs windmill chanting",
+                    "pc_overlap": 0.3636,
+                    "contour_similarity": 0.875,
+                    "ioi_ratio": 0.2213,
+                    "density_ratio": 0.5877
+                  },
+                  {
+                    "sections": "intro vocals (ha ha) vs verse3+chorus3",
+                    "pc_overlap": 0.1644,
+                    "contour_similarity": 0.7639,
+                    "ioi_ratio": 0.228,
+                    "density_ratio": 0.3583
+                  },
+                  {
+                    "sections": "verse1+chorus1 vs rap verse (De La Soul)",
+                    "pc_overlap": 0.5739,
+                    "contour_similarity": 0.8266,
+                    "ioi_ratio": 0.4513,
+                    "density_ratio": 0.2563
+                  },
+                  {
+                    "sections": "verse1+chorus1 vs chorus2",
+                    "pc_overlap": 0.5624,
+                    "contour_similarity": 0.7936,
+                    "ioi_ratio": 0.5403,
+                    "density_ratio": 0.4959
+                  },
+                  {
+                    "sections": "verse1+chorus1 vs windmill chanting",
+                    "pc_overlap": 0.6217,
+                    "contour_similarity": 0.8645,
+                    "ioi_ratio": 0.4513,
+                    "density_ratio": 0.5351
+                  },
+                  {
+                    "sections": "verse1+chorus1 vs verse3+chorus3",
+                    "pc_overlap": 0.5692,
+                    "contour_similarity": 0.8138,
+                    "ioi_ratio": 0.465,
+                    "density_ratio": 0.3262
+                  },
+                  {
+                    "sections": "rap verse (De La Soul) vs chorus2",
+                    "pc_overlap": 0.5462,
+                    "contour_similarity": 0.9174,
+                    "ioi_ratio": 0.8354,
+                    "density_ratio": 0.5168
+                  },
+                  {
+                    "sections": "rap verse (De La Soul) vs windmill chanting",
+                    "pc_overlap": 0.7751,
+                    "contour_similarity": 0.9383,
+                    "ioi_ratio": 1.0,
+                    "density_ratio": 0.479
+                  },
+                  {
+                    "sections": "rap verse (De La Soul) vs verse3+chorus3",
+                    "pc_overlap": 0.8309,
+                    "contour_similarity": 0.9506,
+                    "ioi_ratio": 0.9706,
+                    "density_ratio": 0.7857
+                  },
+                  {
+                    "sections": "chorus2 vs windmill chanting",
+                    "pc_overlap": 0.586,
+                    "contour_similarity": 0.8558,
+                    "ioi_ratio": 0.8354,
+                    "density_ratio": 0.9268
+                  },
+                  {
+                    "sections": "chorus2 vs verse3+chorus3",
+                    "pc_overlap": 0.557,
+                    "contour_similarity": 0.9668,
+                    "ioi_ratio": 0.8607,
+                    "density_ratio": 0.6578
+                  },
+                  {
+                    "sections": "windmill chanting vs verse3+chorus3",
+                    "pc_overlap": 0.6584,
+                    "contour_similarity": 0.8889,
+                    "ioi_ratio": 0.9706,
+                    "density_ratio": 0.6096
+                  }
+                ],
+                "avg_pc_overlap": 0.5042,
+                "avg_contour_similarity": 0.8555,
+                "avg_ioi_ratio": 0.5871,
+                "sections": [
+                  {
+                    "label": "intro vocals (ha ha)",
+                    "start_s": 5.0,
+                    "end_s": 12.5,
+                    "n_notes": 5,
+                    "density": 0.67,
+                    "contour_props": {
+                      "up": 0.5,
+                      "down": 0.5,
+                      "same": 0.0
+                    },
+                    "ioi_median": 1.7311,
+                    "midi_median": 65.0,
+                    "midi_std": 0.98
+                  },
+                  {
+                    "label": "verse1+chorus1",
+                    "start_s": 12.5,
+                    "end_s": 63.0,
+                    "n_notes": 31,
+                    "density": 0.61,
+                    "contour_props": {
+                      "up": 0.3333,
+                      "down": 0.5333,
+                      "same": 0.1333
+                    },
+                    "ioi_median": 0.8488,
+                    "midi_median": 59.0,
+                    "midi_std": 5.67
+                  },
+                  {
+                    "label": "rap verse (De La Soul)",
+                    "start_s": 63.0,
+                    "end_s": 95.0,
+                    "n_notes": 76,
+                    "density": 2.38,
+                    "contour_props": {
+                      "up": 0.4533,
+                      "down": 0.36,
+                      "same": 0.1867
+                    },
+                    "ioi_median": 0.3831,
+                    "midi_median": 55.0,
+                    "midi_std": 3.36
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 95.0,
+                    "end_s": 138.0,
+                    "n_notes": 53,
+                    "density": 1.23,
+                    "contour_props": {
+                      "up": 0.4038,
+                      "down": 0.3269,
+                      "same": 0.2692
+                    },
+                    "ioi_median": 0.4586,
+                    "midi_median": 58.0,
+                    "midi_std": 3.04
+                  },
+                  {
+                    "label": "windmill chanting",
+                    "start_s": 138.0,
+                    "end_s": 167.0,
+                    "n_notes": 33,
+                    "density": 1.14,
+                    "contour_props": {
+                      "up": 0.4688,
+                      "down": 0.4062,
+                      "same": 0.125
+                    },
+                    "ioi_median": 0.3831,
+                    "midi_median": 56.0,
+                    "midi_std": 6.99
+                  },
+                  {
+                    "label": "verse3+chorus3",
+                    "start_s": 167.0,
+                    "end_s": 206.0,
+                    "n_notes": 73,
+                    "density": 1.87,
+                    "contour_props": {
+                      "up": 0.4167,
+                      "down": 0.3472,
+                      "same": 0.2361
+                    },
+                    "ioi_median": 0.3947,
+                    "midi_median": 56.0,
+                    "midi_std": 4.65
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 271,
+                "midi_std": 4.91,
+                "midi_range": 34.0,
+                "octave_jump_count": 19,
+                "octave_jump_pct": 7.0,
+                "large_jump_count": 32,
+                "large_jump_pct": 11.9,
+                "median_abs_interval": 2.0,
+                "mean_abs_interval": 2.87
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 271,
+                "in_range_count": 184,
+                "in_range_pct": 67.9,
+                "midi_median": 56.0,
+                "midi_mean": 57.1,
+                "below_range_pct": 31.4,
+                "above_range_pct": 0.7
+              }
+            }
+          },
+          "bass": {
+            "layer": "bass",
+            "confidence": "silver",
+            "ref_source": "Guitar tabs + listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 291,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 12.5,
+                  "label": "intro",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 14,
+                  "match": false
+                },
+                {
+                  "start_s": 12.5,
+                  "end_s": 63.0,
+                  "label": "verse1+chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 100,
+                  "match": true
+                },
+                {
+                  "start_s": 63.0,
+                  "end_s": 95.0,
+                  "label": "rap verse",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 4,
+                  "match": false
+                },
+                {
+                  "start_s": 95.0,
+                  "end_s": 138.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 101,
+                  "match": true
+                },
+                {
+                  "start_s": 138.0,
+                  "end_s": 167.0,
+                  "label": "windmill/bridge",
+                  "ref_active": false,
+                  "detected_active": false,
+                  "event_count": 0,
+                  "match": true
+                },
+                {
+                  "start_s": 167.0,
+                  "end_s": 222.0,
+                  "label": "verse3+chorus3+outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 72,
+                  "match": true
+                }
+              ],
+              "tp": 3,
+              "fp": 2,
+              "fn": 0,
+              "tn": 1,
+              "precision": 0.6,
+              "recall": 1.0,
+              "f1": 0.75,
+              "silent_fp_count": 18,
+              "silent_fp_rate": 0.0619
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 273,
+                "dominant_pc": 3,
+                "dominant_pc_name": "D#",
+                "dominant_pc_pct": 20.9,
+                "expected_root_pc": 7,
+                "expected_root_name": "G",
+                "root_pc_match": false,
+                "root_pc_pct": 0.0,
+                "root_neighbor_pct": 28.9,
+                "in_scale_pct": 38.8,
+                "scale_overlap": 0.3883,
+                "per_class": [
+                  {
+                    "expected": "G",
+                    "pc": 7,
+                    "pct": 0.0,
+                    "neighbor_left_pct": 12.8,
+                    "neighbor_right_pct": 16.1
+                  },
+                  {
+                    "expected": "A#",
+                    "pc": 10,
+                    "pct": 17.2,
+                    "neighbor_left_pct": 3.7,
+                    "neighbor_right_pct": 15.4
+                  },
+                  {
+                    "expected": "D",
+                    "pc": 2,
+                    "pct": 0.7,
+                    "neighbor_left_pct": 3.3,
+                    "neighbor_right_pct": 20.9
+                  },
+                  {
+                    "expected": "D#",
+                    "pc": 3,
+                    "pct": 20.9,
+                    "neighbor_left_pct": 0.7,
+                    "neighbor_right_pct": 0.0
+                  }
+                ]
+              },
+              "cross_section": {
+                "section_count": 3,
+                "pairs": [
+                  {
+                    "sections": "verse1+chorus1 vs chorus2",
+                    "pc_overlap": 0.8713,
+                    "contour_similarity": 0.9645,
+                    "ioi_ratio": 0.9235,
+                    "density_ratio": 0.8426
+                  },
+                  {
+                    "sections": "verse1+chorus1 vs verse3+chorus3+outro",
+                    "pc_overlap": 0.875,
+                    "contour_similarity": 0.989,
+                    "ioi_ratio": 0.8795,
+                    "density_ratio": 0.6616
+                  },
+                  {
+                    "sections": "chorus2 vs verse3+chorus3+outro",
+                    "pc_overlap": 0.9616,
+                    "contour_similarity": 0.9707,
+                    "ioi_ratio": 0.9524,
+                    "density_ratio": 0.5574
+                  }
+                ],
+                "avg_pc_overlap": 0.9026,
+                "avg_contour_similarity": 0.9747,
+                "avg_ioi_ratio": 0.9185,
+                "sections": [
+                  {
+                    "label": "verse1+chorus1",
+                    "start_s": 12.5,
+                    "end_s": 63.0,
+                    "n_notes": 100,
+                    "density": 1.98,
+                    "contour_props": {
+                      "up": 0.3333,
+                      "down": 0.4444,
+                      "same": 0.2222
+                    },
+                    "ioi_median": 0.396,
+                    "midi_median": 34.0,
+                    "midi_std": 3.57
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 95.0,
+                    "end_s": 138.0,
+                    "n_notes": 101,
+                    "density": 2.35,
+                    "contour_props": {
+                      "up": 0.33,
+                      "down": 0.48,
+                      "same": 0.19
+                    },
+                    "ioi_median": 0.3657,
+                    "midi_median": 34.0,
+                    "midi_std": 3.46
+                  },
+                  {
+                    "label": "verse3+chorus3+outro",
+                    "start_s": 167.0,
+                    "end_s": 222.0,
+                    "n_notes": 72,
+                    "density": 1.31,
+                    "contour_props": {
+                      "up": 0.338,
+                      "down": 0.4507,
+                      "same": 0.2113
+                    },
+                    "ioi_median": 0.3483,
+                    "midi_median": 34.0,
+                    "midi_std": 3.62
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 273,
+                "midi_std": 3.55,
+                "midi_range": 15.0,
+                "octave_jump_count": 32,
+                "octave_jump_pct": 11.8,
+                "large_jump_count": 43,
+                "large_jump_pct": 15.8,
+                "median_abs_interval": 3.0,
+                "mean_abs_interval": 3.24
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 273,
+                "in_range_count": 45,
+                "in_range_pct": 16.5,
+                "midi_median": 34.0,
+                "midi_mean": 33.6,
+                "below_range_pct": 83.5,
+                "above_range_pct": 0.0
+              }
+            }
+          }
+        }
+      }
+    },
+    "die-for-you": {
+      "song_id": "e4dd336895310b9b",
+      "audio_file": "Grabbitz - Die For You.flac",
+      "results": {
+        "layers": {
+          "drums": {
+            "layer": "drums",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "drumsep",
+            "event_count": 4872,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 20.0,
+                  "label": "intro (no drums)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 305,
+                  "match": false
+                },
+                {
+                  "start_s": 20.0,
+                  "end_s": 40.0,
+                  "label": "buildup1 (building drums)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 395,
+                  "match": true
+                },
+                {
+                  "start_s": 40.0,
+                  "end_s": 72.0,
+                  "label": "drop1 (full drums)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 814,
+                  "match": true
+                },
+                {
+                  "start_s": 72.0,
+                  "end_s": 96.0,
+                  "label": "breakdown1 (minimal drums)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 608,
+                  "match": false
+                },
+                {
+                  "start_s": 96.0,
+                  "end_s": 112.0,
+                  "label": "buildup2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 423,
+                  "match": true
+                },
+                {
+                  "start_s": 112.0,
+                  "end_s": 152.0,
+                  "label": "drop2 (full drums)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 892,
+                  "match": true
+                },
+                {
+                  "start_s": 152.0,
+                  "end_s": 180.0,
+                  "label": "breakdown2 (sparse)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 638,
+                  "match": false
+                },
+                {
+                  "start_s": 180.0,
+                  "end_s": 210.0,
+                  "label": "outro (drums active)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 738,
+                  "match": true
+                },
+                {
+                  "start_s": 210.0,
+                  "end_s": 222.0,
+                  "label": "outro fade",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 59,
+                  "match": false
+                }
+              ],
+              "tp": 5,
+              "fp": 4,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.5556,
+              "recall": 1.0,
+              "f1": 0.7143,
+              "silent_fp_count": 1610,
+              "silent_fp_rate": 0.3305
+            }
+          },
+          "vocals": {
+            "layer": "vocals",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 595,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 20.0,
+                  "label": "intro (no vocals)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 44,
+                  "match": false
+                },
+                {
+                  "start_s": 20.0,
+                  "end_s": 40.0,
+                  "label": "buildup1 (vocals)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 68,
+                  "match": true
+                },
+                {
+                  "start_s": 40.0,
+                  "end_s": 72.0,
+                  "label": "drop1 (minimal vocals)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 124,
+                  "match": false
+                },
+                {
+                  "start_s": 72.0,
+                  "end_s": 96.0,
+                  "label": "breakdown1 (vocals)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 41,
+                  "match": true
+                },
+                {
+                  "start_s": 96.0,
+                  "end_s": 112.0,
+                  "label": "buildup2 (vocals)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 62,
+                  "match": true
+                },
+                {
+                  "start_s": 112.0,
+                  "end_s": 152.0,
+                  "label": "drop2 (minimal vocals)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 83,
+                  "match": false
+                },
+                {
+                  "start_s": 152.0,
+                  "end_s": 180.0,
+                  "label": "breakdown2 (vocals)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 82,
+                  "match": true
+                },
+                {
+                  "start_s": 180.0,
+                  "end_s": 200.0,
+                  "label": "outro vocals",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 45,
+                  "match": true
+                },
+                {
+                  "start_s": 200.0,
+                  "end_s": 222.0,
+                  "label": "outro fade (no vocals)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 46,
+                  "match": false
+                }
+              ],
+              "tp": 5,
+              "fp": 4,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.5556,
+              "recall": 1.0,
+              "f1": 0.7143,
+              "silent_fp_count": 297,
+              "silent_fp_rate": 0.4992
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 298,
+                "dominant_pc": 10,
+                "dominant_pc_name": "A#",
+                "dominant_pc_pct": 33.6
+              },
+              "cross_section": {
+                "section_count": 5,
+                "pairs": [
+                  {
+                    "sections": "buildup1 (vocals) vs breakdown1 (vocals)",
+                    "pc_overlap": 0.7123,
+                    "contour_similarity": 0.9436,
+                    "ioi_ratio": 0.8629,
+                    "density_ratio": 0.5029
+                  },
+                  {
+                    "sections": "buildup1 (vocals) vs buildup2 (vocals)",
+                    "pc_overlap": 0.444,
+                    "contour_similarity": 0.9249,
+                    "ioi_ratio": 0.7268,
+                    "density_ratio": 0.8763
+                  },
+                  {
+                    "sections": "buildup1 (vocals) vs breakdown2 (vocals)",
+                    "pc_overlap": 0.6223,
+                    "contour_similarity": 0.9042,
+                    "ioi_ratio": 0.9542,
+                    "density_ratio": 0.8618
+                  },
+                  {
+                    "sections": "buildup1 (vocals) vs outro vocals",
+                    "pc_overlap": 0.7598,
+                    "contour_similarity": 0.8698,
+                    "ioi_ratio": 0.9544,
+                    "density_ratio": 0.6618
+                  },
+                  {
+                    "sections": "breakdown1 (vocals) vs buildup2 (vocals)",
+                    "pc_overlap": 0.5185,
+                    "contour_similarity": 0.9644,
+                    "ioi_ratio": 0.6272,
+                    "density_ratio": 0.4407
+                  },
+                  {
+                    "sections": "breakdown1 (vocals) vs breakdown2 (vocals)",
+                    "pc_overlap": 0.7805,
+                    "contour_similarity": 0.8478,
+                    "ioi_ratio": 0.8234,
+                    "density_ratio": 0.5836
+                  },
+                  {
+                    "sections": "breakdown1 (vocals) vs outro vocals",
+                    "pc_overlap": 0.7615,
+                    "contour_similarity": 0.9227,
+                    "ioi_ratio": 0.9041,
+                    "density_ratio": 0.76
+                  },
+                  {
+                    "sections": "buildup2 (vocals) vs breakdown2 (vocals)",
+                    "pc_overlap": 0.5268,
+                    "contour_similarity": 0.8614,
+                    "ioi_ratio": 0.7617,
+                    "density_ratio": 0.7552
+                  },
+                  {
+                    "sections": "buildup2 (vocals) vs outro vocals",
+                    "pc_overlap": 0.4323,
+                    "contour_similarity": 0.925,
+                    "ioi_ratio": 0.6937,
+                    "density_ratio": 0.5799
+                  },
+                  {
+                    "sections": "breakdown2 (vocals) vs outro vocals",
+                    "pc_overlap": 0.6089,
+                    "contour_similarity": 0.7864,
+                    "ioi_ratio": 0.9107,
+                    "density_ratio": 0.7679
+                  }
+                ],
+                "avg_pc_overlap": 0.6167,
+                "avg_contour_similarity": 0.895,
+                "avg_ioi_ratio": 0.8219,
+                "sections": [
+                  {
+                    "label": "buildup1 (vocals)",
+                    "start_s": 20.0,
+                    "end_s": 40.0,
+                    "n_notes": 68,
+                    "density": 3.4,
+                    "contour_props": {
+                      "up": 0.403,
+                      "down": 0.3284,
+                      "same": 0.2687
+                    },
+                    "ioi_median": 0.2555,
+                    "midi_median": 58.0,
+                    "midi_std": 5.16
+                  },
+                  {
+                    "label": "breakdown1 (vocals)",
+                    "start_s": 72.0,
+                    "end_s": 96.0,
+                    "n_notes": 41,
+                    "density": 1.71,
+                    "contour_props": {
+                      "up": 0.35,
+                      "down": 0.325,
+                      "same": 0.325
+                    },
+                    "ioi_median": 0.2961,
+                    "midi_median": 58.0,
+                    "midi_std": 6.1
+                  },
+                  {
+                    "label": "buildup2 (vocals)",
+                    "start_s": 96.0,
+                    "end_s": 112.0,
+                    "n_notes": 62,
+                    "density": 3.88,
+                    "contour_props": {
+                      "up": 0.3279,
+                      "down": 0.3607,
+                      "same": 0.3115
+                    },
+                    "ioi_median": 0.1857,
+                    "midi_median": 58.0,
+                    "midi_std": 5.76
+                  },
+                  {
+                    "label": "breakdown2 (vocals)",
+                    "start_s": 152.0,
+                    "end_s": 180.0,
+                    "n_notes": 82,
+                    "density": 2.93,
+                    "contour_props": {
+                      "up": 0.4198,
+                      "down": 0.4074,
+                      "same": 0.1728
+                    },
+                    "ioi_median": 0.2438,
+                    "midi_median": 59.0,
+                    "midi_std": 6.97
+                  },
+                  {
+                    "label": "outro vocals",
+                    "start_s": 180.0,
+                    "end_s": 200.0,
+                    "n_notes": 45,
+                    "density": 2.25,
+                    "contour_props": {
+                      "up": 0.2727,
+                      "down": 0.3409,
+                      "same": 0.3864
+                    },
+                    "ioi_median": 0.2677,
+                    "midi_median": 61.0,
+                    "midi_std": 7.3
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 298,
+                "midi_std": 6.39,
+                "midi_range": 36.0,
+                "octave_jump_count": 79,
+                "octave_jump_pct": 26.6,
+                "large_jump_count": 102,
+                "large_jump_pct": 34.3,
+                "median_abs_interval": 3.0,
+                "mean_abs_interval": 5.47
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 298,
+                "in_range_count": 266,
+                "in_range_pct": 89.3,
+                "midi_median": 58.0,
+                "midi_mean": 60.7,
+                "below_range_pct": 4.0,
+                "above_range_pct": 6.7
+              }
+            }
+          },
+          "bass": {
+            "layer": "bass",
+            "confidence": "silver",
+            "ref_source": "Listening + key analysis",
+            "extraction_source": "basic_pitch",
+            "event_count": 430,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 20.0,
+                  "label": "intro (sparse)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 51,
+                  "match": false
+                },
+                {
+                  "start_s": 20.0,
+                  "end_s": 40.0,
+                  "label": "buildup1 (bass enters)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 71,
+                  "match": true
+                },
+                {
+                  "start_s": 40.0,
+                  "end_s": 72.0,
+                  "label": "drop1 (heavy bass)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 87,
+                  "match": true
+                },
+                {
+                  "start_s": 72.0,
+                  "end_s": 96.0,
+                  "label": "breakdown1 (reduced)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 30,
+                  "match": false
+                },
+                {
+                  "start_s": 96.0,
+                  "end_s": 112.0,
+                  "label": "buildup2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 9,
+                  "match": true
+                },
+                {
+                  "start_s": 112.0,
+                  "end_s": 152.0,
+                  "label": "drop2 (heavy bass)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 82,
+                  "match": true
+                },
+                {
+                  "start_s": 152.0,
+                  "end_s": 180.0,
+                  "label": "breakdown2 (reduced)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 55,
+                  "match": false
+                },
+                {
+                  "start_s": 180.0,
+                  "end_s": 210.0,
+                  "label": "outro (bass active)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 44,
+                  "match": true
+                },
+                {
+                  "start_s": 210.0,
+                  "end_s": 222.0,
+                  "label": "outro fade",
+                  "ref_active": false,
+                  "detected_active": false,
+                  "event_count": 1,
+                  "match": true
+                }
+              ],
+              "tp": 5,
+              "fp": 3,
+              "fn": 0,
+              "tn": 1,
+              "precision": 0.625,
+              "recall": 1.0,
+              "f1": 0.7692,
+              "silent_fp_count": 137,
+              "silent_fp_rate": 0.3186
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 293,
+                "dominant_pc": 3,
+                "dominant_pc_name": "D#",
+                "dominant_pc_pct": 49.1,
+                "expected_root_pc": 5,
+                "expected_root_name": "F",
+                "root_pc_match": false,
+                "root_pc_pct": 0.3,
+                "root_neighbor_pct": 11.6,
+                "in_scale_pct": 70.6,
+                "scale_overlap": 0.3579,
+                "per_class": [
+                  {
+                    "expected": "F",
+                    "pc": 5,
+                    "pct": 0.3,
+                    "neighbor_left_pct": 2.0,
+                    "neighbor_right_pct": 9.6
+                  },
+                  {
+                    "expected": "G",
+                    "pc": 7,
+                    "pct": 0.0,
+                    "neighbor_left_pct": 9.6,
+                    "neighbor_right_pct": 8.9
+                  },
+                  {
+                    "expected": "G#",
+                    "pc": 8,
+                    "pct": 8.9,
+                    "neighbor_left_pct": 0.0,
+                    "neighbor_right_pct": 0.0
+                  },
+                  {
+                    "expected": "A#",
+                    "pc": 10,
+                    "pct": 5.5,
+                    "neighbor_left_pct": 0.0,
+                    "neighbor_right_pct": 17.7
+                  },
+                  {
+                    "expected": "C",
+                    "pc": 0,
+                    "pct": 0.0,
+                    "neighbor_left_pct": 17.7,
+                    "neighbor_right_pct": 6.8
+                  },
+                  {
+                    "expected": "C#",
+                    "pc": 1,
+                    "pct": 6.8,
+                    "neighbor_left_pct": 0.0,
+                    "neighbor_right_pct": 0.0
+                  },
+                  {
+                    "expected": "D#",
+                    "pc": 3,
+                    "pct": 49.1,
+                    "neighbor_left_pct": 0.0,
+                    "neighbor_right_pct": 2.0
+                  }
+                ]
+              },
+              "cross_section": {
+                "section_count": 5,
+                "pairs": [
+                  {
+                    "sections": "buildup1 (bass enters) vs drop1 (heavy bass)",
+                    "pc_overlap": 0.8645,
+                    "contour_similarity": 0.9542,
+                    "ioi_ratio": 0.9409,
+                    "density_ratio": 0.7662
+                  },
+                  {
+                    "sections": "buildup1 (bass enters) vs buildup2",
+                    "pc_overlap": 0.3067,
+                    "contour_similarity": 0.6607,
+                    "ioi_ratio": 0.3395,
+                    "density_ratio": 0.1577
+                  },
+                  {
+                    "sections": "buildup1 (bass enters) vs drop2 (heavy bass)",
+                    "pc_overlap": 0.7442,
+                    "contour_similarity": 0.9365,
+                    "ioi_ratio": 0.9445,
+                    "density_ratio": 0.5775
+                  },
+                  {
+                    "sections": "buildup1 (bass enters) vs outro (bass active)",
+                    "pc_overlap": 0.7298,
+                    "contour_similarity": 0.8074,
+                    "ioi_ratio": 0.5302,
+                    "density_ratio": 0.4141
+                  },
+                  {
+                    "sections": "drop1 (heavy bass) vs buildup2",
+                    "pc_overlap": 0.3333,
+                    "contour_similarity": 0.6889,
+                    "ioi_ratio": 0.3195,
+                    "density_ratio": 0.2059
+                  },
+                  {
+                    "sections": "drop1 (heavy bass) vs drop2 (heavy bass)",
+                    "pc_overlap": 0.7872,
+                    "contour_similarity": 0.9083,
+                    "ioi_ratio": 0.8887,
+                    "density_ratio": 0.7537
+                  },
+                  {
+                    "sections": "drop1 (heavy bass) vs outro (bass active)",
+                    "pc_overlap": 0.791,
+                    "contour_similarity": 0.7791,
+                    "ioi_ratio": 0.4988,
+                    "density_ratio": 0.5404
+                  },
+                  {
+                    "sections": "buildup2 vs drop2 (heavy bass)",
+                    "pc_overlap": 0.2466,
+                    "contour_similarity": 0.5972,
+                    "ioi_ratio": 0.3595,
+                    "density_ratio": 0.2732
+                  },
+                  {
+                    "sections": "buildup2 vs outro (bass active)",
+                    "pc_overlap": 0.2222,
+                    "contour_similarity": 0.468,
+                    "ioi_ratio": 0.6404,
+                    "density_ratio": 0.381
+                  },
+                  {
+                    "sections": "drop2 (heavy bass) vs outro (bass active)",
+                    "pc_overlap": 0.9052,
+                    "contour_similarity": 0.8709,
+                    "ioi_ratio": 0.5613,
+                    "density_ratio": 0.7171
+                  }
+                ],
+                "avg_pc_overlap": 0.5931,
+                "avg_contour_similarity": 0.7671,
+                "avg_ioi_ratio": 0.6023,
+                "sections": [
+                  {
+                    "label": "buildup1 (bass enters)",
+                    "start_s": 20.0,
+                    "end_s": 40.0,
+                    "n_notes": 71,
+                    "density": 3.55,
+                    "contour_props": {
+                      "up": 0.1571,
+                      "down": 0.1286,
+                      "same": 0.7143
+                    },
+                    "ioi_median": 0.2961,
+                    "midi_median": 42.0,
+                    "midi_std": 3.49
+                  },
+                  {
+                    "label": "drop1 (heavy bass)",
+                    "start_s": 40.0,
+                    "end_s": 72.0,
+                    "n_notes": 87,
+                    "density": 2.72,
+                    "contour_props": {
+                      "up": 0.1395,
+                      "down": 0.1744,
+                      "same": 0.686
+                    },
+                    "ioi_median": 0.2786,
+                    "midi_median": 39.0,
+                    "midi_std": 3.54
+                  },
+                  {
+                    "label": "buildup2",
+                    "start_s": 96.0,
+                    "end_s": 112.0,
+                    "n_notes": 9,
+                    "density": 0.56,
+                    "contour_props": {
+                      "up": 0.375,
+                      "down": 0.25,
+                      "same": 0.375
+                    },
+                    "ioi_median": 0.8721,
+                    "midi_median": 28.0,
+                    "midi_std": 3.39
+                  },
+                  {
+                    "label": "drop2 (heavy bass)",
+                    "start_s": 112.0,
+                    "end_s": 152.0,
+                    "n_notes": 82,
+                    "density": 2.05,
+                    "contour_props": {
+                      "up": 0.1111,
+                      "down": 0.1111,
+                      "same": 0.7778
+                    },
+                    "ioi_median": 0.3135,
+                    "midi_median": 39.0,
+                    "midi_std": 6.09
+                  },
+                  {
+                    "label": "outro (bass active)",
+                    "start_s": 180.0,
+                    "end_s": 210.0,
+                    "n_notes": 44,
+                    "density": 1.47,
+                    "contour_props": {
+                      "up": 0.0233,
+                      "down": 0.0698,
+                      "same": 0.907
+                    },
+                    "ioi_median": 0.5585,
+                    "midi_median": 27.0,
+                    "midi_std": 3.34
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 293,
+                "midi_std": 5.97,
+                "midi_range": 25.0,
+                "octave_jump_count": 8,
+                "octave_jump_pct": 2.7,
+                "large_jump_count": 30,
+                "large_jump_pct": 10.3,
+                "median_abs_interval": 0.0,
+                "mean_abs_interval": 1.3
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 293,
+                "in_range_count": 242,
+                "in_range_pct": 82.6,
+                "midi_median": 39.0,
+                "midi_mean": 37.0,
+                "below_range_pct": 17.1,
+                "above_range_pct": 0.3
+              }
+            }
+          }
+        }
+      }
+    },
+    "feeling-this": {
+      "song_id": "2acdac5f80c5a03c",
+      "audio_file": "blink-182 - Feeling This.flac",
+      "results": {
+        "layers": {
+          "drums": {
+            "layer": "drums",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "drumsep",
+            "event_count": 4240,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 172.0,
+                  "label": "drums throughout",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 4237,
+                  "match": true
+                }
+              ],
+              "tp": 1,
+              "fp": 0,
+              "fn": 0,
+              "tn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "silent_fp_count": 0,
+              "silent_fp_rate": 0.0
+            }
+          },
+          "vocals": {
+            "layer": "vocals",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 551,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 4.0,
+                  "label": "intro (instrumental)",
+                  "ref_active": false,
+                  "detected_active": false,
+                  "event_count": 0,
+                  "match": true
+                },
+                {
+                  "start_s": 4.0,
+                  "end_s": 36.0,
+                  "label": "verse1 (Tom)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 30,
+                  "match": true
+                },
+                {
+                  "start_s": 36.0,
+                  "end_s": 60.0,
+                  "label": "chorus1 (Mark)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 57,
+                  "match": true
+                },
+                {
+                  "start_s": 60.0,
+                  "end_s": 90.0,
+                  "label": "verse2 (Tom)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 79,
+                  "match": true
+                },
+                {
+                  "start_s": 90.0,
+                  "end_s": 116.0,
+                  "label": "chorus2 (Mark)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 88,
+                  "match": true
+                },
+                {
+                  "start_s": 116.0,
+                  "end_s": 140.0,
+                  "label": "bridge (overlapping)",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 110,
+                  "match": true
+                },
+                {
+                  "start_s": 140.0,
+                  "end_s": 172.0,
+                  "label": "chorus3+outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 187,
+                  "match": true
+                }
+              ],
+              "tp": 6,
+              "fp": 0,
+              "fn": 0,
+              "tn": 1,
+              "precision": 1.0,
+              "recall": 1.0,
+              "f1": 1.0,
+              "silent_fp_count": 0,
+              "silent_fp_rate": 0.0
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 551,
+                "dominant_pc": 4,
+                "dominant_pc_name": "E",
+                "dominant_pc_pct": 26.9
+              },
+              "cross_section": {
+                "section_count": 6,
+                "pairs": [
+                  {
+                    "sections": "verse1 (Tom) vs chorus1 (Mark)",
+                    "pc_overlap": 0.7526,
+                    "contour_similarity": 0.8959,
+                    "ioi_ratio": 0.461,
+                    "density_ratio": 0.395
+                  },
+                  {
+                    "sections": "verse1 (Tom) vs verse2 (Tom)",
+                    "pc_overlap": 0.6624,
+                    "contour_similarity": 0.9523,
+                    "ioi_ratio": 0.5201,
+                    "density_ratio": 0.3574
+                  },
+                  {
+                    "sections": "verse1 (Tom) vs chorus2 (Mark)",
+                    "pc_overlap": 0.2689,
+                    "contour_similarity": 0.8276,
+                    "ioi_ratio": 0.42,
+                    "density_ratio": 0.2781
+                  },
+                  {
+                    "sections": "verse1 (Tom) vs bridge (overlapping)",
+                    "pc_overlap": 0.6333,
+                    "contour_similarity": 0.9184,
+                    "ioi_ratio": 0.2799,
+                    "density_ratio": 0.2052
+                  },
+                  {
+                    "sections": "verse1 (Tom) vs chorus3+outro",
+                    "pc_overlap": 0.6488,
+                    "contour_similarity": 0.9192,
+                    "ioi_ratio": 0.22,
+                    "density_ratio": 0.161
+                  },
+                  {
+                    "sections": "chorus1 (Mark) vs verse2 (Tom)",
+                    "pc_overlap": 0.8845,
+                    "contour_similarity": 0.9436,
+                    "ioi_ratio": 0.8864,
+                    "density_ratio": 0.9049
+                  },
+                  {
+                    "sections": "chorus1 (Mark) vs chorus2 (Mark)",
+                    "pc_overlap": 0.4077,
+                    "contour_similarity": 0.7967,
+                    "ioi_ratio": 0.9111,
+                    "density_ratio": 0.7041
+                  },
+                  {
+                    "sections": "chorus1 (Mark) vs bridge (overlapping)",
+                    "pc_overlap": 0.7998,
+                    "contour_similarity": 0.9775,
+                    "ioi_ratio": 0.6072,
+                    "density_ratio": 0.5197
+                  },
+                  {
+                    "sections": "chorus1 (Mark) vs chorus3+outro",
+                    "pc_overlap": 0.7815,
+                    "contour_similarity": 0.9341,
+                    "ioi_ratio": 0.4772,
+                    "density_ratio": 0.4075
+                  },
+                  {
+                    "sections": "verse2 (Tom) vs chorus2 (Mark)",
+                    "pc_overlap": 0.4428,
+                    "contour_similarity": 0.8051,
+                    "ioi_ratio": 0.8076,
+                    "density_ratio": 0.7781
+                  },
+                  {
+                    "sections": "verse2 (Tom) vs bridge (overlapping)",
+                    "pc_overlap": 0.8303,
+                    "contour_similarity": 0.9622,
+                    "ioi_ratio": 0.5383,
+                    "density_ratio": 0.5742
+                  },
+                  {
+                    "sections": "verse2 (Tom) vs chorus3+outro",
+                    "pc_overlap": 0.808,
+                    "contour_similarity": 0.9491,
+                    "ioi_ratio": 0.423,
+                    "density_ratio": 0.4503
+                  },
+                  {
+                    "sections": "chorus2 (Mark) vs bridge (overlapping)",
+                    "pc_overlap": 0.4386,
+                    "contour_similarity": 0.809,
+                    "ioi_ratio": 0.6665,
+                    "density_ratio": 0.738
+                  },
+                  {
+                    "sections": "chorus2 (Mark) vs chorus3+outro",
+                    "pc_overlap": 0.367,
+                    "contour_similarity": 0.7541,
+                    "ioi_ratio": 0.5238,
+                    "density_ratio": 0.5788
+                  },
+                  {
+                    "sections": "bridge (overlapping) vs chorus3+outro",
+                    "pc_overlap": 0.9144,
+                    "contour_similarity": 0.9444,
+                    "ioi_ratio": 0.7858,
+                    "density_ratio": 0.7842
+                  }
+                ],
+                "avg_pc_overlap": 0.6427,
+                "avg_contour_similarity": 0.8926,
+                "avg_ioi_ratio": 0.5685,
+                "sections": [
+                  {
+                    "label": "verse1 (Tom)",
+                    "start_s": 4.0,
+                    "end_s": 36.0,
+                    "n_notes": 30,
+                    "density": 0.94,
+                    "contour_props": {
+                      "up": 0.4483,
+                      "down": 0.4138,
+                      "same": 0.1379
+                    },
+                    "ioi_median": 0.5805,
+                    "midi_median": 64.5,
+                    "midi_std": 4.35
+                  },
+                  {
+                    "label": "chorus1 (Mark)",
+                    "start_s": 36.0,
+                    "end_s": 60.0,
+                    "n_notes": 57,
+                    "density": 2.38,
+                    "contour_props": {
+                      "up": 0.375,
+                      "down": 0.5179,
+                      "same": 0.1071
+                    },
+                    "ioi_median": 0.2676,
+                    "midi_median": 61.0,
+                    "midi_std": 7.85
+                  },
+                  {
+                    "label": "verse2 (Tom)",
+                    "start_s": 60.0,
+                    "end_s": 90.0,
+                    "n_notes": 79,
+                    "density": 2.63,
+                    "contour_props": {
+                      "up": 0.4231,
+                      "down": 0.4615,
+                      "same": 0.1154
+                    },
+                    "ioi_median": 0.3019,
+                    "midi_median": 64.0,
+                    "midi_std": 8.59
+                  },
+                  {
+                    "label": "chorus2 (Mark)",
+                    "start_s": 90.0,
+                    "end_s": 116.0,
+                    "n_notes": 88,
+                    "density": 3.38,
+                    "contour_props": {
+                      "up": 0.3678,
+                      "down": 0.3218,
+                      "same": 0.3103
+                    },
+                    "ioi_median": 0.2438,
+                    "midi_median": 59.0,
+                    "midi_std": 4.94
+                  },
+                  {
+                    "label": "bridge (overlapping)",
+                    "start_s": 116.0,
+                    "end_s": 140.0,
+                    "n_notes": 110,
+                    "density": 4.58,
+                    "contour_props": {
+                      "up": 0.3853,
+                      "down": 0.4954,
+                      "same": 0.1193
+                    },
+                    "ioi_median": 0.1625,
+                    "midi_median": 59.0,
+                    "midi_std": 8.32
+                  },
+                  {
+                    "label": "chorus3+outro",
+                    "start_s": 140.0,
+                    "end_s": 172.0,
+                    "n_notes": 187,
+                    "density": 5.84,
+                    "contour_props": {
+                      "up": 0.4409,
+                      "down": 0.4946,
+                      "same": 0.0645
+                    },
+                    "ioi_median": 0.1277,
+                    "midi_median": 64.0,
+                    "midi_std": 8.85
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 551,
+                "midi_std": 8.06,
+                "midi_range": 31.0,
+                "octave_jump_count": 235,
+                "octave_jump_pct": 42.7,
+                "large_jump_count": 298,
+                "large_jump_pct": 54.2,
+                "median_abs_interval": 7.0,
+                "mean_abs_interval": 8.3
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 551,
+                "in_range_count": 474,
+                "in_range_pct": 86.0,
+                "midi_median": 62.0,
+                "midi_mean": 62.8,
+                "below_range_pct": 0.0,
+                "above_range_pct": 14.0
+              }
+            }
+          },
+          "bass": {
+            "layer": "bass",
+            "confidence": "silver",
+            "ref_source": "Bass tabs + listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 492,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 4.0,
+                  "label": "intro",
+                  "ref_active": true,
+                  "detected_active": false,
+                  "event_count": 0,
+                  "match": false
+                },
+                {
+                  "start_s": 4.0,
+                  "end_s": 36.0,
+                  "label": "verse1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 113,
+                  "match": true
+                },
+                {
+                  "start_s": 36.0,
+                  "end_s": 60.0,
+                  "label": "chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 60,
+                  "match": true
+                },
+                {
+                  "start_s": 60.0,
+                  "end_s": 90.0,
+                  "label": "verse2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 116,
+                  "match": true
+                },
+                {
+                  "start_s": 90.0,
+                  "end_s": 116.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 43,
+                  "match": true
+                },
+                {
+                  "start_s": 116.0,
+                  "end_s": 140.0,
+                  "label": "bridge",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 95,
+                  "match": true
+                },
+                {
+                  "start_s": 140.0,
+                  "end_s": 172.0,
+                  "label": "chorus3+outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 65,
+                  "match": true
+                }
+              ],
+              "tp": 6,
+              "fp": 0,
+              "fn": 1,
+              "tn": 0,
+              "precision": 1.0,
+              "recall": 0.8571,
+              "f1": 0.9231,
+              "silent_fp_count": 0,
+              "silent_fp_rate": 0.0
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 492,
+                "dominant_pc": 11,
+                "dominant_pc_name": "B",
+                "dominant_pc_pct": 34.3,
+                "expected_root_pc": 9,
+                "expected_root_name": "A",
+                "root_pc_match": false,
+                "root_pc_pct": 14.2,
+                "root_neighbor_pct": 5.5,
+                "in_scale_pct": 57.5,
+                "scale_overlap": 0.5752,
+                "per_class": [
+                  {
+                    "expected": "A",
+                    "pc": 9,
+                    "pct": 14.2,
+                    "neighbor_left_pct": 5.5,
+                    "neighbor_right_pct": 0.0
+                  },
+                  {
+                    "expected": "C#",
+                    "pc": 1,
+                    "pct": 21.3,
+                    "neighbor_left_pct": 0.0,
+                    "neighbor_right_pct": 0.0
+                  },
+                  {
+                    "expected": "E",
+                    "pc": 4,
+                    "pct": 22.0,
+                    "neighbor_left_pct": 0.2,
+                    "neighbor_right_pct": 0.0
+                  }
+                ]
+              },
+              "cross_section": {
+                "section_count": 6,
+                "pairs": [
+                  {
+                    "sections": "verse1 vs chorus1",
+                    "pc_overlap": 0.7363,
+                    "contour_similarity": 0.9586,
+                    "ioi_ratio": 0.9968,
+                    "density_ratio": 0.7082
+                  },
+                  {
+                    "sections": "verse1 vs verse2",
+                    "pc_overlap": 0.8631,
+                    "contour_similarity": 0.9082,
+                    "ioi_ratio": 0.9345,
+                    "density_ratio": 0.9121
+                  },
+                  {
+                    "sections": "verse1 vs chorus2",
+                    "pc_overlap": 0.4925,
+                    "contour_similarity": 0.8989,
+                    "ioi_ratio": 0.7646,
+                    "density_ratio": 0.4674
+                  },
+                  {
+                    "sections": "verse1 vs bridge",
+                    "pc_overlap": 0.8164,
+                    "contour_similarity": 0.8264,
+                    "ioi_ratio": 0.9173,
+                    "density_ratio": 0.8914
+                  },
+                  {
+                    "sections": "verse1 vs chorus3+outro",
+                    "pc_overlap": 0.8003,
+                    "contour_similarity": 0.7835,
+                    "ioi_ratio": 0.6833,
+                    "density_ratio": 0.5751
+                  },
+                  {
+                    "sections": "chorus1 vs verse2",
+                    "pc_overlap": 0.8655,
+                    "contour_similarity": 0.8667,
+                    "ioi_ratio": 0.9376,
+                    "density_ratio": 0.646
+                  },
+                  {
+                    "sections": "chorus1 vs chorus2",
+                    "pc_overlap": 0.4357,
+                    "contour_similarity": 0.9404,
+                    "ioi_ratio": 0.7621,
+                    "density_ratio": 0.66
+                  },
+                  {
+                    "sections": "chorus1 vs bridge",
+                    "pc_overlap": 0.7728,
+                    "contour_similarity": 0.8679,
+                    "ioi_ratio": 0.9144,
+                    "density_ratio": 0.6313
+                  },
+                  {
+                    "sections": "chorus1 vs chorus3+outro",
+                    "pc_overlap": 0.8141,
+                    "contour_similarity": 0.8249,
+                    "ioi_ratio": 0.6811,
+                    "density_ratio": 0.812
+                  },
+                  {
+                    "sections": "verse2 vs chorus2",
+                    "pc_overlap": 0.4808,
+                    "contour_similarity": 0.8071,
+                    "ioi_ratio": 0.7145,
+                    "density_ratio": 0.4264
+                  },
+                  {
+                    "sections": "verse2 vs bridge",
+                    "pc_overlap": 0.8558,
+                    "contour_similarity": 0.7346,
+                    "ioi_ratio": 0.8573,
+                    "density_ratio": 0.9773
+                  },
+                  {
+                    "sections": "verse2 vs chorus3+outro",
+                    "pc_overlap": 0.7739,
+                    "contour_similarity": 0.6916,
+                    "ioi_ratio": 0.6386,
+                    "density_ratio": 0.5245
+                  },
+                  {
+                    "sections": "chorus2 vs bridge",
+                    "pc_overlap": 0.5865,
+                    "contour_similarity": 0.9275,
+                    "ioi_ratio": 0.8335,
+                    "density_ratio": 0.4167
+                  },
+                  {
+                    "sections": "chorus2 vs chorus3+outro",
+                    "pc_overlap": 0.3946,
+                    "contour_similarity": 0.8846,
+                    "ioi_ratio": 0.8937,
+                    "density_ratio": 0.8128
+                  },
+                  {
+                    "sections": "bridge vs chorus3+outro",
+                    "pc_overlap": 0.7206,
+                    "contour_similarity": 0.9571,
+                    "ioi_ratio": 0.7449,
+                    "density_ratio": 0.5126
+                  }
+                ],
+                "avg_pc_overlap": 0.6939,
+                "avg_contour_similarity": 0.8585,
+                "avg_ioi_ratio": 0.8183,
+                "sections": [
+                  {
+                    "label": "verse1",
+                    "start_s": 4.0,
+                    "end_s": 36.0,
+                    "n_notes": 113,
+                    "density": 3.53,
+                    "contour_props": {
+                      "up": 0.25,
+                      "down": 0.2321,
+                      "same": 0.5179
+                    },
+                    "ioi_median": 0.1864,
+                    "midi_median": 37.0,
+                    "midi_std": 4.03
+                  },
+                  {
+                    "label": "chorus1",
+                    "start_s": 36.0,
+                    "end_s": 60.0,
+                    "n_notes": 60,
+                    "density": 2.5,
+                    "contour_props": {
+                      "up": 0.2203,
+                      "down": 0.2203,
+                      "same": 0.5593
+                    },
+                    "ioi_median": 0.1858,
+                    "midi_median": 37.0,
+                    "midi_std": 5.37
+                  },
+                  {
+                    "label": "verse2",
+                    "start_s": 60.0,
+                    "end_s": 90.0,
+                    "n_notes": 116,
+                    "density": 3.87,
+                    "contour_props": {
+                      "up": 0.287,
+                      "down": 0.287,
+                      "same": 0.4261
+                    },
+                    "ioi_median": 0.1742,
+                    "midi_median": 35.0,
+                    "midi_std": 4.35
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 90.0,
+                    "end_s": 116.0,
+                    "n_notes": 43,
+                    "density": 1.65,
+                    "contour_props": {
+                      "up": 0.1905,
+                      "down": 0.1905,
+                      "same": 0.619
+                    },
+                    "ioi_median": 0.2438,
+                    "midi_median": 40.0,
+                    "midi_std": 2.67
+                  },
+                  {
+                    "label": "bridge",
+                    "start_s": 116.0,
+                    "end_s": 140.0,
+                    "n_notes": 95,
+                    "density": 3.96,
+                    "contour_props": {
+                      "up": 0.1596,
+                      "down": 0.1489,
+                      "same": 0.6915
+                    },
+                    "ioi_median": 0.2032,
+                    "midi_median": 37.0,
+                    "midi_std": 3.81
+                  },
+                  {
+                    "label": "chorus3+outro",
+                    "start_s": 140.0,
+                    "end_s": 172.0,
+                    "n_notes": 65,
+                    "density": 2.03,
+                    "contour_props": {
+                      "up": 0.125,
+                      "down": 0.1406,
+                      "same": 0.7344
+                    },
+                    "ioi_median": 0.2728,
+                    "midi_median": 35.0,
+                    "midi_std": 1.94
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 492,
+                "midi_std": 4.03,
+                "midi_range": 24.0,
+                "octave_jump_count": 10,
+                "octave_jump_pct": 2.0,
+                "large_jump_count": 128,
+                "large_jump_pct": 26.1,
+                "median_abs_interval": 0.0,
+                "mean_abs_interval": 2.48
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 492,
+                "in_range_count": 163,
+                "in_range_pct": 33.1,
+                "midi_median": 37.0,
+                "midi_mean": 37.4,
+                "below_range_pct": 66.9,
+                "above_range_pct": 0.0
+              }
+            }
+          }
+        }
+      }
+    },
+    "shy-away": {
+      "song_id": "6cac6797d627e265",
+      "audio_file": "twenty one pilots - Shy Away.flac",
+      "results": {
+        "layers": {
+          "drums": {
+            "layer": "drums",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "drumsep",
+            "event_count": 4284,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 14.0,
+                  "label": "intro (no drums)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 343,
+                  "match": false
+                },
+                {
+                  "start_s": 14.0,
+                  "end_s": 167.0,
+                  "label": "verse1 through outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 3812,
+                  "match": true
+                }
+              ],
+              "tp": 1,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.5,
+              "recall": 1.0,
+              "f1": 0.6667,
+              "silent_fp_count": 343,
+              "silent_fp_rate": 0.0801
+            }
+          },
+          "vocals": {
+            "layer": "vocals",
+            "confidence": "silver",
+            "ref_source": "Listening",
+            "extraction_source": "basic_pitch",
+            "event_count": 362,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 14.0,
+                  "label": "intro (instrumental)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 16,
+                  "match": false
+                },
+                {
+                  "start_s": 14.0,
+                  "end_s": 42.0,
+                  "label": "verse1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 75,
+                  "match": true
+                },
+                {
+                  "start_s": 42.0,
+                  "end_s": 56.0,
+                  "label": "pre-chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 26,
+                  "match": true
+                },
+                {
+                  "start_s": 56.0,
+                  "end_s": 80.0,
+                  "label": "chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 54,
+                  "match": true
+                },
+                {
+                  "start_s": 80.0,
+                  "end_s": 100.0,
+                  "label": "verse2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 50,
+                  "match": true
+                },
+                {
+                  "start_s": 100.0,
+                  "end_s": 114.0,
+                  "label": "pre-chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 37,
+                  "match": true
+                },
+                {
+                  "start_s": 114.0,
+                  "end_s": 140.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 62,
+                  "match": true
+                },
+                {
+                  "start_s": 140.0,
+                  "end_s": 155.0,
+                  "label": "bridge",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 21,
+                  "match": true
+                },
+                {
+                  "start_s": 155.0,
+                  "end_s": 167.0,
+                  "label": "outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 20,
+                  "match": true
+                }
+              ],
+              "tp": 8,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.8889,
+              "recall": 1.0,
+              "f1": 0.9412,
+              "silent_fp_count": 16,
+              "silent_fp_rate": 0.0442
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 345,
+                "dominant_pc": 0,
+                "dominant_pc_name": "C",
+                "dominant_pc_pct": 35.7
+              },
+              "cross_section": {
+                "section_count": 8,
+                "pairs": [
+                  {
+                    "sections": "verse1 vs pre-chorus1",
+                    "pc_overlap": 0.8072,
+                    "contour_similarity": 0.9032,
+                    "ioi_ratio": 0.7307,
+                    "density_ratio": 0.694
+                  },
+                  {
+                    "sections": "verse1 vs chorus1",
+                    "pc_overlap": 0.7815,
+                    "contour_similarity": 0.8564,
+                    "ioi_ratio": 0.9997,
+                    "density_ratio": 0.8396
+                  },
+                  {
+                    "sections": "verse1 vs verse2",
+                    "pc_overlap": 0.8667,
+                    "contour_similarity": 0.8452,
+                    "ioi_ratio": 0.8119,
+                    "density_ratio": 0.9328
+                  },
+                  {
+                    "sections": "verse1 vs pre-chorus2",
+                    "pc_overlap": 0.7243,
+                    "contour_similarity": 0.9362,
+                    "ioi_ratio": 0.9828,
+                    "density_ratio": 0.9851
+                  },
+                  {
+                    "sections": "verse1 vs chorus2",
+                    "pc_overlap": 0.8686,
+                    "contour_similarity": 0.9639,
+                    "ioi_ratio": 0.9232,
+                    "density_ratio": 0.8881
+                  },
+                  {
+                    "sections": "verse1 vs bridge",
+                    "pc_overlap": 0.5105,
+                    "contour_similarity": 0.9041,
+                    "ioi_ratio": 0.8388,
+                    "density_ratio": 0.5224
+                  },
+                  {
+                    "sections": "verse1 vs outro",
+                    "pc_overlap": 0.6233,
+                    "contour_similarity": 0.8699,
+                    "ioi_ratio": 0.6539,
+                    "density_ratio": 0.6231
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus1",
+                    "pc_overlap": 0.8533,
+                    "contour_similarity": 0.9449,
+                    "ioi_ratio": 0.7309,
+                    "density_ratio": 0.8267
+                  },
+                  {
+                    "sections": "pre-chorus1 vs verse2",
+                    "pc_overlap": 0.8338,
+                    "contour_similarity": 0.911,
+                    "ioi_ratio": 0.9,
+                    "density_ratio": 0.744
+                  },
+                  {
+                    "sections": "pre-chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.8025,
+                    "contour_similarity": 0.9089,
+                    "ioi_ratio": 0.7435,
+                    "density_ratio": 0.7045
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus2",
+                    "pc_overlap": 0.799,
+                    "contour_similarity": 0.8977,
+                    "ioi_ratio": 0.7915,
+                    "density_ratio": 0.7815
+                  },
+                  {
+                    "sections": "pre-chorus1 vs bridge",
+                    "pc_overlap": 0.4396,
+                    "contour_similarity": 0.86,
+                    "ioi_ratio": 0.6129,
+                    "density_ratio": 0.7527
+                  },
+                  {
+                    "sections": "pre-chorus1 vs outro",
+                    "pc_overlap": 0.7385,
+                    "contour_similarity": 0.8358,
+                    "ioi_ratio": 0.8948,
+                    "density_ratio": 0.8978
+                  },
+                  {
+                    "sections": "chorus1 vs verse2",
+                    "pc_overlap": 0.7948,
+                    "contour_similarity": 0.9661,
+                    "ioi_ratio": 0.8121,
+                    "density_ratio": 0.9
+                  },
+                  {
+                    "sections": "chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.8153,
+                    "contour_similarity": 0.8632,
+                    "ioi_ratio": 0.9831,
+                    "density_ratio": 0.8523
+                  },
+                  {
+                    "sections": "chorus1 vs chorus2",
+                    "pc_overlap": 0.8405,
+                    "contour_similarity": 0.8509,
+                    "ioi_ratio": 0.9235,
+                    "density_ratio": 0.9454
+                  },
+                  {
+                    "sections": "chorus1 vs bridge",
+                    "pc_overlap": 0.4709,
+                    "contour_similarity": 0.8132,
+                    "ioi_ratio": 0.8386,
+                    "density_ratio": 0.6222
+                  },
+                  {
+                    "sections": "chorus1 vs outro",
+                    "pc_overlap": 0.7537,
+                    "contour_similarity": 0.7974,
+                    "ioi_ratio": 0.6541,
+                    "density_ratio": 0.7422
+                  },
+                  {
+                    "sections": "verse2 vs pre-chorus2",
+                    "pc_overlap": 0.7362,
+                    "contour_similarity": 0.852,
+                    "ioi_ratio": 0.8261,
+                    "density_ratio": 0.947
+                  },
+                  {
+                    "sections": "verse2 vs chorus2",
+                    "pc_overlap": 0.8581,
+                    "contour_similarity": 0.8397,
+                    "ioi_ratio": 0.8794,
+                    "density_ratio": 0.952
+                  },
+                  {
+                    "sections": "verse2 vs bridge",
+                    "pc_overlap": 0.5229,
+                    "contour_similarity": 0.802,
+                    "ioi_ratio": 0.681,
+                    "density_ratio": 0.56
+                  },
+                  {
+                    "sections": "verse2 vs outro",
+                    "pc_overlap": 0.66,
+                    "contour_similarity": 0.7862,
+                    "ioi_ratio": 0.8054,
+                    "density_ratio": 0.668
+                  },
+                  {
+                    "sections": "pre-chorus2 vs chorus2",
+                    "pc_overlap": 0.7219,
+                    "contour_similarity": 0.9668,
+                    "ioi_ratio": 0.9393,
+                    "density_ratio": 0.9015
+                  },
+                  {
+                    "sections": "pre-chorus2 vs bridge",
+                    "pc_overlap": 0.4955,
+                    "contour_similarity": 0.95,
+                    "ioi_ratio": 0.8244,
+                    "density_ratio": 0.5303
+                  },
+                  {
+                    "sections": "pre-chorus2 vs outro",
+                    "pc_overlap": 0.6865,
+                    "contour_similarity": 0.9269,
+                    "ioi_ratio": 0.6653,
+                    "density_ratio": 0.6326
+                  },
+                  {
+                    "sections": "chorus2 vs bridge",
+                    "pc_overlap": 0.5131,
+                    "contour_similarity": 0.9402,
+                    "ioi_ratio": 0.7744,
+                    "density_ratio": 0.5882
+                  },
+                  {
+                    "sections": "chorus2 vs outro",
+                    "pc_overlap": 0.7016,
+                    "contour_similarity": 0.906,
+                    "ioi_ratio": 0.7083,
+                    "density_ratio": 0.7017
+                  },
+                  {
+                    "sections": "bridge vs outro",
+                    "pc_overlap": 0.3333,
+                    "contour_similarity": 0.9658,
+                    "ioi_ratio": 0.5485,
+                    "density_ratio": 0.8383
+                  }
+                ],
+                "avg_pc_overlap": 0.6983,
+                "avg_contour_similarity": 0.888,
+                "avg_ioi_ratio": 0.8028,
+                "sections": [
+                  {
+                    "label": "verse1",
+                    "start_s": 14.0,
+                    "end_s": 42.0,
+                    "n_notes": 75,
+                    "density": 2.68,
+                    "contour_props": {
+                      "up": 0.2973,
+                      "down": 0.4459,
+                      "same": 0.2568
+                    },
+                    "ioi_median": 0.3019,
+                    "midi_median": 62.0,
+                    "midi_std": 5.35
+                  },
+                  {
+                    "label": "pre-chorus1",
+                    "start_s": 42.0,
+                    "end_s": 56.0,
+                    "n_notes": 26,
+                    "density": 1.86,
+                    "contour_props": {
+                      "up": 0.36,
+                      "down": 0.48,
+                      "same": 0.16
+                    },
+                    "ioi_median": 0.2206,
+                    "midi_median": 62.0,
+                    "midi_std": 6.78
+                  },
+                  {
+                    "label": "chorus1",
+                    "start_s": 56.0,
+                    "end_s": 80.0,
+                    "n_notes": 54,
+                    "density": 2.25,
+                    "contour_props": {
+                      "up": 0.4151,
+                      "down": 0.4717,
+                      "same": 0.1132
+                    },
+                    "ioi_median": 0.3018,
+                    "midi_median": 62.0,
+                    "midi_std": 6.4
+                  },
+                  {
+                    "label": "verse2",
+                    "start_s": 80.0,
+                    "end_s": 100.0,
+                    "n_notes": 50,
+                    "density": 2.5,
+                    "contour_props": {
+                      "up": 0.449,
+                      "down": 0.449,
+                      "same": 0.102
+                    },
+                    "ioi_median": 0.2451,
+                    "midi_median": 62.0,
+                    "midi_std": 5.42
+                  },
+                  {
+                    "label": "pre-chorus2",
+                    "start_s": 100.0,
+                    "end_s": 114.0,
+                    "n_notes": 37,
+                    "density": 2.64,
+                    "contour_props": {
+                      "up": 0.3611,
+                      "down": 0.3889,
+                      "same": 0.25
+                    },
+                    "ioi_median": 0.2967,
+                    "midi_median": 65.0,
+                    "midi_std": 6.59
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 114.0,
+                    "end_s": 140.0,
+                    "n_notes": 62,
+                    "density": 2.38,
+                    "contour_props": {
+                      "up": 0.3279,
+                      "down": 0.4098,
+                      "same": 0.2623
+                    },
+                    "ioi_median": 0.2787,
+                    "midi_median": 62.0,
+                    "midi_std": 5.38
+                  },
+                  {
+                    "label": "bridge",
+                    "start_s": 140.0,
+                    "end_s": 155.0,
+                    "n_notes": 21,
+                    "density": 1.4,
+                    "contour_props": {
+                      "up": 0.35,
+                      "down": 0.35,
+                      "same": 0.3
+                    },
+                    "ioi_median": 0.3599,
+                    "midi_median": 64.0,
+                    "midi_std": 7.63
+                  },
+                  {
+                    "label": "outro",
+                    "start_s": 155.0,
+                    "end_s": 167.0,
+                    "n_notes": 20,
+                    "density": 1.67,
+                    "contour_props": {
+                      "up": 0.3684,
+                      "down": 0.3158,
+                      "same": 0.3158
+                    },
+                    "ioi_median": 0.1974,
+                    "midi_median": 60.0,
+                    "midi_std": 7.4
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 345,
+                "midi_std": 6.17,
+                "midi_range": 32.0,
+                "octave_jump_count": 90,
+                "octave_jump_pct": 26.2,
+                "large_jump_count": 104,
+                "large_jump_pct": 30.2,
+                "median_abs_interval": 2.0,
+                "mean_abs_interval": 5.4
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 345,
+                "in_range_count": 326,
+                "in_range_pct": 94.5,
+                "midi_median": 62.0,
+                "midi_mean": 63.7,
+                "below_range_pct": 1.2,
+                "above_range_pct": 4.3
+              }
+            }
+          },
+          "bass": {
+            "layer": "bass",
+            "confidence": "silver",
+            "ref_source": "Listening + chord charts",
+            "extraction_source": "basic_pitch",
+            "event_count": 332,
+            "activity": {
+              "sections": [
+                {
+                  "start_s": 0.0,
+                  "end_s": 14.0,
+                  "label": "intro (minimal bass)",
+                  "ref_active": false,
+                  "detected_active": true,
+                  "event_count": 23,
+                  "match": false
+                },
+                {
+                  "start_s": 14.0,
+                  "end_s": 42.0,
+                  "label": "verse1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 60,
+                  "match": true
+                },
+                {
+                  "start_s": 42.0,
+                  "end_s": 56.0,
+                  "label": "pre-chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 23,
+                  "match": true
+                },
+                {
+                  "start_s": 56.0,
+                  "end_s": 80.0,
+                  "label": "chorus1",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 41,
+                  "match": true
+                },
+                {
+                  "start_s": 80.0,
+                  "end_s": 100.0,
+                  "label": "verse2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 52,
+                  "match": true
+                },
+                {
+                  "start_s": 100.0,
+                  "end_s": 114.0,
+                  "label": "pre-chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 23,
+                  "match": true
+                },
+                {
+                  "start_s": 114.0,
+                  "end_s": 140.0,
+                  "label": "chorus2",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 63,
+                  "match": true
+                },
+                {
+                  "start_s": 140.0,
+                  "end_s": 167.0,
+                  "label": "bridge+outro",
+                  "ref_active": true,
+                  "detected_active": true,
+                  "event_count": 43,
+                  "match": true
+                }
+              ],
+              "tp": 7,
+              "fp": 1,
+              "fn": 0,
+              "tn": 0,
+              "precision": 0.875,
+              "recall": 1.0,
+              "f1": 0.9333,
+              "silent_fp_count": 23,
+              "silent_fp_rate": 0.0693
+            },
+            "octave_invariant": {
+              "pitch_class": {
+                "checked": 305,
+                "dominant_pc": 2,
+                "dominant_pc_name": "D",
+                "dominant_pc_pct": 26.9,
+                "expected_root_pc": 4,
+                "expected_root_name": "E",
+                "root_pc_match": false,
+                "root_pc_pct": 4.9,
+                "root_neighbor_pct": 22.0,
+                "in_scale_pct": 15.4,
+                "scale_overlap": 0.1541,
+                "per_class": [
+                  {
+                    "expected": "E",
+                    "pc": 4,
+                    "pct": 4.9,
+                    "neighbor_left_pct": 3.6,
+                    "neighbor_right_pct": 18.4
+                  },
+                  {
+                    "expected": "G#",
+                    "pc": 8,
+                    "pct": 0.0,
+                    "neighbor_left_pct": 8.9,
+                    "neighbor_right_pct": 14.1
+                  },
+                  {
+                    "expected": "B",
+                    "pc": 11,
+                    "pct": 10.5,
+                    "neighbor_left_pct": 0.3,
+                    "neighbor_right_pct": 12.5
+                  }
+                ]
+              },
+              "cross_section": {
+                "section_count": 7,
+                "pairs": [
+                  {
+                    "sections": "verse1 vs pre-chorus1",
+                    "pc_overlap": 0.3703,
+                    "contour_similarity": 0.916,
+                    "ioi_ratio": 0.9337,
+                    "density_ratio": 0.7664
+                  },
+                  {
+                    "sections": "verse1 vs chorus1",
+                    "pc_overlap": 0.7736,
+                    "contour_similarity": 0.9182,
+                    "ioi_ratio": 0.9655,
+                    "density_ratio": 0.7991
+                  },
+                  {
+                    "sections": "verse1 vs verse2",
+                    "pc_overlap": 0.6487,
+                    "contour_similarity": 0.985,
+                    "ioi_ratio": 0.9311,
+                    "density_ratio": 0.8231
+                  },
+                  {
+                    "sections": "verse1 vs pre-chorus2",
+                    "pc_overlap": 0.6746,
+                    "contour_similarity": 0.9068,
+                    "ioi_ratio": 0.8642,
+                    "density_ratio": 0.7664
+                  },
+                  {
+                    "sections": "verse1 vs chorus2",
+                    "pc_overlap": 0.6167,
+                    "contour_similarity": 0.9284,
+                    "ioi_ratio": 0.8794,
+                    "density_ratio": 0.8843
+                  },
+                  {
+                    "sections": "verse1 vs bridge+outro",
+                    "pc_overlap": 0.6089,
+                    "contour_similarity": 0.8987,
+                    "ioi_ratio": 0.9667,
+                    "density_ratio": 0.743
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus1",
+                    "pc_overlap": 0.2959,
+                    "contour_similarity": 0.9227,
+                    "ioi_ratio": 0.9016,
+                    "density_ratio": 0.9591
+                  },
+                  {
+                    "sections": "pre-chorus1 vs verse2",
+                    "pc_overlap": 0.7216,
+                    "contour_similarity": 0.9011,
+                    "ioi_ratio": 0.8694,
+                    "density_ratio": 0.6308
+                  },
+                  {
+                    "sections": "pre-chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.6957,
+                    "contour_similarity": 0.8637,
+                    "ioi_ratio": 0.9256,
+                    "density_ratio": 1.0
+                  },
+                  {
+                    "sections": "pre-chorus1 vs chorus2",
+                    "pc_overlap": 0.6984,
+                    "contour_similarity": 0.9121,
+                    "ioi_ratio": 0.8211,
+                    "density_ratio": 0.6777
+                  },
+                  {
+                    "sections": "pre-chorus1 vs bridge+outro",
+                    "pc_overlap": 0.6471,
+                    "contour_similarity": 0.9415,
+                    "ioi_ratio": 0.9659,
+                    "density_ratio": 0.9695
+                  },
+                  {
+                    "sections": "chorus1 vs verse2",
+                    "pc_overlap": 0.4873,
+                    "contour_similarity": 0.9132,
+                    "ioi_ratio": 0.9643,
+                    "density_ratio": 0.6577
+                  },
+                  {
+                    "sections": "chorus1 vs pre-chorus2",
+                    "pc_overlap": 0.5483,
+                    "contour_similarity": 0.825,
+                    "ioi_ratio": 0.8344,
+                    "density_ratio": 0.9591
+                  },
+                  {
+                    "sections": "chorus1 vs chorus2",
+                    "pc_overlap": 0.4553,
+                    "contour_similarity": 0.8734,
+                    "ioi_ratio": 0.9108,
+                    "density_ratio": 0.7066
+                  },
+                  {
+                    "sections": "chorus1 vs bridge+outro",
+                    "pc_overlap": 0.4299,
+                    "contour_similarity": 0.8642,
+                    "ioi_ratio": 0.9334,
+                    "density_ratio": 0.9298
+                  },
+                  {
+                    "sections": "verse2 vs pre-chorus2",
+                    "pc_overlap": 0.9072,
+                    "contour_similarity": 0.9038,
+                    "ioi_ratio": 0.8047,
+                    "density_ratio": 0.6308
+                  },
+                  {
+                    "sections": "verse2 vs chorus2",
+                    "pc_overlap": 0.8834,
+                    "contour_similarity": 0.9184,
+                    "ioi_ratio": 0.9445,
+                    "density_ratio": 0.9308
+                  },
+                  {
+                    "sections": "verse2 vs bridge+outro",
+                    "pc_overlap": 0.839,
+                    "contour_similarity": 0.8838,
+                    "ioi_ratio": 0.9001,
+                    "density_ratio": 0.6115
+                  },
+                  {
+                    "sections": "pre-chorus2 vs chorus2",
+                    "pc_overlap": 0.8081,
+                    "contour_similarity": 0.9516,
+                    "ioi_ratio": 0.76,
+                    "density_ratio": 0.6777
+                  },
+                  {
+                    "sections": "pre-chorus2 vs bridge+outro",
+                    "pc_overlap": 0.8322,
+                    "contour_similarity": 0.8918,
+                    "ioi_ratio": 0.894,
+                    "density_ratio": 0.9695
+                  },
+                  {
+                    "sections": "chorus2 vs bridge+outro",
+                    "pc_overlap": 0.8239,
+                    "contour_similarity": 0.9255,
+                    "ioi_ratio": 0.8501,
+                    "density_ratio": 0.657
+                  }
+                ],
+                "avg_pc_overlap": 0.6555,
+                "avg_contour_similarity": 0.9069,
+                "avg_ioi_ratio": 0.8962,
+                "sections": [
+                  {
+                    "label": "verse1",
+                    "start_s": 14.0,
+                    "end_s": 42.0,
+                    "n_notes": 60,
+                    "density": 2.14,
+                    "contour_props": {
+                      "up": 0.1864,
+                      "down": 0.2203,
+                      "same": 0.5932
+                    },
+                    "ioi_median": 0.3367,
+                    "midi_median": 41.0,
+                    "midi_std": 4.11
+                  },
+                  {
+                    "label": "pre-chorus1",
+                    "start_s": 42.0,
+                    "end_s": 56.0,
+                    "n_notes": 23,
+                    "density": 1.64,
+                    "contour_props": {
+                      "up": 0.2273,
+                      "down": 0.1364,
+                      "same": 0.6364
+                    },
+                    "ioi_median": 0.3606,
+                    "midi_median": 45.0,
+                    "midi_std": 4.5
+                  },
+                  {
+                    "label": "chorus1",
+                    "start_s": 56.0,
+                    "end_s": 80.0,
+                    "n_notes": 41,
+                    "density": 1.71,
+                    "contour_props": {
+                      "up": 0.15,
+                      "down": 0.175,
+                      "same": 0.675
+                    },
+                    "ioi_median": 0.3251,
+                    "midi_median": 43.0,
+                    "midi_std": 4.33
+                  },
+                  {
+                    "label": "verse2",
+                    "start_s": 80.0,
+                    "end_s": 100.0,
+                    "n_notes": 52,
+                    "density": 2.6,
+                    "contour_props": {
+                      "up": 0.1765,
+                      "down": 0.2353,
+                      "same": 0.5882
+                    },
+                    "ioi_median": 0.3135,
+                    "midi_median": 38.0,
+                    "midi_std": 4.44
+                  },
+                  {
+                    "label": "pre-chorus2",
+                    "start_s": 100.0,
+                    "end_s": 114.0,
+                    "n_notes": 23,
+                    "density": 1.64,
+                    "contour_props": {
+                      "up": 0.2727,
+                      "down": 0.2273,
+                      "same": 0.5
+                    },
+                    "ioi_median": 0.3896,
+                    "midi_median": 38.0,
+                    "midi_std": 4.66
+                  },
+                  {
+                    "label": "chorus2",
+                    "start_s": 114.0,
+                    "end_s": 140.0,
+                    "n_notes": 63,
+                    "density": 2.42,
+                    "contour_props": {
+                      "up": 0.2581,
+                      "down": 0.1935,
+                      "same": 0.5484
+                    },
+                    "ioi_median": 0.2961,
+                    "midi_median": 38.0,
+                    "midi_std": 4.34
+                  },
+                  {
+                    "label": "bridge+outro",
+                    "start_s": 140.0,
+                    "end_s": 167.0,
+                    "n_notes": 43,
+                    "density": 1.59,
+                    "contour_props": {
+                      "up": 0.2857,
+                      "down": 0.119,
+                      "same": 0.5952
+                    },
+                    "ioi_median": 0.3483,
+                    "midi_median": 38.0,
+                    "midi_std": 4.3
+                  }
+                ]
+              },
+              "register_stability": {
+                "checked": 305,
+                "midi_std": 4.92,
+                "midi_range": 24.0,
+                "octave_jump_count": 10,
+                "octave_jump_pct": 3.3,
+                "large_jump_count": 56,
+                "large_jump_pct": 18.4,
+                "median_abs_interval": 0.0,
+                "mean_abs_interval": 2.18
+              }
+            },
+            "octave_sensitive": {
+              "pitch_range": {
+                "checked": 305,
+                "in_range_count": 237,
+                "in_range_pct": 77.7,
+                "midi_median": 40.0,
+                "midi_mean": 40.5,
+                "below_range_pct": 17.7,
+                "above_range_pct": 4.6
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "aggregate": {
+    "drums": {
+      "activity_f1": {
+        "mean": 0.781,
+        "min": 0.6667,
+        "max": 1.0,
+        "n": 5
+      },
+      "silent_fp_rate": {
+        "mean": 0.1004,
+        "min": 0.0,
+        "max": 0.3305,
+        "n": 5
+      }
+    },
+    "vocals": {
+      "activity_f1": {
+        "mean": 0.8803,
+        "min": 0.7143,
+        "max": 1.0,
+        "n": 5
+      },
+      "silent_fp_rate": {
+        "mean": 0.1473,
+        "min": 0.0,
+        "max": 0.4992,
+        "n": 5
+      },
+      "octave_jump_pct": {
+        "mean": 23.3,
+        "min": 7.0,
+        "max": 42.7,
+        "n": 5
+      },
+      "in_range_pct": {
+        "mean": 86.2,
+        "min": 67.9,
+        "max": 94.5,
+        "n": 5
+      },
+      "below_range_pct": {
+        "mean": 8.3,
+        "min": 0.0,
+        "max": 31.4,
+        "n": 5
+      }
+    },
+    "bass": {
+      "activity_f1": {
+        "mean": 0.8634,
+        "min": 0.75,
+        "max": 0.9412,
+        "n": 5
+      },
+      "silent_fp_rate": {
+        "mean": 0.1168,
+        "min": 0.0,
+        "max": 0.3186,
+        "n": 5
+      },
+      "in_scale_pct": {
+        "mean": 45.38,
+        "min": 15.4,
+        "max": 70.6,
+        "n": 5
+      },
+      "root_pc_pct": {
+        "mean": 9.38,
+        "min": 0.0,
+        "max": 27.5,
+        "n": 5
+      },
+      "octave_jump_pct": {
+        "mean": 5.52,
+        "min": 2.0,
+        "max": 11.8,
+        "n": 5
+      },
+      "in_range_pct": {
+        "mean": 50.42,
+        "min": 16.5,
+        "max": 82.6,
+        "n": 5
+      },
+      "below_range_pct": {
+        "mean": 48.6,
+        "min": 17.1,
+        "max": 83.5,
+        "n": 5
+      }
+    }
+  }
+}

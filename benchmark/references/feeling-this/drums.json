@@ -1,0 +1,9 @@
+{
+  "layer": "drums",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Travis Barker's fast punk drumming. Drums are active from the very start and remain present throughout the entire song with high energy.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 172.0, "active": true, "label": "drums throughout"}
+  ]
+}

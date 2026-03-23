@@ -1,0 +1,22 @@
+{
+  "layer": "vocals",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Male vocals in tenor range. No vocals in intro. Vocals present during buildups and breakdowns (verse/hook sections), minimal or absent during heavy drops.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 20.0,  "active": false, "label": "intro (no vocals)"},
+    {"start_s": 20.0,  "end_s": 40.0,  "active": true,  "label": "buildup1 (vocals)"},
+    {"start_s": 40.0,  "end_s": 72.0,  "active": false, "label": "drop1 (minimal vocals)"},
+    {"start_s": 72.0,  "end_s": 96.0,  "active": true,  "label": "breakdown1 (vocals)"},
+    {"start_s": 96.0,  "end_s": 112.0, "active": true,  "label": "buildup2 (vocals)"},
+    {"start_s": 112.0, "end_s": 152.0, "active": false, "label": "drop2 (minimal vocals)"},
+    {"start_s": 152.0, "end_s": 180.0, "active": true,  "label": "breakdown2 (vocals)"},
+    {"start_s": 180.0, "end_s": 200.0, "active": true,  "label": "outro vocals"},
+    {"start_s": 200.0, "end_s": 222.0, "active": false, "label": "outro fade (no vocals)"}
+  ],
+  "pitch": {
+    "range": [52, 72],
+    "range_names": ["E3", "C5"],
+    "description": "Male tenor vocals, roughly E3 to C5. Emotional delivery with wide dynamic range."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "layer": "drums",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "Simple, steady rock beat. Drums do not enter until the first verse at ~24s. Once in, they remain active through the rest of the song with only minor variation at the bridge.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 24.0,  "active": false, "label": "intro (bass riff only)"},
+    {"start_s": 24.0,  "end_s": 204.0, "active": true,  "label": "verse1 through chorus2"},
+    {"start_s": 204.0, "end_s": 228.0, "active": true,  "label": "bridge (lighter pattern)"},
+    {"start_s": 228.0, "end_s": 272.0, "active": true,  "label": "outro"}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "layer": "vocals",
+  "confidence": "silver",
+  "source": "Listening",
+  "description": "2D sings verses and choruses in tenor range. De La Soul raps the middle section (pitch extraction less meaningful for rap). Windmill chanting in bridge.",
+  "activity": [
+    {"start_s": 0.0,   "end_s": 5.0,   "active": false, "label": "intro (keyboard only)"},
+    {"start_s": 5.0,   "end_s": 12.5,  "active": true,  "label": "intro vocals (ha ha)"},
+    {"start_s": 12.5,  "end_s": 63.0,  "active": true,  "label": "verse1+chorus1"},
+    {"start_s": 63.0,  "end_s": 95.0,  "active": true,  "label": "rap verse (De La Soul)"},
+    {"start_s": 95.0,  "end_s": 138.0, "active": true,  "label": "chorus2"},
+    {"start_s": 138.0, "end_s": 167.0, "active": true,  "label": "windmill chanting"},
+    {"start_s": 167.0, "end_s": 206.0, "active": true,  "label": "verse3+chorus3"},
+    {"start_s": 206.0, "end_s": 222.0, "active": false,  "label": "outro (instrumental fade)"}
+  ],
+  "pitch": {
+    "range": [55, 78],
+    "range_names": ["G3", "F#5"],
+    "description": "2D sings tenor range. Notes below G3 likely sub-harmonic tracking errors. Rap section pitch is unreliable."
+  }
+}

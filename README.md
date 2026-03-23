@@ -1,23 +1,30 @@
 # SongViz
 
-Understand and visualize what is happening in a song over time.
+**Complement and intensify the experience of listening to a song through visual stimulus.**
 
-SongViz extracts structural information from audio — section boundaries, tension arcs, melody contour, rhythm skeleton, harmonic motion, arrangement changes — and uses it to generate meaningful visualizations. The current main output is a music-reactive MP4 video, but the core of the project is the analysis pipeline that derives interpretable musical signals from raw audio.
+The goal is to make you *feel* music more deeply: the build-up should feel more intense, the drop should hit harder, a quiet bridge might go to black so the return of the drums hits you visually too. Every high, every low, every shift in tension — the visuals should amplify what your ears already sense but your eyes don't yet see.
 
-### Project direction
+This isn't about decorative waveforms or spectrum analyzers. It's about understanding the *story* of a song — its sections, tension arcs, repetition, dynamics — and translating that understanding into visuals that move with the music in a meaningful way. A kick drum could alternate left and right. A sudden drop in energy could strip all visuals away. Multiple displays could each serve a different function. The creative possibilities are wide, but they all depend on one thing: deeply understanding what's happening in the music.
 
-The long-term goal is a system that can explain the "story" of a song: where sections begin and end, which sections repeat, how energy and density rise and fall, how melody/bass/drums/harmony interact, and what changes between one part and the next.
+### Strategy
 
-Our current approach is to **simplify the song first** — remove timbral complexity while preserving the structural core (melody, rhythm, bass movement, harmonic motion, section changes, repetition, dynamics). We suspect that a simplified, low-timbre version of a song preserves enough structural information to make analysis clearer. Timbral detail from the original audio can be layered back in later if needed.
+To get there, we work bottom-up:
 
-In concrete terms:
-- **Separation** (Demucs) isolates musical layers so we can analyze them independently — it is a means to better analysis, not an end in itself
+1. **Simplify the song** — strip away timbral complexity, reduce it to an "8-bit" skeleton of melody contour, rhythm hits, bass movement, and harmonic motion. If you can still recognize the song from this simplified version, the structural core is preserved.
+2. **Understand the structure** — identify sections (intro, build, drop, bridge, chorus, outro), map tension arcs, detect repetition and contrast. This is the "story" of the song.
+3. **Map structure to visuals** — translate structural understanding into creative visual decisions. This layer is where artistic intent lives: *what should a build-up look like? What does silence look like?*
+
+We're currently focused on layers 1 and 2. Layer 3 is future work, but everything we build is in service of it.
+
+### Pipeline
+
+- **Separation** (Demucs) isolates musical layers (drums, bass, vocals, other) so we can analyze them independently
 - **Feature extraction** captures per-stem musical content (pitch tracks, drum hits, chroma, energy envelopes)
-- **Reduced representation** (next phase) will convert those features into discrete musical events — note onsets, drum hits, chord labels — stripped of timbre
+- **Reduced representation** converts features into discrete musical events — note onsets, drum hits, pitch contours — stripped of timbre
 - **Story / structural analysis** identifies sections, roles, tension, and repetition patterns
-- **Rendering** visualizes the analysis as video — the current primary output, but not the only goal
+- **Rendering** visualizes the analysis as video — the current primary output, evolving toward the full creative vision above
 
-See `docs/01_roadmap.md` for the phased plan and `docs/06_reduced_representation.md` for the detailed design of the next phase.
+See `docs/01_roadmap.md` for the phased plan and `docs/06_reduced_representation.md` for the reduced representation design.
 
 ## Start Here (Humans + LLMs)
 - Project roadmap and phases: `docs/01_roadmap.md`

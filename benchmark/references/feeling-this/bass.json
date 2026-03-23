@@ -1,0 +1,25 @@
+{
+  "layer": "bass",
+  "confidence": "silver",
+  "source": "Bass tabs + listening",
+  "description": "Mark Hoppus plays fast punk bass following the chord progression in A major. Bass is active from the very start and remains present throughout the entire song.",
+  "activity": [
+    {"start_s": 0.0,  "end_s": 4.0,   "active": true, "label": "intro"},
+    {"start_s": 4.0,  "end_s": 36.0,  "active": true, "label": "verse1"},
+    {"start_s": 36.0, "end_s": 60.0,  "active": true, "label": "chorus1"},
+    {"start_s": 60.0, "end_s": 90.0,  "active": true, "label": "verse2"},
+    {"start_s": 90.0, "end_s": 116.0, "active": true, "label": "chorus2"},
+    {"start_s": 116.0, "end_s": 140.0, "active": true, "label": "bridge"},
+    {"start_s": 140.0, "end_s": 172.0, "active": true, "label": "chorus3+outro"}
+  ],
+  "pitch": {
+    "root_midi": 45,
+    "root_name": "A2",
+    "root_pc": 9,
+    "scale_pcs": [9, 1, 4],
+    "scale_names": ["A", "C#", "E"],
+    "range": [40, 52],
+    "range_names": ["E2", "E3"],
+    "description": "Root is A2 (45). Bass follows A major power chords: A, C#, E. Range spans E2 to E3."
+  }
+}
