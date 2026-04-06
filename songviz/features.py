@@ -286,6 +286,88 @@ def drums_band_energy_3_from_components(
     return out
 
 
+def _basic_pitch_predict_subprocess(
+    audio_path: str,
+    *,
+    onset_threshold: float,
+    frame_threshold: float,
+    minimum_note_length_ms: float,
+    minimum_frequency: float,
+    maximum_frequency: float,
+    melodia_trick: bool = True,
+) -> list[dict[str, float]]:
+    """Run basic-pitch via the .songviz/venv subprocess (Python version workaround).
+
+    Used when basic-pitch cannot be imported directly (e.g., Python ≥3.14 where
+    TensorFlow wheels are unavailable).  Requires .songviz/venv/bin/python with
+    basic-pitch and onnxruntime installed.
+    """
+    import subprocess
+    import json as _json
+    import sys
+    import tempfile
+
+    # Locate the fallback venv Python
+    _venv_python = Path(__file__).parent.parent / ".songviz" / "venv" / "bin" / "python"
+    if not _venv_python.exists():
+        raise RuntimeError(
+            "basic_pitch is not installed and .songviz/venv/bin/python was not found.\n"
+            "Run: make install  (or: pip install basic-pitch in a Python ≤3.13 venv)"
+        )
+
+    script = f"""
+import json, sys
+from pathlib import Path
+from basic_pitch.inference import predict
+import basic_pitch as _bp
+_bp_pkg = Path(_bp.__file__).parent
+_onnx = _bp_pkg / "saved_models" / "icassp_2022" / "nmp.onnx"
+model = str(_onnx) if _onnx.exists() else None
+_, _, evts = predict(
+    {audio_path!r},
+    **(dict(model_or_model_path=model) if model else {{}}),
+    onset_threshold={onset_threshold!r},
+    frame_threshold={frame_threshold!r},
+    minimum_note_length={minimum_note_length_ms!r},
+    minimum_frequency={minimum_frequency!r},
+    maximum_frequency={maximum_frequency!r},
+    melodia_trick={melodia_trick!r},
+)
+out = []
+for ev in evts:
+    if isinstance(ev, (tuple, list)) and len(ev) >= 4:
+        out.append({{"start_s": float(ev[0]), "end_s": float(ev[1]), "midi": float(ev[2]), "velocity": float(ev[3])}})
+    elif isinstance(ev, dict):
+        s = float(ev.get("start_time_s", ev.get("start_s", 0.0)))
+        e = float(ev.get("end_time_s", ev.get("end_s", s)))
+        m = float(ev.get("pitch_midi", ev.get("midi", ev.get("pitch", 0.0))))
+        v = float(ev.get("velocity", 0.0))
+        out.append({{"start_s": s, "end_s": e, "midi": m, "velocity": v}})
+print(json.dumps(out))
+"""
+
+    result = subprocess.run(
+        [str(_venv_python), "-c", script],
+        capture_output=True, text=True, timeout=600,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"basic-pitch subprocess failed:\n{result.stderr[-2000:]}"
+        )
+    # Find the JSON line (last non-empty line, ignoring warnings)
+    json_line = ""
+    for line in reversed(result.stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("["):
+            json_line = line
+            break
+    if not json_line:
+        raise RuntimeError(
+            f"basic-pitch subprocess produced no JSON output.\nstdout: {result.stdout[-1000:]}"
+        )
+    return _json.loads(json_line)
+
+
 def _basic_pitch_predict(
     audio_path: str,
     *,
@@ -300,17 +382,23 @@ def _basic_pitch_predict(
 
     Shared core for both vocal and bass extraction — handles all known
     basic-pitch return formats (dicts, tuples, structured arrays, 2-D arrays).
+    Falls back to subprocess invocation via .songviz/venv if direct import fails
+    (e.g., Python ≥3.14 where TensorFlow wheels are not available).
     """
     try:
         from basic_pitch.inference import predict  # type: ignore
         import basic_pitch as _bp  # type: ignore
-    except Exception as e:  # pragma: no cover (optional dependency)
-        raise RuntimeError(
-            "basic_pitch is not installed. Install it to enable note extraction:\n"
-            "  pip install -e '.[notes]'\n"
-            "or:\n"
-            "  python3 -m pip install basic-pitch"
-        ) from e
+    except Exception:
+        # Direct import failed — try subprocess fallback via .songviz/venv
+        return _basic_pitch_predict_subprocess(
+            audio_path,
+            onset_threshold=onset_threshold,
+            frame_threshold=frame_threshold,
+            minimum_note_length_ms=minimum_note_length_ms,
+            minimum_frequency=minimum_frequency,
+            maximum_frequency=maximum_frequency,
+            melodia_trick=melodia_trick,
+        )
 
     # Prefer ONNX backend — tflite-runtime may not support numpy 2.x.
     _bp_pkg = Path(_bp.__file__).parent
@@ -390,9 +478,9 @@ def _basic_pitch_predict(
 def vocals_note_events_basic_pitch(
     audio_path: str,
     *,
-    onset_threshold: float = 0.55,
-    frame_threshold: float = 0.30,
-    minimum_note_length_ms: float = 120.0,
+    onset_threshold: float = 0.45,   # lowered from 0.55 — capture softer onsets
+    frame_threshold: float = 0.20,   # lowered from 0.30 — keep more note frames
+    minimum_note_length_ms: float = 100.0,  # lowered from 120ms — shorter notes OK
     minimum_frequency: float = 60.0,
     maximum_frequency: float = 1100.0,
 ) -> list[dict[str, float]]:

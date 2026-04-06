@@ -386,6 +386,10 @@ def extract_vocal_notes(
                 note.update(_compute_beat_alignment(note["onset_s"], beat_arr))
             notes.append(note)
 
+        # Enforce monophony first — basic-pitch detects harmonics as simultaneous notes
+        notes = _make_monophonic(notes)
+        # Merge adjacent fragments from basic-pitch (vocals waver less than bass)
+        notes = _merge_adjacent_notes(notes, midi_tol=1, max_gap_s=0.08)
         # Clean up octave artifacts from basic-pitch (vocal range 36--96)
         notes = _correct_octave_by_context(notes, midi_lo=36, midi_hi=96)
         notes = _smooth_vocal_octave_jumps(notes)
@@ -399,6 +403,8 @@ def extract_vocal_notes(
             hop_length=hop_length,
             beat_times_s=beat_times_s,
         )
+        # Merge pYIN fragments (small tolerance — vocals have clear phrase gaps)
+        result["notes"] = _merge_adjacent_notes(result["notes"], midi_tol=1, max_gap_s=0.08)
         # Clean up octave artifacts from pYIN (vocal range 36--96)
         result["notes"] = _correct_octave_by_context(
             result["notes"], midi_lo=36, midi_hi=96,
@@ -417,10 +423,102 @@ _OCTAVE_CORRECT_WINDOW = 5      # neighbours each side for local median
 _OCTAVE_CORRECT_MIN_GAIN = 6    # min semitone improvement to accept a shift
 
 # Bass energy gating & isolation pruning parameters.
-_BASS_RMS_GATE_PERCENTILE: int = 10
-_BASS_RMS_GATE_SCALE: float = 0.5
+# Gate removes notes where stem RMS < scale * percentile(rms_vals).
+# Previously: p10 * 0.5.  Relaxed to p5 * 0.3 since basic-pitch already has
+# its own confidence thresholds and false-positive rate is lower than feared.
+_BASS_RMS_GATE_PERCENTILE: int = 5
+_BASS_RMS_GATE_SCALE: float = 0.3
 _BASS_ISOLATION_WINDOW_S: float = 4.0
-_BASS_ISOLATION_MAX_VELOCITY: float = 0.35
+_BASS_ISOLATION_MAX_VELOCITY: float = 0.25  # also lowered: only prune very quiet isolated notes
+
+
+def _make_monophonic(
+    notes: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Enforce a single active note at any point in time.
+
+    When basic-pitch detects overlapping notes (e.g., detecting harmonics as
+    separate pitches), this keeps the loudest note in each overlapping group
+    and trims any previous note's offset to prevent overlap.
+
+    Strategy: greedy scan.  At each note, if it overlaps with the current
+    active note, keep the louder one (trim the other's offset or discard it).
+    """
+    if not notes:
+        return notes
+    notes = sorted(notes, key=lambda n: n["onset_s"])
+    result: list[dict[str, Any]] = []
+    cur: dict[str, Any] | None = None
+
+    for nxt in notes:
+        if cur is None:
+            cur = dict(nxt)
+            continue
+        if nxt["onset_s"] >= cur["offset_s"]:
+            # No overlap — emit current, start new
+            result.append(cur)
+            cur = dict(nxt)
+        else:
+            # Overlap: keep the louder note
+            if nxt["velocity"] > cur["velocity"]:
+                # Trim cur to end at nxt onset, then switch to nxt
+                cur["offset_s"] = round(nxt["onset_s"], 4)
+                if cur["offset_s"] > cur["onset_s"]:
+                    result.append(cur)
+                cur = dict(nxt)
+            else:
+                # Keep cur, discard nxt (or trim nxt to start after cur ends)
+                pass  # nxt simply dropped
+
+    if cur is not None:
+        result.append(cur)
+    return result
+
+
+def _merge_adjacent_notes(
+    notes: list[dict[str, Any]],
+    *,
+    midi_tol: int = 1,
+    max_gap_s: float = 0.10,
+) -> list[dict[str, Any]]:
+    """Merge adjacent notes that are within *midi_tol* semitones and *max_gap_s* apart.
+
+    Addresses pYIN pitch-track jitter: a sustained bass note at MIDI 46 that
+    pYIN wavers between 46 and 47 becomes multiple micro-fragments.  This step
+    merges them back into a single note using the first note's MIDI (or the
+    median when merging many fragments).
+
+    Parameters
+    ----------
+    notes : sorted list of note dicts with onset_s, offset_s, midi, velocity
+    midi_tol : max semitone difference to consider two notes the same pitch
+    max_gap_s : max silence gap (seconds) between notes to bridge
+
+    Returns
+    -------
+    Merged list — same dict structure, velocity from the loudest fragment.
+    """
+    if not notes:
+        return notes
+
+    notes = sorted(notes, key=lambda n: n["onset_s"])
+    merged: list[dict[str, Any]] = []
+    cur = dict(notes[0])  # working copy of current group
+
+    for nxt in notes[1:]:
+        gap = nxt["onset_s"] - cur["offset_s"]
+        midi_diff = abs(nxt["midi"] - cur["midi"])
+        if gap <= max_gap_s and midi_diff <= midi_tol:
+            # Extend current group: push offset, keep loudest velocity, keep first midi
+            cur["offset_s"] = max(cur["offset_s"], nxt["offset_s"])
+            cur["velocity"] = max(cur["velocity"], nxt["velocity"])
+            # Retain first note's MIDI (typically most stable onset estimate)
+        else:
+            merged.append(cur)
+            cur = dict(nxt)
+
+    merged.append(cur)
+    return merged
 
 
 def _dedup_octave_overlaps(
@@ -698,7 +796,7 @@ _CQT_REFINE_MAX_SHIFT_ST: float = 4.0  # reject refinements > this many semitone
 _CQT_REFINE_HARMONIC_MARGIN: float = 4.0  # librosa.effects.harmonic margin
 _BASS_EXPECTED_MIDI_LO: float = 28.0   # lowest expected bass MIDI (E1)
 _BASS_EXPECTED_MIDI_HI: float = 60.0   # highest expected bass MIDI (C4)
-_BASS_EXPECTED_MEDIAN_LO: float = 36.0 # median bass MIDI should be above this (C2)
+_BASS_EXPECTED_MEDIAN_LO: float = 34.0 # median bass MIDI should be above this (Bb1) — lowered from 36 to avoid pYIN B1 boundary miss
 _BASS_EXPECTED_MEDIAN_HI: float = 55.0 # median bass MIDI should be below this (G3)
 
 
@@ -951,6 +1049,8 @@ def extract_bass_notes(
 
         # Clean up octave artifacts from basic-pitch
         notes = _dedup_octave_overlaps(notes)
+        # Merge adjacent fragments (±1 semitone, ≤100ms gap) before octave correction
+        notes = _merge_adjacent_notes(notes, midi_tol=1, max_gap_s=0.10)
         # Global octave fix first — shift ALL notes if median is wrong octave
         notes = _bass_global_octave_fix(notes)
         # Then per-note CQT harmonic ratio test for remaining outliers
@@ -977,6 +1077,8 @@ def extract_bass_notes(
             max_gap_frames=3,
             beat_times_s=beat_times_s,
         )
+        # Merge adjacent fragments (wider tolerance for pYIN's larger pitch jitter)
+        result["notes"] = _merge_adjacent_notes(result["notes"], midi_tol=1, max_gap_s=0.15)
         # Octave correction: global shift, per-note harmonic test, context smoothing
         result["notes"] = _bass_global_octave_fix(result["notes"])
         result["notes"] = _refine_bass_pitch_cqt(result["notes"], y, sr)
@@ -986,7 +1088,9 @@ def extract_bass_notes(
         if scale_pcs is not None:
             result["notes"] = _snap_bass_to_scale(result["notes"], scale_pcs)
         result["notes"] = _rescale_velocity_to_stem_energy(result["notes"], y, sr)
-        result["notes"] = _gate_and_prune_bass_notes(result["notes"], y, sr)
+        # NOTE: skip _gate_and_prune_bass_notes for pYIN path — pYIN output is
+        # already sparse (~11% coverage).  The gate was designed for basic-pitch
+        # false positives during silence, not for pYIN's already-filtered output.
         return result
 
     # No data

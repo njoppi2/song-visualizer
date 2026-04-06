@@ -19,11 +19,28 @@ import soundfile as sf
 SR: int = 22050
 """Default sample rate (Hz)."""
 
-# Per-layer pre-normalization gain.  After mixing, the combined signal is
-# peak-normalized to 0.9, so these only control *relative* loudness.
-GAIN_DRUMS: float = 0.5
-GAIN_VOCALS: float = 0.7
-GAIN_BASS: float = 0.4
+# Per-layer target RMS level before mixing.  Each layer is RMS-normalized to
+# its target, then all three are summed and peak-normalized to NORM_PEAK.
+# This gives stable, predictable loudness ratios regardless of note density.
+GAIN_DRUMS: float = 0.28   # drums are transient-heavy; lower RMS target keeps them punchy
+GAIN_VOCALS: float = 0.35  # melody carrier — moderate
+GAIN_BASS: float = 0.25    # bass synth — moderate; shifted up 1 oct for speaker audibility
+
+# Drum velocity floor: soft hits are raised to this minimum so all drum events
+# are perceptible, even ghost hi-hats and rimshots.
+DRUM_VEL_FLOOR: float = 0.25
+
+# Bass register shift in semitones applied during sonification.
+# MIDI 39-49 (bass guitar range) is below ~100 Hz and inaudible on most
+# laptop speakers.  Shifting up 12 semitones (one octave) makes it audible.
+BASS_OCTAVE_SHIFT: int = 12
+
+# Note extension: extend each note's rendered duration into trailing silence.
+# This makes short extracted notes (0.2-0.3s) sound more like sustained
+# instrument tones without affecting the next note's onset.
+# Set to 0.0 to disable.
+NOTE_EXTEND_BASS_S: float = 0.35   # extend bass up to this much into silence
+NOTE_EXTEND_VOCALS_S: float = 0.20  # extend vocals slightly (more cautious)
 
 # Drum sound durations (seconds).
 DUR_KICK: float = 0.060
@@ -143,12 +160,29 @@ _DRUM_DUR: dict[str, float] = {
 
 
 def _synth_sine(midi: float, duration_s: float, sr: int) -> np.ndarray:
-    """Pure sine wave at the MIDI pitch — used for vocals."""
+    """Soft vocal-like tone: fundamental + 2nd harmonic + gentle vibrato.
+
+    Uses a mix of the fundamental and a softer 2nd harmonic, plus a 5 Hz
+    vibrato (delayed onset so it sounds natural) to distinguish from a pure
+    electronic tone.
+    """
     freq = 440.0 * 2.0 ** ((midi - 69.0) / 12.0)
     n = max(1, int(duration_s * sr))
     t = np.arange(n, dtype=np.float64) / sr
-    sig = np.sin(2.0 * np.pi * freq * t).astype(np.float32)
-    return _apply_envelope(sig, sr)
+    # Vibrato: 5 Hz, ±0.5 semitone depth, starts after 80ms attack
+    vibrato_delay = min(0.08, duration_s * 0.3)
+    vibrato_depth = 0.005  # ±0.5% frequency = ~0.5 semitone at centre
+    vib_env = np.clip((t - vibrato_delay) / max(0.05, vibrato_delay), 0.0, 1.0)
+    vibrato = 1.0 + vibrato_depth * np.sin(2.0 * np.pi * 5.0 * t) * vib_env
+    phase = np.cumsum(freq * vibrato / sr)
+    sig = (
+        0.7 * np.sin(2.0 * np.pi * phase)
+        + 0.3 * np.sin(2.0 * np.pi * 2.0 * phase)
+    ).astype(np.float32)
+    # Natural amplitude envelope: faster attack, longer decay
+    attack_s = min(0.02, duration_s * 0.15)
+    decay_s = min(0.08, duration_s * 0.3)
+    return _apply_envelope(sig, sr, attack_s=attack_s, release_s=decay_s)
 
 
 def _synth_triangle(midi: float, duration_s: float, sr: int) -> np.ndarray:
@@ -169,7 +203,22 @@ def _synth_triangle(midi: float, duration_s: float, sr: int) -> np.ndarray:
     peak = np.max(np.abs(sig))
     if peak > 1e-8:
         sig /= peak
-    return _apply_envelope(sig, sr)
+    # Bass pluck envelope: fast attack (~10ms), exponential decay into sustain
+    n = len(sig)
+    attack_n = min(int(0.010 * sr), n)
+    decay_n = min(int(0.060 * sr), max(n - attack_n, 0))
+    sustain_level = 0.65
+    env = np.ones(n, dtype=np.float32)
+    if attack_n > 0:
+        env[:attack_n] = np.linspace(0.0, 1.0, attack_n, dtype=np.float32)
+    if decay_n > 0:
+        env[attack_n:attack_n + decay_n] = np.linspace(1.0, sustain_level, decay_n, dtype=np.float32)
+    env[attack_n + decay_n:] = sustain_level
+    # Final release
+    release_n = min(int(0.020 * sr), max(n - attack_n - decay_n, 0))
+    if release_n > 0:
+        env[-release_n:] = np.linspace(sustain_level, 0.0, release_n, dtype=np.float32)
+    return sig * env
 
 
 # ── Mixing ──
@@ -205,12 +254,46 @@ def _compute_duration_samples(reduced: dict[str, Any], sr: int) -> int:
 # ── Public API ──
 
 
+def _extend_note_durations(
+    notes: list[dict[str, Any]],
+    max_extend_s: float,
+) -> list[dict[str, Any]]:
+    """Return a copy of *notes* with each note's offset extended into trailing silence.
+
+    Each note is extended by up to *max_extend_s* seconds, but never past the
+    onset of the next note.  This makes short extracted notes sound more like
+    sustained tones without encroaching on the next note's attack.
+    """
+    if max_extend_s <= 0 or not notes:
+        return notes
+    notes = sorted(notes, key=lambda n: n["onset_s"])
+    extended = []
+    for i, n in enumerate(notes):
+        next_onset = notes[i + 1]["onset_s"] if i + 1 < len(notes) else float("inf")
+        new_offset = min(n["offset_s"] + max_extend_s, next_onset - 0.01)
+        new_offset = max(new_offset, n["offset_s"])  # never shorten
+        extended.append(dict(n, offset_s=round(new_offset, 4)))
+    return extended
+
+
+def _rms_normalize_layer(buf: np.ndarray, target_rms: float) -> np.ndarray:
+    """Scale *buf* so its RMS equals *target_rms*.  Returns a new array."""
+    rms = float(np.sqrt(np.mean(buf ** 2)))
+    if rms < 1e-8:
+        return buf.copy()
+    return buf * (target_rms / rms)
+
+
 def sonify_reduced(
     reduced: dict[str, Any],
     out_path: Path,
     sr: int = SR,
 ) -> None:
     """Render a reduced-representation dict into a mono WAV file.
+
+    Each layer (drums, vocals, bass) is rendered separately, RMS-normalized
+    to a fixed target level, then summed.  This gives stable, predictable
+    loudness ratios regardless of note density.
 
     Parameters
     ----------
@@ -219,37 +302,61 @@ def sonify_reduced(
     sr : sample rate (default :data:`SR`)
     """
     n_samples = _compute_duration_samples(reduced, sr)
-    buf = np.zeros(n_samples, dtype=np.float64)
 
     # Pre-compute drum templates (one per component, reused for every hit)
     drum_templates = {name: fn(sr) for name, fn in _DRUM_SYNTH.items()}
 
     # ── Drums ──
+    drum_buf = np.zeros(n_samples, dtype=np.float64)
     for hit in reduced.get("drums", {}).get("hits", []):
         comp = hit.get("component", "kick")
-        vel = hit.get("velocity", 0.5)
+        # Apply velocity floor so quiet hits (ghost notes, soft hi-hats) stay audible
+        vel = max(float(hit.get("velocity", 0.5)), DRUM_VEL_FLOOR)
         template = drum_templates.get(comp, drum_templates["kick"])
-        _mix_into(buf, template, hit["t"], vel * GAIN_DRUMS, sr)
+        _mix_into(drum_buf, template, hit["t"], vel, sr)
 
-    # ── Vocals ──
-    for note in reduced.get("vocals", {}).get("notes", []):
+    # ── Vocals (with note extension) ──
+    vocal_buf = np.zeros(n_samples, dtype=np.float64)
+    vocal_notes_ext = _extend_note_durations(
+        reduced.get("vocals", {}).get("notes", []), NOTE_EXTEND_VOCALS_S,
+    )
+    for note in vocal_notes_ext:
         dur = note["offset_s"] - note["onset_s"]
         if dur <= 0:
             continue
         vel = note.get("velocity", 0.5)
         sig = _synth_sine(note["midi"], dur, sr)
-        _mix_into(buf, sig, note["onset_s"], vel * GAIN_VOCALS, sr)
+        _mix_into(vocal_buf, sig, note["onset_s"], vel, sr)
 
-    # ── Bass ──
-    for note in reduced.get("bass", {}).get("notes", []):
+    # ── Bass (smart octave placement + note extension) ──
+    # Place each note in the 41-65 MIDI range (E2-F4) for audibility on
+    # small speakers, rather than a fixed +12 shift.
+    bass_buf = np.zeros(n_samples, dtype=np.float64)
+    bass_notes_ext = _extend_note_durations(
+        reduced.get("bass", {}).get("notes", []), NOTE_EXTEND_BASS_S,
+    )
+    for note in bass_notes_ext:
         dur = note["offset_s"] - note["onset_s"]
         if dur <= 0:
             continue
         vel = note.get("velocity", 0.5)
-        sig = _synth_triangle(note["midi"], dur, sr)
-        _mix_into(buf, sig, note["onset_s"], vel * GAIN_BASS, sr)
+        midi = note["midi"]
+        # Shift into audible bass register (41-65) by adding octaves
+        while midi < 41:
+            midi += 12
+        while midi > 65:
+            midi -= 12
+        sig = _synth_triangle(midi, dur, sr)
+        _mix_into(bass_buf, sig, note["onset_s"], vel, sr)
 
-    # ── Normalize ──
+    # ── Per-layer RMS normalization then mix ──
+    drum_buf = _rms_normalize_layer(drum_buf, GAIN_DRUMS)
+    vocal_buf = _rms_normalize_layer(vocal_buf, GAIN_VOCALS)
+    bass_buf = _rms_normalize_layer(bass_buf, GAIN_BASS)
+
+    buf = drum_buf + vocal_buf + bass_buf
+
+    # ── Final peak normalization ──
     peak = float(np.max(np.abs(buf)))
     if peak > 1e-6:
         buf *= NORM_PEAK / peak
@@ -273,19 +380,28 @@ def _render_layer(
         templates = {name: fn(sr) for name, fn in _DRUM_SYNTH.items()}
         for hit in reduced.get("drums", {}).get("hits", []):
             comp = hit.get("component", "kick")
-            vel = hit.get("velocity", 0.5)
+            vel = max(float(hit.get("velocity", 0.5)), DRUM_VEL_FLOOR)
             tmpl = templates.get(comp, templates["kick"])
-            _mix_into(buf, tmpl, hit["t"], vel * GAIN_DRUMS, sr)
+            _mix_into(buf, tmpl, hit["t"], vel, sr)
     elif layer in ("vocals", "bass"):
         synth_fn = _synth_sine if layer == "vocals" else _synth_triangle
-        gain = GAIN_VOCALS if layer == "vocals" else GAIN_BASS
-        for note in reduced.get(layer, {}).get("notes", []):
+        extend_s = NOTE_EXTEND_BASS_S if layer == "bass" else NOTE_EXTEND_VOCALS_S
+        notes = _extend_note_durations(
+            reduced.get(layer, {}).get("notes", []), extend_s,
+        )
+        for note in notes:
             dur = note["offset_s"] - note["onset_s"]
             if dur <= 0:
                 continue
             vel = note.get("velocity", 0.5)
-            sig = synth_fn(note["midi"], dur, sr)
-            _mix_into(buf, sig, note["onset_s"], vel * gain, sr)
+            midi = note["midi"]
+            if layer == "bass":
+                while midi < 41:
+                    midi += 12
+                while midi > 65:
+                    midi -= 12
+            sig = synth_fn(midi, dur, sr)
+            _mix_into(buf, sig, note["onset_s"], vel, sr)
     return buf
 
 
@@ -305,11 +421,8 @@ def sonify_reduced_layers(
     """Write per-layer debug WAVs and return a dict of name → path.
 
     Writes: reduced_drums_only.wav, reduced_vocals_only.wav,
-    reduced_bass_only.wav, reduced_vocals_plus_bass.wav,
-    reduced_bass_only_up1oct.wav.
+    reduced_bass_only.wav, reduced_vocals_plus_bass.wav.
     """
-    import copy
-
     n_samples = _compute_duration_samples(reduced, sr)
     paths: dict[str, Path] = {}
 
@@ -319,20 +432,12 @@ def sonify_reduced_layers(
         _normalize_and_write(buf, p, sr)
         paths[f"{layer}_only"] = p
 
-    # vocals + bass combined
-    vb = _render_layer(reduced, "vocals", sr, n_samples) + _render_layer(reduced, "bass", sr, n_samples)
+    # vocals + bass combined (both at default octave shift)
+    vb = (_render_layer(reduced, "vocals", sr, n_samples)
+          + _render_layer(reduced, "bass", sr, n_samples))
     p = out_dir / "reduced_vocals_plus_bass.wav"
     _normalize_and_write(vb, p, sr)
     paths["vocals_plus_bass"] = p
-
-    # bass transposed up one octave (audibility check)
-    bass_up = copy.deepcopy(reduced)
-    for note in bass_up.get("bass", {}).get("notes", []):
-        note["midi"] += 12
-    buf = _render_layer(bass_up, "bass", sr, n_samples)
-    p = out_dir / "reduced_bass_only_up1oct.wav"
-    _normalize_and_write(buf, p, sr)
-    paths["bass_only_up1oct"] = p
 
     return paths
 

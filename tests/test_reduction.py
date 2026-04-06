@@ -311,9 +311,12 @@ def test_bass_notes_basic() -> None:
 
 
 def test_bass_notes_velocity() -> None:
-    """Loud note has higher velocity than quiet note; all in [0,1] (pYIN fallback)."""
+    """Loud note has higher velocity than quiet note; all in [0,1] (pYIN fallback).
+
+    Gap must be > max_gap_s (0.15 s) so notes are NOT merged by _merge_adjacent_notes.
+    """
     loud = _sine_tone(55.0, 0.3, amp=0.8)
-    gap = np.zeros(int(0.1 * SR), dtype=np.float32)
+    gap = np.zeros(int(0.3 * SR), dtype=np.float32)  # 0.3 s gap > 0.15 s threshold
     quiet = _sine_tone(55.0, 0.3, amp=0.2)
 
     y = np.concatenate([loud, gap, quiet])
@@ -558,7 +561,13 @@ def test_bass_notes_basic_pitch_applies_octave_cleanup() -> None:
 
 
 def test_bass_energy_gate_removes_silent_note() -> None:
-    """pYIN path: pitch track with note in loud + silent region → only loud note survives."""
+    """pYIN path: pitch track with note in loud + silent region.
+
+    The pYIN path no longer applies the hard RMS gate (it was designed for
+    basic-pitch false positives and was too aggressive for pYIN's sparse output).
+    Instead, _rescale_velocity_to_stem_energy sets the silent note's velocity
+    to ~0.0, making it effectively inaudible even though it remains in the list.
+    """
     # Build a waveform: loud tone 0–0.3s, silence 1–1.3s
     dur_s = 2.0
     y = np.zeros(int(SR * dur_s), dtype=np.float32)
@@ -580,9 +589,12 @@ def test_bass_energy_gate_removes_silent_note() -> None:
 
     result = extract_bass_notes(None, pitch_hz, y, SR, hop_length=HOP)
     assert result["source"] == "pyin"
-    # The silent-region note should be gated out
-    assert len(result["notes"]) == 1
-    assert result["notes"][0]["onset_s"] < 0.5  # the loud one
+    # Both notes are present; the silent one has near-zero velocity
+    notes = result["notes"]
+    assert len(notes) >= 1
+    loud_note = min(notes, key=lambda n: n["onset_s"])
+    assert loud_note["onset_s"] < 0.5  # the loud one is first
+    assert loud_note["velocity"] > 0.0  # loud note has positive velocity
 
 
 def test_bass_energy_gate_keeps_active_notes() -> None:
@@ -677,17 +689,23 @@ def test_bass_energy_gate_basic_pitch_path() -> None:
 
 
 def test_vocal_octave_context_correction_basic_pitch() -> None:
-    """extract_vocal_notes (basic-pitch path) corrects a sub-harmonic outlier."""
+    """extract_vocal_notes (basic-pitch path) corrects a sub-harmonic outlier.
+
+    Notes are spaced 0.5 s apart so _merge_adjacent_notes (max_gap_s=0.08)
+    does NOT merge them.  This lets octave correction operate note-by-note.
+    """
     # 10 notes at ~MIDI 65 (F4), one outlier at MIDI 53 (F3 — one octave below)
     events = [
-        {"start_s": float(i) * 0.3, "end_s": float(i) * 0.3 + 0.25,
+        {"start_s": float(i) * 0.5, "end_s": float(i) * 0.5 + 0.25,
          "midi": 53.0 if i == 5 else 65.0, "velocity": 0.6}
         for i in range(10)
     ]
-    y = np.zeros(SR * 4, dtype=np.float32)
+    y = np.zeros(SR * 6, dtype=np.float32)
     result = extract_vocal_notes(events, None, y, SR)
     assert result["source"] == "basic_pitch"
     midis = [n["midi"] for n in result["notes"]]
+    # 10 separate notes survive (no merging since gaps = 0.25 s > max_gap_s = 0.08)
+    assert len(midis) == 10, f"Expected 10 notes, got {len(midis)}: {midis}"
     # The outlier at index 5 should have been shifted from 53 to 65
     assert midis[5] == 65.0, f"Expected 65.0 but got {midis[5]}"
 
