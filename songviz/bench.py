@@ -190,6 +190,15 @@ def _compute_aggregate(all_results: dict[str, Any]) -> dict[str, Any]:
                 agg[layer_name].setdefault("in_range_pct", []).append(pr["in_range_pct"])
                 agg[layer_name].setdefault("below_range_pct", []).append(pr["below_range_pct"])
 
+            # Note-level transcription (only present if MIDI reference exists)
+            nt = layer_data.get("note_transcription")
+            if nt and nt.get("ref_note_count", 0) > 0:
+                agg[layer_name].setdefault("note_f1", []).append(nt["note_f1"])
+                agg[layer_name].setdefault("note_f1_octave_invariant", []).append(nt["note_f1_octave_invariant"])
+                agg[layer_name].setdefault("onset_f1", []).append(nt["onset_f1"])
+                agg[layer_name].setdefault("pitch_accuracy", []).append(nt["pitch_accuracy"] * 100.0)
+                agg[layer_name].setdefault("fragmentation_ratio", []).append(nt["fragmentation_ratio"])
+
     # Average each metric
     result: dict[str, Any] = {}
     for layer_name, metrics in agg.items():

@@ -122,6 +122,13 @@ def _build_parser() -> argparse.ArgumentParser:
     lyrics_preview.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
     lyrics_preview.add_argument("--out", default=None, help="Output mp4 path (optional)")
 
+    export_midi_p = sub.add_parser(
+        "export-midi",
+        help="Export reduced.json as per-layer MIDI files (for manual correction into reference data)",
+    )
+    export_midi_p.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
+    export_midi_p.add_argument("--out-dir", default=None, help="Output directory (default: outputs/<song>/analysis/)")
+
     sonify_p = sub.add_parser("sonify", help="Sonify reduced.json into a debug WAV")
     sonify_p.add_argument("audio_path", help="Path to audio (flac/mp3/wav)")
     sonify_p.add_argument("--out", default=None, help="Output WAV path (optional)")
@@ -415,6 +422,31 @@ def main(argv: list[str] | None = None) -> int:
                 duration_s=duration_s,
             )
             print(str(out_mp4))
+            return 0
+
+        if args.cmd == "export-midi":
+            from .sonify import export_reduced_to_midi_files
+
+            song_id = song_id_for_path(args.audio_path)
+            out_dir = output_dir_for_audio(args.audio_path, str(song_id))
+            reduced_path = reduced_path_for_output_dir(out_dir)
+            if not reduced_path.exists():
+                print(
+                    f"error: {reduced_path} not found — run the reduction pipeline first "
+                    "(e.g. `songviz render --layout stems4`).",
+                    file=sys.stderr,
+                )
+                return 2
+            reduced = json.loads(reduced_path.read_text(encoding="utf-8"))
+            midi_dir = Path(args.out_dir) if args.out_dir else out_dir / "analysis"
+            paths = export_reduced_to_midi_files(reduced, midi_dir)
+            for layer, p in paths.items():
+                print(f"{layer}: {p}")
+            print(
+                "\nTo create a reference: copy a corrected MIDI to "
+                "benchmark/references/<song-name>/<layer>_notes.mid",
+                file=sys.stderr,
+            )
             return 0
 
         if args.cmd == "sonify":

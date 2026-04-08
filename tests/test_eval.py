@@ -14,6 +14,7 @@ from songviz.eval import (
     evaluate_activity,
     evaluate_cross_section_consistency,
     evaluate_layer,
+    evaluate_note_transcription,
     evaluate_onsets,
     evaluate_pitch_class,
     evaluate_pitch_range,
@@ -481,3 +482,106 @@ def test_evaluate_layer_bass_has_octave_invariant() -> None:
     assert "octave_sensitive" in result
     assert result["octave_invariant"]["pitch_class"]["root_pc_match"] is True
     assert result["octave_invariant"]["register_stability"]["octave_jump_count"] == 0
+
+
+# ── evaluate_note_transcription ──
+
+
+def _make_ref_notes(
+    times: list[tuple[float, float]],
+    midi: float = 43.0,
+) -> list[dict]:
+    """Create reference note dicts (onset_s, offset_s, midi, velocity)."""
+    return [
+        {"onset_s": t[0], "offset_s": t[1], "midi": midi, "velocity": 0.8}
+        for t in times
+    ]
+
+
+def test_note_transcription_perfect_match() -> None:
+    """Detected notes match reference exactly → F1=1.0 for onset and note."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5), (3.0, 3.5)], midi=43.0)
+    det = _make_notes([(1.0, 1.5), (2.0, 2.5), (3.0, 3.5)], midi=43.0)
+    result = evaluate_note_transcription(det, ref)
+    assert result["onset_f1"] == pytest.approx(1.0)
+    assert result["note_f1"] == pytest.approx(1.0)
+    assert result["note_f1_octave_invariant"] == pytest.approx(1.0)
+    assert result["pitch_accuracy"] == pytest.approx(1.0)
+    assert result["fragmentation_ratio"] == pytest.approx(1.0)
+
+
+def test_note_transcription_onset_within_tolerance() -> None:
+    """Detected notes shifted by 30ms still match (tolerance=50ms)."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    det = _make_notes([(1.03, 1.5), (2.03, 2.5)], midi=43.0)
+    result = evaluate_note_transcription(det, ref, onset_tol_s=0.05)
+    assert result["onset_f1"] == pytest.approx(1.0)
+    assert result["note_f1"] == pytest.approx(1.0)
+    assert result["mean_onset_error_ms"] == pytest.approx(30.0, abs=1.0)
+
+
+def test_note_transcription_onset_outside_tolerance() -> None:
+    """Detected notes shifted by 100ms → no match with 50ms tolerance."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    det = _make_notes([(1.10, 1.5), (2.10, 2.5)], midi=43.0)
+    result = evaluate_note_transcription(det, ref, onset_tol_s=0.05)
+    assert result["onset_f1"] == pytest.approx(0.0)
+    assert result["onset_tp"] == 0
+    assert result["onset_fn"] == 2
+
+
+def test_note_transcription_wrong_pitch() -> None:
+    """Onset matches but wrong pitch → onset_f1=1.0, note_f1=0.0."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    det = _make_notes([(1.0, 1.5), (2.0, 2.5)], midi=50.0)  # 7 semitones off
+    result = evaluate_note_transcription(det, ref, pitch_tol_st=1.0)
+    assert result["onset_f1"] == pytest.approx(1.0)   # onsets match
+    assert result["note_f1"] == pytest.approx(0.0)    # pitch doesn't
+    assert result["pitch_accuracy"] == pytest.approx(0.0)
+    assert result["mean_pitch_error_st"] == pytest.approx(7.0)
+
+
+def test_note_transcription_octave_wrong_but_same_pc() -> None:
+    """One octave off (12st) → note_f1=0 but octave_invariant_f1=1.0."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    det = _make_notes([(1.0, 1.5), (2.0, 2.5)], midi=55.0)  # G2 → G3
+    result = evaluate_note_transcription(det, ref, pitch_tol_st=1.0)
+    assert result["note_f1"] == pytest.approx(0.0)            # absolute pitch wrong
+    assert result["note_f1_octave_invariant"] == pytest.approx(1.0)  # same pitch class
+
+
+def test_note_transcription_missing_notes() -> None:
+    """Only half of ref notes detected → recall=0.5."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5), (3.0, 3.5), (4.0, 4.5)], midi=43.0)
+    det = _make_notes([(1.0, 1.5), (3.0, 3.5)], midi=43.0)  # only 2 of 4
+    result = evaluate_note_transcription(det, ref)
+    assert result["onset_recall"] == pytest.approx(0.5)
+    assert result["onset_f1"] < 1.0
+
+
+def test_note_transcription_extra_notes() -> None:
+    """Extra phantom detections → low precision."""
+    ref = _make_ref_notes([(1.0, 1.5)], midi=43.0)
+    det = _make_notes([(1.0, 1.5), (5.0, 5.5), (6.0, 6.5)], midi=43.0)  # 2 phantoms
+    result = evaluate_note_transcription(det, ref)
+    assert result["onset_precision"] == pytest.approx(1 / 3, abs=0.01)
+    assert result["onset_recall"] == pytest.approx(1.0)
+    assert result["fragmentation_ratio"] == pytest.approx(3.0)
+
+
+def test_note_transcription_empty_detected() -> None:
+    """No detected notes → F1=0, precision and recall handled gracefully."""
+    ref = _make_ref_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    result = evaluate_note_transcription([], ref)
+    assert result["onset_f1"] == pytest.approx(0.0)
+    assert result["note_f1"] == pytest.approx(0.0)
+    assert result["onset_tp"] == 0
+    assert result["onset_fn"] == 2
+
+
+def test_note_transcription_empty_ref() -> None:
+    """No reference notes → F1=0, counts handled gracefully."""
+    det = _make_notes([(1.0, 1.5), (2.0, 2.5)], midi=43.0)
+    result = evaluate_note_transcription(det, [])
+    assert result["onset_f1"] == pytest.approx(0.0)
+    assert result["onset_fp"] == 2

@@ -1,16 +1,21 @@
 """Sonify a reduced.json into a WAV file for debug/validation.
 
 Reads drum hits, vocal notes, and bass notes from the reduced representation
-and renders them as simple waveforms: noise/sine bursts for drums, sine for
-vocals, triangle wave for bass.  Output is a mono WAV at ``SR`` Hz.
+and renders them using **SoundFont MIDI** (via ``pretty_midi`` + ``pyfluidsynth``)
+when available, falling back to raw waveforms (noise/sine/triangle) otherwise.
+Output is a mono WAV at ``SR`` Hz.
 """
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import soundfile as sf
+
+log = logging.getLogger(__name__)
 
 # ── Tunable constants ──
 # All of these are intentionally module-level so they're easy to tweak
@@ -66,6 +71,157 @@ TAIL_S: float = 0.1
 
 # Peak level after normalization (headroom).
 NORM_PEAK: float = 0.9
+
+# ── SoundFont / MIDI rendering ──
+
+# GM drum map for our component names.
+_GM_DRUM_NOTE: dict[str, int] = {
+    "kick": 36,   # Bass Drum 1
+    "snare": 38,  # Acoustic Snare
+    "hh": 42,     # Closed Hi-Hat
+    "toms": 47,   # Low-Mid Tom
+    "ride": 51,   # Ride Cymbal 1
+    "crash": 49,  # Crash Cymbal 1
+}
+
+# Common locations for the FluidR3 GM SoundFont.
+_SF2_SEARCH_PATHS: list[str] = [
+    "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+    "/usr/share/soundfonts/FluidR3_GM.sf2",
+    "/usr/share/sounds/sf2/default-GM.sf2",
+    "/usr/share/soundfonts/default.sf2",
+]
+
+
+def _find_soundfont() -> str | None:
+    """Return the path to a GM SoundFont, or *None* if not found.
+
+    Checks the ``SOUNDFONT_PATH`` env-var first, then common system paths.
+    """
+    env = os.environ.get("SOUNDFONT_PATH")
+    if env and Path(env).is_file():
+        return env
+    for p in _SF2_SEARCH_PATHS:
+        if Path(p).is_file():
+            return p
+    return None
+
+
+def _pretty_midi_available() -> bool:
+    """Return True if pretty_midi and pyfluidsynth are importable."""
+    try:
+        import pretty_midi as _pm  # noqa: F401
+        import fluidsynth as _fs  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _reduced_to_midi(reduced: dict[str, Any]) -> Any:
+    """Convert a reduced-representation dict into a ``pretty_midi.PrettyMIDI``.
+
+    Creates three instruments: drums (GM channel 10), vocals (Flute, program 73),
+    and bass (Electric Bass finger, program 33).  MIDI pitches are rounded to
+    int; velocities are scaled from 0.0-1.0 to 0-127.
+    """
+    import pretty_midi
+
+    midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+
+    # ── Drums ──
+    drum_inst = pretty_midi.Instrument(program=0, is_drum=True, name="drums")
+    for hit in reduced.get("drums", {}).get("hits", []):
+        comp = hit.get("component", "kick")
+        gm_note = _GM_DRUM_NOTE.get(comp, _GM_DRUM_NOTE["kick"])
+        vel = max(float(hit.get("velocity", 0.5)), DRUM_VEL_FLOOR)
+        dur = _DRUM_DUR.get(comp, DUR_KICK)
+        drum_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(vel * 127))),
+            pitch=gm_note,
+            start=float(hit["t"]),
+            end=float(hit["t"]) + dur,
+        ))
+    midi.instruments.append(drum_inst)
+
+    # ── Vocals (Flute, program 73) ──
+    vocal_inst = pretty_midi.Instrument(program=73, is_drum=False, name="vocals")
+    vocal_notes = _extend_note_durations(
+        reduced.get("vocals", {}).get("notes", []),
+        NOTE_EXTEND_VOCALS_S,
+    )
+    for note in vocal_notes:
+        dur = note["offset_s"] - note["onset_s"]
+        if dur <= 0:
+            continue
+        vel = note.get("velocity", 0.5)
+        vocal_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(vel * 127))),
+            pitch=max(0, min(127, round(note["midi"]))),
+            start=float(note["onset_s"]),
+            end=float(note["offset_s"]),
+        ))
+    midi.instruments.append(vocal_inst)
+
+    # ── Bass (Electric Bass finger, program 33) ──
+    bass_inst = pretty_midi.Instrument(program=33, is_drum=False, name="bass")
+    bass_notes = _extend_note_durations(
+        reduced.get("bass", {}).get("notes", []),
+        NOTE_EXTEND_BASS_S,
+    )
+    for note in bass_notes:
+        dur = note["offset_s"] - note["onset_s"]
+        if dur <= 0:
+            continue
+        vel = note.get("velocity", 0.5)
+        midi_pitch = note["midi"]
+        # Shift into audible bass register (41-65) by adding/removing octaves
+        while midi_pitch < 41:
+            midi_pitch += 12
+        while midi_pitch > 65:
+            midi_pitch -= 12
+        bass_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(vel * 127))),
+            pitch=max(0, min(127, round(midi_pitch))),
+            start=float(note["onset_s"]),
+            end=float(note["offset_s"]),
+        ))
+    midi.instruments.append(bass_inst)
+
+    return midi
+
+
+def _render_midi_to_audio(
+    midi_obj: Any,
+    sr: int,
+    sf2_path: str,
+) -> np.ndarray:
+    """Synthesize a PrettyMIDI object through a SoundFont, return mono float64."""
+    audio = midi_obj.fluidsynth(fs=sr, sf2_path=sf2_path)
+    # fluidsynth returns float64 mono
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    return audio.astype(np.float64)
+
+
+def _render_midi_layer_to_audio(
+    reduced: dict[str, Any],
+    layer: str,
+    sr: int,
+    sf2_path: str,
+) -> np.ndarray:
+    """Render a single layer from *reduced* via SoundFont, return mono float64."""
+    # Build a reduced dict with only the requested layer populated
+    empty_drums: dict[str, Any] = {"hits": []}
+    empty_pitched: dict[str, Any] = {"notes": []}
+    layer_reduced: dict[str, Any] = {
+        "drums": reduced.get("drums", empty_drums) if layer == "drums" else empty_drums,
+        "vocals": reduced.get("vocals", empty_pitched) if layer == "vocals" else empty_pitched,
+        "bass": reduced.get("bass", empty_pitched) if layer == "bass" else empty_pitched,
+    }
+    midi_obj = _reduced_to_midi(layer_reduced)
+    audio = _render_midi_to_audio(midi_obj, sr, sf2_path)
+    return audio
+
 
 # ── Internal helpers ──
 
@@ -284,22 +440,13 @@ def _rms_normalize_layer(buf: np.ndarray, target_rms: float) -> np.ndarray:
     return buf * (target_rms / rms)
 
 
-def sonify_reduced(
+def _sonify_reduced_raw(
     reduced: dict[str, Any],
-    out_path: Path,
-    sr: int = SR,
-) -> None:
-    """Render a reduced-representation dict into a mono WAV file.
+    sr: int,
+) -> np.ndarray:
+    """Render *reduced* using raw waveform synthesis (fallback path).
 
-    Each layer (drums, vocals, bass) is rendered separately, RMS-normalized
-    to a fixed target level, then summed.  This gives stable, predictable
-    loudness ratios regardless of note density.
-
-    Parameters
-    ----------
-    reduced : parsed ``reduced.json`` content (keys: drums, vocals, bass)
-    out_path : destination WAV path (parent dirs created automatically)
-    sr : sample rate (default :data:`SR`)
+    Returns a peak-normalized mono float64 buffer.
     """
     n_samples = _compute_duration_samples(reduced, sr)
 
@@ -361,7 +508,54 @@ def sonify_reduced(
     if peak > 1e-6:
         buf *= NORM_PEAK / peak
 
+    return buf
+
+
+def sonify_reduced(
+    reduced: dict[str, Any],
+    out_path: Path,
+    sr: int = SR,
+) -> None:
+    """Render a reduced-representation dict into a mono WAV file.
+
+    Tries **SoundFont rendering** first (via ``pretty_midi`` + ``pyfluidsynth``).
+    If those dependencies or a SoundFont file are unavailable, falls back to
+    raw waveform synthesis (sine/triangle/noise).
+
+    Parameters
+    ----------
+    reduced : parsed ``reduced.json`` content (keys: drums, vocals, bass)
+    out_path : destination WAV path (parent dirs created automatically)
+    sr : sample rate (default :data:`SR`)
+    """
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Try SoundFont rendering ──
+    sf2_path = _find_soundfont()
+    if _pretty_midi_available() and sf2_path is not None:
+        log.info("sonify: using SoundFont rendering (%s)", sf2_path)
+        try:
+            midi_obj = _reduced_to_midi(reduced)
+            buf = _render_midi_to_audio(midi_obj, sr, sf2_path)
+            # Peak-normalize
+            peak = float(np.max(np.abs(buf)))
+            if peak > 1e-6:
+                buf *= NORM_PEAK / peak
+            sf.write(str(out_path), buf.astype(np.float32), sr)
+            return
+        except Exception:
+            log.warning(
+                "sonify: SoundFont rendering failed, falling back to raw waveforms",
+                exc_info=True,
+            )
+
+    # ── Fallback: raw waveform synthesis ──
+    if sf2_path is None and _pretty_midi_available():
+        log.info("sonify: no SoundFont found, using raw waveform synthesis")
+    elif not _pretty_midi_available():
+        log.info("sonify: pretty_midi/pyfluidsynth not installed, using raw waveform synthesis")
+
+    buf = _sonify_reduced_raw(reduced, sr)
     sf.write(str(out_path), buf.astype(np.float32), sr)
 
 
@@ -418,26 +612,156 @@ def sonify_reduced_layers(
     out_dir: Path,
     sr: int = SR,
 ) -> dict[str, Path]:
-    """Write per-layer debug WAVs and return a dict of name → path.
+    """Write per-layer debug WAVs and return a dict of name -> path.
 
     Writes: reduced_drums_only.wav, reduced_vocals_only.wav,
-    reduced_bass_only.wav, reduced_vocals_plus_bass.wav.
+    reduced_bass_only.wav, reduced_vocals_plus_bass.wav,
+    reduced_bass_only_up1oct.wav.
+
+    Uses SoundFont rendering when available, raw waveforms otherwise.
     """
-    n_samples = _compute_duration_samples(reduced, sr)
+    out_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
 
+    sf2_path = _find_soundfont()
+    use_sf = _pretty_midi_available() and sf2_path is not None
+
+    if use_sf:
+        log.info("sonify_layers: using SoundFont rendering (%s)", sf2_path)
+
+    def _render_single_layer(layer: str) -> np.ndarray:
+        """Render one layer, choosing SoundFont or raw waveforms."""
+        if use_sf:
+            try:
+                return _render_midi_layer_to_audio(reduced, layer, sr, sf2_path)  # type: ignore[arg-type]
+            except Exception:
+                log.warning(
+                    "sonify_layers: SoundFont render failed for %s, using raw",
+                    layer, exc_info=True,
+                )
+        n_samples = _compute_duration_samples(reduced, sr)
+        return _render_layer(reduced, layer, sr, n_samples)
+
     for layer in ("drums", "vocals", "bass"):
-        buf = _render_layer(reduced, layer, sr, n_samples)
+        buf = _render_single_layer(layer)
         p = out_dir / f"reduced_{layer}_only.wav"
         _normalize_and_write(buf, p, sr)
         paths[f"{layer}_only"] = p
 
-    # vocals + bass combined (both at default octave shift)
-    vb = (_render_layer(reduced, "vocals", sr, n_samples)
-          + _render_layer(reduced, "bass", sr, n_samples))
+    # vocals + bass combined
+    vb_buf = _render_single_layer("vocals")
+    bass_buf = _render_single_layer("bass")
+    # Pad shorter buffer to match longer one
+    max_len = max(len(vb_buf), len(bass_buf))
+    if len(vb_buf) < max_len:
+        vb_buf = np.pad(vb_buf, (0, max_len - len(vb_buf)))
+    if len(bass_buf) < max_len:
+        bass_buf = np.pad(bass_buf, (0, max_len - len(bass_buf)))
     p = out_dir / "reduced_vocals_plus_bass.wav"
-    _normalize_and_write(vb, p, sr)
+    _normalize_and_write(vb_buf + bass_buf, p, sr)
     paths["vocals_plus_bass"] = p
+
+    # Bass shifted up 1 octave (for small-speaker audibility comparison)
+    bass_up = dict(reduced)
+    bass_notes_up = []
+    for n in reduced.get("bass", {}).get("notes", []):
+        bass_notes_up.append(dict(n, midi=n["midi"] + 12))
+    bass_up["bass"] = dict(reduced.get("bass", {}), notes=bass_notes_up)
+    bass_up["drums"] = {"hits": []}
+    bass_up["vocals"] = {"notes": []}
+    if use_sf:
+        try:
+            buf_up = _render_midi_layer_to_audio(bass_up, "bass", sr, sf2_path)  # type: ignore[arg-type]
+        except Exception:
+            n_samples = _compute_duration_samples(bass_up, sr)
+            buf_up = _render_layer(bass_up, "bass", sr, n_samples)
+    else:
+        n_samples = _compute_duration_samples(bass_up, sr)
+        buf_up = _render_layer(bass_up, "bass", sr, n_samples)
+    p = out_dir / "reduced_bass_only_up1oct.wav"
+    _normalize_and_write(buf_up, p, sr)
+    paths["bass_only_up1oct"] = p
+
+    return paths
+
+
+# ── MIDI export (for reference creation / manual correction) ──
+
+
+def export_reduced_to_midi_files(
+    reduced: dict[str, Any],
+    out_dir: Path,
+) -> dict[str, Path]:
+    """Export each layer of *reduced* as a separate MIDI file.
+
+    Writes ``<out_dir>/reduced_drums.mid``, ``reduced_vocals.mid``,
+    ``reduced_bass.mid``.  Uses the raw detected pitches (no octave shift)
+    so the user can open them in a MIDI editor alongside the original audio
+    and correct wrong notes.
+
+    Returns a dict of ``{layer_name: path}``.
+
+    Requires ``pretty_midi`` (``pip install pretty_midi``).
+    """
+    import pretty_midi
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+
+    # ── Drums ──
+    drum_midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+    drum_inst = pretty_midi.Instrument(program=0, is_drum=True, name="drums")
+    for hit in reduced.get("drums", {}).get("hits", []):
+        comp = hit.get("component", "kick")
+        gm_note = _GM_DRUM_NOTE.get(comp, _GM_DRUM_NOTE["kick"])
+        vel = max(float(hit.get("velocity", 0.5)), DRUM_VEL_FLOOR)
+        dur = _DRUM_DUR.get(comp, DUR_KICK)
+        drum_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(vel * 127))),
+            pitch=gm_note,
+            start=float(hit["t"]),
+            end=float(hit["t"]) + dur,
+        ))
+    drum_midi.instruments.append(drum_inst)
+    p = out_dir / "reduced_drums.mid"
+    drum_midi.write(str(p))
+    paths["drums"] = p
+
+    # ── Vocals — raw pitches, no octave shift ──
+    vocal_midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+    vocal_inst = pretty_midi.Instrument(program=73, is_drum=False, name="vocals")
+    for note in reduced.get("vocals", {}).get("notes", []):
+        dur = note["offset_s"] - note["onset_s"]
+        if dur <= 0:
+            continue
+        vocal_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(note.get("velocity", 0.5) * 127))),
+            pitch=max(0, min(127, round(note["midi"]))),
+            start=float(note["onset_s"]),
+            end=float(note["offset_s"]),
+        ))
+    vocal_midi.instruments.append(vocal_inst)
+    p = out_dir / "reduced_vocals.mid"
+    vocal_midi.write(str(p))
+    paths["vocals"] = p
+
+    # ── Bass — raw pitches, no octave shift ──
+    bass_midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+    bass_inst = pretty_midi.Instrument(program=33, is_drum=False, name="bass")
+    for note in reduced.get("bass", {}).get("notes", []):
+        dur = note["offset_s"] - note["onset_s"]
+        if dur <= 0:
+            continue
+        bass_inst.notes.append(pretty_midi.Note(
+            velocity=max(1, min(127, int(note.get("velocity", 0.5) * 127))),
+            pitch=max(0, min(127, round(note["midi"]))),
+            start=float(note["onset_s"]),
+            end=float(note["offset_s"]),
+        ))
+    bass_midi.instruments.append(bass_inst)
+    p = out_dir / "reduced_bass.mid"
+    bass_midi.write(str(p))
+    paths["bass"] = p
 
     return paths
 

@@ -20,6 +20,17 @@ from typing import Any
 
 import numpy as np
 
+# ── GM drum map (MIDI note → component name) ──
+
+_GM_NOTE_TO_COMPONENT: dict[int, str] = {
+    35: "kick", 36: "kick",
+    38: "snare", 40: "snare",
+    42: "hh", 44: "hh", 46: "hh",
+    47: "toms", 48: "toms", 45: "toms", 43: "toms", 41: "toms",
+    51: "ride", 59: "ride",
+    49: "crash", 57: "crash",
+}
+
 # ── Benchmark directory layout ──
 
 _BENCHMARK_DIR = Path(__file__).resolve().parent.parent / "benchmark"
@@ -226,6 +237,175 @@ def evaluate_onsets(
         "fp": fp,
         "fn": fn,
         "tolerance_s": tolerance_s,
+    }
+
+
+# ── Note-level transcription evaluation ──
+
+
+def _load_midi_reference_notes(midi_path: Path, layer: str) -> list[dict[str, Any]]:
+    """Load notes from a MIDI reference file.
+
+    Returns a list of dicts with ``onset_s``, ``midi``, and ``velocity``.
+    For drums, also includes ``component`` (kick/snare/hh/etc.) and ``t``.
+
+    Returns an empty list if ``pretty_midi`` is not installed.
+    """
+    try:
+        import pretty_midi
+    except ImportError:
+        return []
+
+    pm = pretty_midi.PrettyMIDI(str(midi_path))
+
+    if layer == "drums":
+        hits: list[dict[str, Any]] = []
+        for inst in pm.instruments:
+            if inst.is_drum:
+                for note in inst.notes:
+                    comp = _GM_NOTE_TO_COMPONENT.get(note.pitch, "kick")
+                    hits.append({
+                        "t": note.start,
+                        "onset_s": note.start,
+                        "component": comp,
+                        "midi": float(note.pitch),
+                        "velocity": note.velocity / 127.0,
+                    })
+        return sorted(hits, key=lambda h: h["t"])
+    else:
+        notes: list[dict[str, Any]] = []
+        for inst in pm.instruments:
+            if not inst.is_drum:
+                for note in inst.notes:
+                    notes.append({
+                        "onset_s": note.start,
+                        "offset_s": note.end,
+                        "midi": float(note.pitch),
+                        "velocity": note.velocity / 127.0,
+                    })
+        return sorted(notes, key=lambda n: n["onset_s"])
+
+
+def evaluate_note_transcription(
+    detected_notes: list[dict[str, Any]],
+    ref_notes: list[dict[str, Any]],
+    *,
+    onset_tol_s: float = 0.05,
+    pitch_tol_st: float = 1.0,
+) -> dict[str, Any]:
+    """Note-level precision / recall / F1 against a MIDI reference.
+
+    Computes:
+
+    - **onset_f1**: onset-only matching (right time, any pitch)
+    - **note_f1**: onset + absolute pitch matching
+    - **note_f1_octave_invariant**: onset + pitch-class matching (wraps octaves)
+    - **pitch_accuracy**: % of onset-matched pairs with correct pitch
+    - **mean_onset_error_ms** / **mean_pitch_error_st**: average errors
+
+    Both *detected_notes* and *ref_notes* must have ``onset_s`` and ``midi``
+    fields.  Drums hits should also have them (``onset_s`` = ``t``,
+    ``midi`` = GM note number — for drums only onset matching is meaningful).
+    """
+    if not ref_notes and not detected_notes:
+        return {"ref_note_count": 0, "det_note_count": 0, "onset_f1": 0.0, "note_f1": 0.0}
+
+    det = sorted(detected_notes, key=lambda n: n["onset_s"])
+    ref = sorted(ref_notes, key=lambda n: n["onset_s"])
+
+    def _greedy_match(
+        ref_list: list[dict[str, Any]],
+        det_list: list[dict[str, Any]],
+        require_pitch: bool,
+        octave_invariant: bool = False,
+    ) -> tuple[int, list[float], list[float]]:
+        """Return (match_count, onset_errors_ms, pitch_errors_st).
+
+        pitch_errors_st is always collected for matched pairs (used for
+        pitch_accuracy computation even in the onset-only pass).
+        """
+        matched_det: set[int] = set()
+        match_count = 0
+        onset_errors: list[float] = []
+        pitch_errors: list[float] = []
+
+        for rn in ref_list:
+            best_dist = float("inf")
+            best_di = -1
+            for di, dn in enumerate(det_list):
+                if di in matched_det:
+                    continue
+                odist = abs(dn["onset_s"] - rn["onset_s"])
+                if dn["onset_s"] > rn["onset_s"] + onset_tol_s:
+                    break
+                if odist > onset_tol_s:
+                    continue
+                if require_pitch:
+                    if octave_invariant:
+                        rpc = int(round(rn["midi"])) % 12
+                        dpc = int(round(dn["midi"])) % 12
+                        pdist = min(abs(rpc - dpc), 12 - abs(rpc - dpc))
+                    else:
+                        pdist = abs(dn["midi"] - rn["midi"])
+                    if pdist > pitch_tol_st:
+                        continue
+                if odist < best_dist:
+                    best_dist = odist
+                    best_di = di
+
+            if best_di >= 0:
+                matched_det.add(best_di)
+                match_count += 1
+                onset_errors.append(best_dist * 1000.0)
+                # Always record pitch error for matched pairs
+                pitch_errors.append(abs(det_list[best_di]["midi"] - rn["midi"]))
+
+        return match_count, onset_errors, pitch_errors
+
+    def _f1(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
+        return round(prec, 4), round(rec, 4), round(f1, 4)
+
+    # Onset-only
+    o_tp, o_err_ms, o_pitch_err = _greedy_match(ref, det, require_pitch=False)
+    o_fp = len(det) - o_tp
+    o_fn = len(ref) - o_tp
+    o_prec, o_rec, o_f1 = _f1(o_tp, o_fp, o_fn)
+
+    # Pitch accuracy from onset-matched pairs (separate pass without pitch filter)
+    pitch_accuracy = (
+        sum(1 for e in o_pitch_err if e <= pitch_tol_st) / len(o_pitch_err)
+        if o_pitch_err else 0.0
+    )
+
+    # Note matching (onset + absolute pitch)
+    n_tp, _, _ = _greedy_match(ref, det, require_pitch=True, octave_invariant=False)
+    n_fp = len(det) - n_tp
+    n_fn = len(ref) - n_tp
+    n_prec, n_rec, n_f1 = _f1(n_tp, n_fp, n_fn)
+
+    # Octave-invariant note matching (onset + pitch-class)
+    pc_tp, _, _ = _greedy_match(ref, det, require_pitch=True, octave_invariant=True)
+    pc_fp = len(det) - pc_tp
+    pc_fn = len(ref) - pc_tp
+    _, _, pc_f1 = _f1(pc_tp, pc_fp, pc_fn)
+
+    return {
+        "ref_note_count": len(ref),
+        "det_note_count": len(det),
+        "fragmentation_ratio": round(len(det) / len(ref), 3) if len(ref) > 0 else 0.0,
+        "onset_tp": o_tp, "onset_fp": o_fp, "onset_fn": o_fn,
+        "onset_precision": o_prec, "onset_recall": o_rec, "onset_f1": o_f1,
+        "note_tp": n_tp, "note_fp": n_fp, "note_fn": n_fn,
+        "note_precision": n_prec, "note_recall": n_rec, "note_f1": n_f1,
+        "note_f1_octave_invariant": pc_f1,
+        "pitch_accuracy": round(pitch_accuracy, 4),
+        "mean_onset_error_ms": round(float(np.mean(o_err_ms)), 1) if o_err_ms else 0.0,
+        "mean_pitch_error_st": round(float(np.mean(o_pitch_err)), 2) if o_pitch_err else 0.0,
+        "onset_tol_s": onset_tol_s,
+        "pitch_tol_st": pitch_tol_st,
     }
 
 
@@ -488,8 +668,14 @@ def evaluate_register_stability(
 def evaluate_layer(
     layer_data: dict[str, Any],
     reference: dict[str, Any],
+    *,
+    ref_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Evaluate a single extracted layer against its reference."""
+    """Evaluate a single extracted layer against its reference.
+
+    If *ref_dir* is provided and a ``<layer>_notes.mid`` file exists there,
+    note-level transcription metrics are also computed.
+    """
     layer = reference["layer"]
 
     if layer == "drums":
@@ -542,6 +728,23 @@ def evaluate_layer(
         ref_times = [o["t"] for o in ref_onsets]
         result["onsets"] = evaluate_onsets(ext_times, ref_times)
 
+    # ── Note-level transcription (requires <layer>_notes.mid) ──
+    if ref_dir is not None:
+        midi_path = ref_dir / f"{layer}_notes.mid"
+        if midi_path.exists() and events:
+            ref_notes = _load_midi_reference_notes(midi_path, layer)
+            if ref_notes:
+                # For drums: onset-only matching (pitch = GM note, not musical pitch)
+                if layer == "drums":
+                    det_hits = [{"onset_s": e["t"], "midi": 0.0} for e in events]
+                    ref_hits = [{"onset_s": n["onset_s"], "midi": 0.0} for n in ref_notes]
+                    nt = evaluate_note_transcription(
+                        det_hits, ref_hits, onset_tol_s=0.05, pitch_tol_st=999.0,
+                    )
+                else:
+                    nt = evaluate_note_transcription(events, ref_notes)
+                result["note_transcription"] = nt
+
     return result
 
 
@@ -564,7 +767,7 @@ def evaluate_reduced(
             results["layers"][layer] = {"error": "no extraction data", "layer": layer}
             continue
         reference = load_reference(ref_path)
-        results["layers"][layer] = evaluate_layer(layer_data, reference)
+        results["layers"][layer] = evaluate_layer(layer_data, reference, ref_dir=ref_dir)
 
     return results
 
@@ -713,6 +916,29 @@ def format_report(results: dict[str, Any]) -> str:
                 f"  Onsets: F1={ons['f1']:.2f} "
                 f"(P={ons['precision']:.2f} R={ons['recall']:.2f}) "
                 f"@ {ons['tolerance_s'] * 1000:.0f}ms tolerance"
+            )
+
+        nt = lr.get("note_transcription")
+        if nt:
+            lines.append("  [Note-level transcription — vs MIDI reference]")
+            lines.append(
+                f"    Onset F1:  {nt['onset_f1']:.3f} "
+                f"(P={nt['onset_precision']:.3f} R={nt['onset_recall']:.3f}) "
+                f"| timing error: {nt['mean_onset_error_ms']:.1f}ms avg"
+            )
+            lines.append(
+                f"    Note  F1:  {nt['note_f1']:.3f} "
+                f"(P={nt['note_precision']:.3f} R={nt['note_recall']:.3f}) "
+                f"| pitch_tol=±{nt['pitch_tol_st']:.0f}st"
+            )
+            lines.append(
+                f"    OctInv F1: {nt['note_f1_octave_invariant']:.3f} "
+                f"| pitch accuracy: {nt['pitch_accuracy']:.1%} "
+                f"| avg pitch error: {nt['mean_pitch_error_st']:.2f}st"
+            )
+            lines.append(
+                f"    Counts: ref={nt['ref_note_count']} det={nt['det_note_count']} "
+                f"fragmentation={nt['fragmentation_ratio']:.2f}x"
             )
 
     return "\n".join(lines)

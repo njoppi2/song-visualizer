@@ -29,6 +29,10 @@ stems = [
 notes = [
   "basic-pitch",
 ]
+sonify = [
+  "pretty_midi",
+  "pyfluidsynth",
+]
 lyrics = [
   "openai-whisper",
   "mutagen>=1.47",
