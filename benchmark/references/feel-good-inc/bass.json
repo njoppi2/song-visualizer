@@ -2,7 +2,7 @@
   "layer": "bass",
   "confidence": "silver",
   "source": "Guitar tabs + listening",
-  "description": "Bass plays a distinctive G2 octave riff. Drops out completely during rap verse and windmill section.",
+  "description": "Bass is a sub-bass synth playing an Eb1 riff (38-62Hz). Drops out completely during rap verse and windmill section.",
   "activity": [
     {"start_s": 0.0,   "end_s": 12.5,  "active": false, "label": "intro"},
     {"start_s": 12.5,  "end_s": 63.0,  "active": true,  "label": "verse1+chorus1"},
@@ -12,13 +12,13 @@
     {"start_s": 167.0, "end_s": 222.0, "active": true,  "label": "verse3+chorus3+outro"}
   ],
   "pitch": {
-    "root_midi": 43,
-    "root_name": "G2",
-    "root_pc": 7,
-    "scale_pcs": [7, 10, 2, 3],
-    "scale_names": ["G", "Bb", "D", "Eb"],
-    "range": [38, 50],
-    "range_names": ["D2", "D3"],
-    "description": "Mainly G2 (43) with octave jumps to G3 (55) and passing tones around D2-D3. Riff uses G minor pentatonic subset: G, Bb, D, Eb."
+    "root_midi": 27,
+    "root_name": "Eb1",
+    "root_pc": 3,
+    "scale_pcs": [3, 6, 8, 10, 11],
+    "scale_names": ["Eb", "Gb", "Ab", "Bb", "B"],
+    "range": [27, 39],
+    "range_names": ["Eb1", "Eb2"],
+    "description": "Sub-bass synth. Root Eb1 (38.9Hz). Riff notes: Eb1(27), F1(29), Gb1(30), Ab1(32), Bb1(34), B1(35). MIDI 27-39 range."
   }
 }

@@ -796,7 +796,7 @@ _CQT_REFINE_MAX_SHIFT_ST: float = 4.0  # reject refinements > this many semitone
 _CQT_REFINE_HARMONIC_MARGIN: float = 4.0  # librosa.effects.harmonic margin
 _BASS_EXPECTED_MIDI_LO: float = 28.0   # lowest expected bass MIDI (E1)
 _BASS_EXPECTED_MIDI_HI: float = 60.0   # highest expected bass MIDI (C4)
-_BASS_EXPECTED_MEDIAN_LO: float = 34.0 # median bass MIDI should be above this (Bb1) — lowered from 36 to avoid pYIN B1 boundary miss
+_BASS_EXPECTED_MEDIAN_LO: float = 38.0 # median bass MIDI should be above this (D2) — triggers +12 shift when extraction lands in wrong octave
 _BASS_EXPECTED_MEDIAN_HI: float = 55.0 # median bass MIDI should be below this (G3)
 
 
@@ -840,6 +840,8 @@ def _refine_bass_pitch_cqt(
     notes: list[dict[str, Any]],
     y: np.ndarray,
     sr: int,
+    *,
+    allow_upward_shift: bool = True,
 ) -> list[dict[str, Any]]:
     """Fix per-note sub-harmonic errors using CQT harmonic ratio test.
 
@@ -932,7 +934,7 @@ def _refine_bass_pitch_cqt(
         e_up = _cqt_energy_at_midi(seg, midi + 12)
         e_dn = _cqt_energy_at_midi(seg, midi - 12)
 
-        if e_up > e_at * 1.2 and (midi + 12) <= _BASS_EXPECTED_MIDI_HI:
+        if allow_upward_shift and e_up > e_at * 1.2 and (midi + 12) <= _BASS_EXPECTED_MIDI_HI:
             out.append(dict(n, midi=round(midi + 12, 2)))
         elif e_dn > e_at * 1.5 and (midi - 12) >= _BASS_EXPECTED_MIDI_LO:
             out.append(dict(n, midi=round(midi - 12, 2)))
@@ -1008,6 +1010,7 @@ def extract_bass_notes(
     hop_length: int = 512,
     beat_times_s: Sequence[float] | np.ndarray | None = None,
     scale_pcs: list[int] | None = None,
+    sub_bass_mode: bool = False,
 ) -> dict[str, Any]:
     """Top-level bass note dispatcher — picks best available source.
 
@@ -1023,6 +1026,8 @@ def extract_bass_notes(
         quantization.  When provided, notes are snapped to the nearest
         scale degree (±2 semitones) after CQT pitch refinement and before
         energy gating.
+    sub_bass_mode : when True, disables CQT upward shifts (prevents harmonic
+        tracking on sub-bass synths where overtones are louder than fundamentals).
 
     Returns
     -------
@@ -1052,9 +1057,12 @@ def extract_bass_notes(
         # Merge adjacent fragments (±1 semitone, ≤100ms gap) before octave correction
         notes = _merge_adjacent_notes(notes, midi_tol=1, max_gap_s=0.10)
         # Global octave fix first — shift ALL notes if median is wrong octave
-        notes = _bass_global_octave_fix(notes)
+        # In sub_bass_mode the input notes are already in the correct register;
+        # skip the upward-shift path to avoid pushing fundamentals to harmonics.
+        if not sub_bass_mode:
+            notes = _bass_global_octave_fix(notes)
         # Then per-note CQT harmonic ratio test for remaining outliers
-        notes = _refine_bass_pitch_cqt(notes, y, sr)
+        notes = _refine_bass_pitch_cqt(notes, y, sr, allow_upward_shift=not sub_bass_mode)
         # Finally, context-based smoothing within the corrected register
         notes = _correct_octave_by_context(notes)
 

@@ -382,9 +382,10 @@ def test_bass_notes_schema() -> None:
 
 def test_bass_notes_basic_pitch_source() -> None:
     """Mock basic-pitch note_events → source='basic_pitch', correct field remapping."""
+    # Use MIDI values with median > _BASS_EXPECTED_MEDIAN_LO (38) so global octave fix stays idle.
     events = [
-        {"start_s": 1.0, "end_s": 1.5, "midi": 40.123, "velocity": 0.7},
-        {"start_s": 2.0, "end_s": 2.4, "midi": 35.0, "velocity": 0.5},
+        {"start_s": 1.0, "end_s": 1.5, "midi": 43.123, "velocity": 0.7},
+        {"start_s": 2.0, "end_s": 2.4, "midi": 43.0, "velocity": 0.5},
     ]
     y = np.zeros(SR * 3, dtype=np.float32)
     result = extract_bass_notes(events, None, y, SR)
@@ -392,7 +393,7 @@ def test_bass_notes_basic_pitch_source() -> None:
     assert len(result["notes"]) == 2
     assert result["notes"][0]["onset_s"] == 1.0
     assert result["notes"][0]["offset_s"] == 1.5
-    assert result["notes"][0]["midi"] == 40.12  # rounded to 2dp
+    assert result["notes"][0]["midi"] == 43.12  # rounded to 2dp
     assert result["notes"][1]["velocity"] == 0.5
 
 

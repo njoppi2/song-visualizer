@@ -73,11 +73,14 @@ def _build_stem_analyses(
     hop_length = 512
     frame_length = 2048
 
-    # Key estimation is disabled — Krumhansl-Kessler profiles on Demucs stems
-    # consistently estimate the wrong key, and scale snapping with the wrong key
-    # degrades pitch-class accuracy.  Once a reliable key estimator is available,
-    # re-enable this block and pass key_scale_pcs to extract_bass_notes().
-    key_scale_pcs: list[int] | None = None
+    # Key estimation from the full mix audio (more reliable than individual Demucs
+    # stems, which have bleed artifacts that corrupt the chroma profile).
+    try:
+        y_mix, _sr_mix = librosa.load(str(audio_path), sr=22050, mono=True)
+        mix_chroma = other_chroma_12(np.asarray(y_mix, dtype=np.float32), 22050)
+        key_scale_pcs: list[int] | None = estimate_key_scale(mix_chroma)
+    except Exception:
+        key_scale_pcs = None
 
     for name, stem_path in stems.stems.items():
         y, sr = librosa.load(stem_path, sr=22050, mono=True)
@@ -133,8 +136,17 @@ def _build_stem_analyses(
             )
         elif name == "bass":
             feats["pitch_hz"] = bass_pitch_hz(y, int(sr), hop_length=hop_length, frame_length=frame_length)
+            # Detect if stem is sub-bass dominant (< 80Hz), e.g. synth sub-bass.
+            # Restrict basic-pitch max frequency to avoid tracking upper harmonics.
+            _S = np.abs(librosa.stft(y=y, n_fft=4096, hop_length=1024)) ** 2
+            _freqs = librosa.fft_frequencies(sr=int(sr), n_fft=4096)
+            _sub = float(_S[(_freqs < 80.0), :].mean())
+            _mid = float(_S[(_freqs >= 80.0) & (_freqs < 300.0), :].mean())
+            _bass_max_freq = 80.0 if (_sub > _mid * 1.5) else 400.0
             try:
-                feats["note_events"] = bass_note_events_basic_pitch(str(stem_path))
+                feats["note_events"] = bass_note_events_basic_pitch(
+                    str(stem_path), maximum_frequency=_bass_max_freq
+                )
             except Exception:
                 pass
 
@@ -146,6 +158,7 @@ def _build_stem_analyses(
                 y=y, sr=int(sr), hop_length=hop_length,
                 beat_times_s=beat_times,
                 scale_pcs=key_scale_pcs,
+                sub_bass_mode=(_bass_max_freq <= 80.0),
             )
             feats["bass_notes"] = bass_notes
 
