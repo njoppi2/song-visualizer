@@ -67,8 +67,10 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - `cli.py` has a local `_copy_or_link` helper (intentional — separate from `stems.py`'s internal copy logic).
 - Drum hit extraction (`songviz/reduction.py`):
   - First piece of the reduced representation (`analysis/reduced.json`, `"drums"` key).
-  - DrumSep path: per-component onset strength + peak-picking with tuned per-instrument parameters.
+  - **Template path (primary)**: `extract_drum_hits_template` — beat-level groove detection. Computes per-beat RMS for each DrumSep component, applies relative-energy (deviation above 8-beat running mean) to strip reverb/bleed baseline, detects kick/snare phase via 2-phase energy scoring, places hits EXACTLY on beat times (zero timing jitter). Hi-hat added at every beat + midpoint ("and"). Source: `"template"`. Activity F1 improved from ~0.85 to 1.00 on Feel Good Inc.
+  - DrumSep onset path (first fallback): per-component onset strength + peak-picking with tuned per-instrument parameters.
   - Heuristic fallback: onset detect on full drum stem + spectral band classification (kick <150Hz, snare 150–2500Hz, hh >2500Hz).
+  - Helper functions: `_beat_rms(y, beat_arr, sr)` — per-beat RMS array; `_relative_energy(rms, window=8)` — deviation above running mean, normalized to [0,1].
   - Dual velocity: `velocity` (per-component normalized 0–1) for dynamics, `velocity_raw` (unnormalized RMS) for cross-component loudness.
   - Beat alignment: `beat_idx` + `beat_phase` [0.0, 1.0) preserving syncopation/offbeat info.
   - Auto-wired into `_build_stem_analyses()` in `pipeline.py`; writes `reduced.json` with read-merge-write pattern for future stem extensions.
@@ -81,13 +83,15 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - Auto-wired into `_build_stem_analyses()` vocals block; read-merge-write into `reduced.json`.
 - Bass note extraction (`songviz/reduction.py`):
   - Third piece of the reduced representation (`analysis/reduced.json`, `"bass"` key).
-  - **Primary: basic-pitch** note events (from `bass_note_events_basic_pitch`) → same dispatcher pattern as vocals. Bass-specific thresholds: onset=0.50, frame=0.25, min_note=150ms, freq 30–400 Hz (exposed as `_BASS_BP_*` constants in `features.py`).
-  - **Octave correction pipeline** (both basic-pitch and pYIN paths): (1) `_bass_global_octave_fix` shifts ALL notes ±12 when median MIDI is outside expected bass register (36–55); (2) `_refine_bass_pitch_cqt` per-note CQT harmonic ratio test — if octave-above has more energy than detected frequency, shift up 12 (sub-harmonic artifact fix); (3) `_correct_octave_by_context` shifts ±12 toward local median (window=5, min_gain=6). Benchmark: in_range_pct 50%→84%, below_range_pct 49%→11%, octave_jump_pct 6%→3%.
+  - **Priority: torchcrepe > basic-pitch > pYIN**. Added `crepe_pitch_hz` parameter to `extract_bass_notes`.
+  - **Primary: torchcrepe** (via `bass_pitch_crepe` in `features.py`) — neural F0 tracker using CREPE `full` model with `weighted_argmax` decoder, fmin=40 Hz, fmax=400 Hz (or 80 Hz in sub_bass_mode). Resamples audio to 16 kHz, confidence-gates frames with periodicity < 0.3, RMS-gates silence, quantizes to nearest semitone. 3× more voiced frames than pYIN (51% vs 17% coverage). Pitch-class accuracy jumped from 38.8% to 100% in-scale on Feel Good Inc. Note: CREPE `tiny` + Viterbi fails at sub-bass (periodicity = -inf); must use `full` + `weighted_argmax`. Helper: `_torchcrepe_available()` availability check.
+  - **Secondary: basic-pitch** note events (from `bass_note_events_basic_pitch`) → same dispatcher pattern as vocals. Bass-specific thresholds: onset=0.50, frame=0.25, min_note=150ms, freq 30–400 Hz (exposed as `_BASS_BP_*` constants in `features.py`).
+  - **Octave correction pipeline** (basic-pitch and pYIN paths, partial for crepe): (1) `_bass_global_octave_fix` shifts ALL notes ±12 when median MIDI is outside expected bass register (36–55); (2) `_refine_bass_pitch_cqt` per-note CQT harmonic ratio test — if octave-above has more energy than detected frequency, shift up 12 (sub-harmonic artifact fix); (3) `_correct_octave_by_context` shifts ±12 toward local median (window=5, min_gain=6). Benchmark: in_range_pct 50%→84%, below_range_pct 49%→11%, octave_jump_pct 6%→3%.
   - **Key estimation disabled**: `estimate_key_scale` (Krumhansl-Kessler profiles) and `_snap_bass_to_scale` exist but are NOT used in the pipeline — Demucs stems consistently yield wrong key estimates (e.g. F# major for G minor songs), and scale snapping with the wrong key degrades pitch-class accuracy. Re-enable when a reliable key estimator is available.
-  - **Energy gating**: `_gate_and_prune_bass_notes` removes false-positive notes in near-silent stem regions (RMS threshold = 0.5 × 10th-percentile of nonzero per-note RMS); `_rescale_velocity_to_stem_energy` replaces basic-pitch confidence / pYIN self-normalized velocity with stem-energy-based velocity. Isolated weak notes (>4s gap to neighbors AND velocity <0.35) also pruned. Applied in both basic-pitch and pYIN paths.
+  - **Energy gating**: `_gate_and_prune_bass_notes` removes false-positive notes in near-silent stem regions (RMS threshold = 0.5 × 10th-percentile of nonzero per-note RMS); `_rescale_velocity_to_stem_energy` replaces basic-pitch confidence / pYIN self-normalized velocity with stem-energy-based velocity. Isolated weak notes (>4s gap to neighbors AND velocity <0.35) also pruned. Applied in all paths.
   - **Fallback: pYIN** pitch track → note events with gap-merge (`max_gap_frames=3`).
   - Same schema as vocals: `onset_s`/`offset_s`/`midi`/`velocity`/`beat_idx`/`beat_phase`.
-  - `source`: `"basic_pitch"`, `"pyin"`, or `"none"`.
+  - `source`: `"crepe"`, `"basic_pitch"`, `"pyin"`, or `"none"`.
   - Auto-wired into `_build_stem_analyses()` bass block; read-merge-write into `reduced.json`.
 - Sonifier (`songviz/sonify.py`):
   - `songviz sonify <audio>` reads `analysis/reduced.json` and writes `analysis/reduced.wav`.
@@ -136,22 +140,24 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - **Not yet done**: pYIN pitch summary, `lyrics-aligner` fallback (wav2vec2).
 
 ## Current priorities
-- **Milestone 2: Extraction quality** (mostly complete):
-  - Bass octave accuracy: ✓ (in_range 84%, below_range 11%, octave_jump 3%)
-  - Vocal octave accuracy: ✓ (in_range 94%, octave_jump 0.8%)
-  - Bass pitch-class accuracy: ✗ (in_scale 45%, root 6%) — blocked on key estimation
+- **Milestone 2: Extraction quality** (substantially improved 2026-04-12):
+  - Drums activity F1: ✓ 1.00 on Feel Good Inc (beat-level template extraction)
+  - Bass pitch range: ✓ 100% in range (was 83.5% below range with basic-pitch)
+  - Bass in-scale: ✓ 100% on Feel Good Inc (was 38.8% with basic-pitch)
+  - Bass pitch-class root match: ✗ root still not detected correctly (F# dominates instead of Eb)
   - **Next milestone**: M3 Harmony + Arrangement (chord detection may enable bass pitch correction)
 - **Reduced representation** (Phase 4 — operational):
-  - `songviz/reduction.py`: all three layers implemented — drums (DrumSep + heuristic fallback), vocals (basic-pitch + pYIN + octave correction), bass (basic-pitch + pYIN + global octave fix + CQT harmonic test + context correction + energy gating)
+  - `songviz/reduction.py`: all three layers — drums (template → DrumSep onset → heuristic fallback), vocals (basic-pitch + pYIN + octave correction), bass (torchcrepe → basic-pitch → pYIN + octave correction + energy gating)
   - Output: `analysis/reduced.json` — unified file with `schema_version` and `"drums"`, `"vocals"`, `"bass"` keys
   - Wired into `pipeline.py` `_build_stem_analyses()` — auto-generates `reduced.json` during stems4 render
   - Sonifier done: `songviz sonify <audio>` → `analysis/reduced.wav` + per-layer debug WAVs + `--diagnose` stats
+  - Beat quantization in `sonify.py`: `_quantize_for_sonification` snaps drum hits and bass onsets to 16th-note grid before synthesis
   - Benchmark: `songviz bench --songs-dir songs` runs eval across 5 songs with aggregate metrics
-  - **Benchmark results (5 songs aggregate, 2026-03-23)**:
-    - **Bass**: activity_f1=0.88, in_range_pct=84.3% (target ≥70% ✓), below_range_pct=10.5% (target <15% ✓), octave_jump_pct=3.3% (target <8% ✓), in_scale_pct=44.7% (target ≥70% ✗), root_pc_pct=6.0% (target ≥25% ✗)
-    - **Vocals**: activity_f1=0.90, in_range_pct=93.8% (target >80% ✓), below_range_pct=6.2% (target <15% ✓), octave_jump_pct=0.8% (target <8% ✓)
-    - **Drums**: activity_f1=0.85
-  - **Known limitation**: bass pitch-class accuracy (in_scale_pct, root_pc_pct) remains poor across all pitch trackers (basic-pitch, pYIN, CREPE). ±1-2 semitone errors at 30-100 Hz are fundamental to current extractors. Key estimation (Krumhansl-Kessler) on Demucs stems is unreliable, making scale snapping counterproductive. May require chord-aware pitch correction from harmony analysis (Milestone 3).
+  - **Benchmark results (Feel Good Inc, 2026-04-12 — after template drums + torchcrepe bass)**:
+    - **Drums**: activity_f1=1.00, onset_f1=0.234 (was ~0.05), pitch_accuracy=100% (template hits on beat)
+    - **Bass**: activity_f1=0.75, in_range_pct=100% (was 83.5%), in_scale_pct=100% (was 38.8%), onset_f1=0.137
+    - **Vocals**: activity_f1=0.86 (unchanged)
+  - **Known limitation**: bass onset F1 remains low (0.137) — crepe pitch track segments don't align with MIDI reference onset times; timing comes from pitch-track segment boundaries, not note attacks. Root PC detection poor (F# dominates vs expected Eb).
   - Detailed plan: `docs/06_reduced_representation.md`
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word

@@ -154,6 +154,113 @@ def bass_pitch_hz(
     )
 
 
+def _torchcrepe_available() -> bool:
+    """Return True if torchcrepe is importable."""
+    try:
+        import torchcrepe  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def bass_pitch_crepe(
+    y: np.ndarray,
+    sr: int,
+    *,
+    hop_length: int = 512,
+    fmin: float = 40.0,
+    fmax: float = 400.0,
+    confidence_threshold: float = 0.3,
+) -> np.ndarray:
+    """Per-frame bass pitch track using torchcrepe.
+
+    Designed for bass content (40–400 Hz) where pYIN has sparse coverage and
+    basic-pitch has poor accuracy for sub-bass.  Uses the full CREPE model with
+    weighted-argmax decoding, which outperforms the tiny model + Viterbi at
+    very low frequencies.
+
+    Returns a per-frame Hz array with NaN for unvoiced/silent frames — same
+    format as :func:`bass_pitch_hz` so it can be fed directly into
+    ``_notes_from_pitch_track``.
+
+    Notes
+    -----
+    fmin is set to 40 Hz (not 30 Hz) because the CREPE model's periodicity
+    estimates become unreliable below ~40 Hz.  The ``tiny`` model + Viterbi
+    decoder bottoms out at the fmin floor with -inf log-probability for
+    sub-bass content; ``full`` + ``weighted_argmax`` handles it correctly.
+    """
+    import torch
+    import torchcrepe
+
+    if y.ndim != 1:
+        raise ValueError(f"Expected mono audio (1-D array), got shape={y.shape}")
+    if len(y) == 0:
+        return np.zeros(0, dtype=np.float32)
+
+    _TARGET_SR = 16000  # torchcrepe's expected input rate
+
+    y_16k = librosa.resample(y, orig_sr=sr, target_sr=_TARGET_SR)
+
+    # Hop length at 16 kHz to match pipeline's time resolution
+    # Pipeline default: hop_length=512, sr=22050 → ~23.2 ms per frame
+    crepe_hop = max(1, int(hop_length * _TARGET_SR / sr))
+
+    audio_t = torch.tensor(y_16k, dtype=torch.float32).unsqueeze(0)  # (1, n_samples)
+    frequency, periodicity = torchcrepe.predict(
+        audio_t,
+        sample_rate=_TARGET_SR,
+        hop_length=crepe_hop,
+        fmin=fmin,
+        fmax=fmax,
+        model="full",
+        decoder=torchcrepe.decode.weighted_argmax,
+        return_periodicity=True,
+        batch_size=256,
+        device="cpu",
+    )
+
+    freq_np = frequency.squeeze(0).numpy().astype(np.float32)      # (n_frames,)
+    period_np = periodicity.squeeze(0).numpy().astype(np.float32)  # (n_frames,)
+
+    # Confidence gate: low-periodicity frames → NaN
+    freq_np[period_np < confidence_threshold] = np.nan
+
+    # Compute RMS at the pipeline's frame rate (used for gating and frame alignment)
+    rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=hop_length)[0].astype(np.float32)
+    n_target = len(rms)
+
+    # Resample crepe output to match pipeline frame count
+    if len(freq_np) != n_target:
+        freq_resampled = np.full(n_target, np.nan, dtype=np.float32)
+        valid = np.isfinite(freq_np)
+        if valid.any():
+            from scipy.interpolate import interp1d
+            xs = np.linspace(0.0, 1.0, len(freq_np))
+            xt = np.linspace(0.0, 1.0, n_target)
+            fi = interp1d(xs[valid], freq_np[valid], bounds_error=False, fill_value=np.nan)
+            freq_resampled = fi(xt).astype(np.float32)
+    else:
+        freq_resampled = freq_np
+
+    # RMS silence gate
+    rms_thr = max(float(rms.max()) * 0.08, 1e-6)
+    freq_resampled[rms < rms_thr] = np.nan
+
+    # Frequency-range gate
+    freq_resampled = np.where(
+        np.isfinite(freq_resampled) & (freq_resampled >= fmin) & (freq_resampled <= fmax),
+        freq_resampled,
+        np.nan,
+    ).astype(np.float32)
+
+    # Quantize to nearest semitone and smooth (same post-processing as bass_pitch_hz)
+    midi = np.where(np.isfinite(freq_resampled), _hz_to_midi(freq_resampled), np.nan).astype(np.float32)
+    midi = _nanmedian_smooth(midi, win=5)
+    midi_q = np.round(midi).astype(np.float32)
+    return np.where(np.isfinite(midi_q), _midi_to_hz(midi_q), np.nan).astype(np.float32)
+
+
 def other_chroma_12(
     y: np.ndarray,
     sr: int,

@@ -223,6 +223,194 @@ def extract_drum_hits_fallback(
     return {"source": "heuristic", "hits": all_hits}
 
 
+# ── Template-based drum extraction constants ──
+
+_TEMPLATE_MIN_BEATS: int = 16            # minimum beats needed to build template (= 4 bars)
+_TEMPLATE_SILENCE_GATE: float = 0.05    # beats with mix RMS < this × max are silent
+
+
+def _beat_rms(y: np.ndarray, beat_arr: np.ndarray, sr: int) -> np.ndarray:
+    """Compute per-beat RMS energy.  Returns array of length len(beat_arr)-1."""
+    n = len(beat_arr) - 1
+    result = np.zeros(n, dtype=np.float64)
+    for i in range(n):
+        s0 = max(0, int(float(beat_arr[i]) * sr))
+        s1 = min(len(y), int(float(beat_arr[i + 1]) * sr))
+        if s1 > s0:
+            result[i] = float(np.sqrt(np.mean(y[s0:s1].astype(np.float64) ** 2)))
+    return result
+
+
+def _relative_energy(rms: np.ndarray, window: int = 8) -> np.ndarray:
+    """Return the deviation of *rms* above its local running mean.
+
+    Removes the reverb/bleed DC baseline that makes kick energy appear
+    uniformly elevated across all beats.
+    """
+    from scipy.ndimage import uniform_filter1d
+    baseline = uniform_filter1d(rms.astype(np.float64), size=window, mode="nearest")
+    rel = np.maximum(rms - baseline, 0.0)
+    peak = rel.max()
+    return rel / peak if peak > 1e-8 else rel
+
+
+def extract_drum_hits_template(
+    components: dict[str, np.ndarray],
+    sr: int,
+    *,
+    hop_length: int = 512,
+    beat_times_s: Sequence[float] | np.ndarray | None = None,
+) -> dict[str, Any] | None:
+    """Extract drum hits via beat-level groove detection.
+
+    Works at beat (quarter-note) resolution rather than 16th-note resolution
+    to avoid the timing jitter inherent in onset detection.
+
+    Algorithm:
+      1. Compute per-beat RMS for each DrumSep component.
+      2. Compute relative energy (deviation above running mean) to strip the
+         reverb/bleed DC baseline.
+      3. Gate silent beats using the mixed drum stem energy.
+      4. For kick/snare: detect the alternating phase (which parity of beats
+         carries kick vs snare) by comparing relative energy sums.
+      5. Place hits exactly on beat times (zero timing jitter) with per-beat
+         velocity modulated by drum stem energy.
+      6. Add hi-hat on every beat (on-beat + "and") where hh stem is active.
+
+    Returns ``None`` when the beat grid is too short to work from.
+    """
+    if beat_times_s is None or len(beat_times_s) < _TEMPLATE_MIN_BEATS + 1:
+        return None
+
+    beat_arr = np.asarray(beat_times_s, dtype=np.float64)
+    n_intervals = len(beat_arr) - 1  # number of complete beat intervals
+
+    # ── Build mixed drum stem for global activity gate ──
+    ref_len = max((len(y) for y in components.values()), default=0)
+    if ref_len == 0:
+        return None
+
+    y_mix = np.zeros(ref_len, dtype=np.float64)
+    for y_comp in components.values():
+        L = min(len(y_comp), ref_len)
+        y_mix[:L] += y_comp[:L].astype(np.float64)
+
+    mix_rms = _beat_rms(y_mix, beat_arr, sr)
+    mix_max = mix_rms.max()
+    if mix_max < 1e-8:
+        return None
+    active_mask = mix_rms > _TEMPLATE_SILENCE_GATE * mix_max
+
+    active_idx = np.where(active_mask)[0]
+    if len(active_idx) < 8:
+        return None  # not enough active material
+
+    # ── Per-component beat RMS ──
+    comp_rms: dict[str, np.ndarray] = {}
+    for comp_name, y in components.items():
+        if comp_name not in PEAK_PICK_PARAMS:
+            continue
+        if y.max() < 1e-7:
+            continue
+        comp_rms[comp_name] = _beat_rms(y, beat_arr, sr)
+
+    if not comp_rms:
+        return None
+
+    all_hits: list[dict[str, Any]] = []
+
+    # ── Kick + Snare: alternating beat-level pattern ──
+    if "kick" in comp_rms and "snare" in comp_rms:
+        kick_rel = _relative_energy(comp_rms["kick"])
+        snare_rel = _relative_energy(comp_rms["snare"])
+
+        # Find the phase (0 or 1) that maximises kick energy on even active beats
+        # and snare energy on odd active beats (relative to active_idx ordering).
+        best_phase, best_score = 0, -np.inf
+        for phase in range(2):
+            kick_beats = active_idx[phase::2]
+            snare_beats = active_idx[1 - phase::2]
+            if len(kick_beats) == 0 or len(snare_beats) == 0:
+                continue
+            score = (
+                kick_rel[kick_beats].mean()
+                - snare_rel[kick_beats].mean()
+                + snare_rel[snare_beats].mean()
+                - kick_rel[snare_beats].mean()
+            )
+            if score > best_score:
+                best_score = score
+                best_phase = phase
+
+        for rank, beat_i in enumerate(active_idx):
+            t = float(beat_arr[beat_i])
+            vel = float(np.clip(mix_rms[beat_i] / mix_max, 0.0, 1.0))
+            vel = max(vel * (0.4 + 0.6 * vel), 0.25)  # floor at 25%
+            comp = "kick" if rank % 2 == best_phase else "snare"
+            hit: dict[str, Any] = {
+                "t": round(t, 4),
+                "component": comp,
+                "velocity": round(vel, 4),
+                "velocity_raw": round(float(mix_rms[beat_i] / mix_max), 6),
+            }
+            hit.update(_compute_beat_alignment(t, beat_arr))
+            all_hits.append(hit)
+
+    elif comp_rms:
+        # Fallback: use the dominant component per beat
+        comp_names = list(comp_rms.keys())
+        for beat_i in active_idx:
+            t = float(beat_arr[beat_i])
+            vel = float(np.clip(mix_rms[beat_i] / mix_max, 0.25, 1.0))
+            winner = max(comp_names, key=lambda c: comp_rms[c][beat_i])
+            hit = {
+                "t": round(t, 4),
+                "component": winner,
+                "velocity": round(vel, 4),
+                "velocity_raw": round(float(mix_rms[beat_i] / mix_max), 6),
+            }
+            hit.update(_compute_beat_alignment(t, beat_arr))
+            all_hits.append(hit)
+
+    # ── Hi-hat: every beat + "and" position ──
+    if "hh" in comp_rms:
+        hh_rms = comp_rms["hh"]
+        hh_max = hh_rms.max()
+        hh_active = active_mask & (hh_rms > 0.02 * hh_max if hh_max > 1e-8 else active_mask)
+
+        for beat_i in np.where(hh_active)[0]:
+            t = float(beat_arr[beat_i])
+            vel = float(np.clip(mix_rms[beat_i] / mix_max, 0.0, 1.0))
+            vel_hh = max(vel * 0.5, 0.20)  # hi-hat softer than kick/snare
+            # On-beat hi-hat
+            hit_on: dict[str, Any] = {
+                "t": round(t, 4),
+                "component": "hh",
+                "velocity": round(vel_hh, 4),
+                "velocity_raw": round(float(hh_rms[beat_i] / (hh_max + 1e-8)), 6),
+            }
+            hit_on.update(_compute_beat_alignment(t, beat_arr))
+            all_hits.append(hit_on)
+
+            # "And" hi-hat (midpoint to next beat)
+            if beat_i + 1 < len(beat_arr):
+                t_and = (float(beat_arr[beat_i]) + float(beat_arr[beat_i + 1])) / 2.0
+                hit_and: dict[str, Any] = {
+                    "t": round(t_and, 4),
+                    "component": "hh",
+                    "velocity": round(vel_hh * 0.75, 4),
+                    "velocity_raw": round(float(hh_rms[beat_i] / (hh_max + 1e-8)), 6),
+                }
+                hit_and.update(_compute_beat_alignment(t_and, beat_arr))
+                all_hits.append(hit_and)
+
+    if not all_hits:
+        return None
+
+    all_hits.sort(key=lambda h: h["t"])
+    return {"source": "template", "hits": all_hits}
+
+
 # ── Pitch-track → note events (shared by vocals and bass) ──
 
 
@@ -1011,8 +1199,11 @@ def extract_bass_notes(
     beat_times_s: Sequence[float] | np.ndarray | None = None,
     scale_pcs: list[int] | None = None,
     sub_bass_mode: bool = False,
+    crepe_pitch_hz: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Top-level bass note dispatcher — picks best available source.
+
+    Priority order: torchcrepe > basic-pitch > pYIN.
 
     Parameters
     ----------
@@ -1028,12 +1219,34 @@ def extract_bass_notes(
         energy gating.
     sub_bass_mode : when True, disables CQT upward shifts (prevents harmonic
         tracking on sub-bass synths where overtones are louder than fundamentals).
+    crepe_pitch_hz : torchcrepe per-frame Hz track (NaN = unvoiced), or None.
+        When provided, this is used as the primary source instead of basic-pitch.
 
     Returns
     -------
     dict with ``"source"`` and ``"notes": [...]``
     """
-    # Primary: basic-pitch note events
+    # Primary: torchcrepe pitch track (better for sub-bass than basic-pitch)
+    if crepe_pitch_hz is not None and np.any(np.isfinite(crepe_pitch_hz)):
+        result = _notes_from_pitch_track(
+            crepe_pitch_hz, y, sr,
+            source="crepe",
+            hop_length=hop_length,
+            max_gap_frames=3,
+            beat_times_s=beat_times_s,
+        )
+        result["notes"] = _merge_adjacent_notes(result["notes"], midi_tol=1, max_gap_s=0.15)
+        if not sub_bass_mode:
+            result["notes"] = _bass_global_octave_fix(result["notes"])
+        result["notes"] = _refine_bass_pitch_cqt(result["notes"], y, sr, allow_upward_shift=not sub_bass_mode)
+        result["notes"] = _correct_octave_by_context(result["notes"])
+        if scale_pcs is not None:
+            result["notes"] = _snap_bass_to_scale(result["notes"], scale_pcs)
+        result["notes"] = _rescale_velocity_to_stem_energy(result["notes"], y, sr)
+        result["notes"] = _gate_and_prune_bass_notes(result["notes"], y, sr)
+        return result
+
+    # Secondary: basic-pitch note events
     if note_events is not None and len(note_events) > 0:
         beat_arr = (
             np.asarray(beat_times_s, dtype=np.float64)

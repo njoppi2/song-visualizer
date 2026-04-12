@@ -72,6 +72,84 @@ TAIL_S: float = 0.1
 # Peak level after normalization (headroom).
 NORM_PEAK: float = 0.9
 
+# ── Beat quantization ──
+
+# Velocity thresholds for drum filtering (applied before quantization).
+# Hits below these thresholds are treated as false positives and dropped.
+_DRUM_VEL_GATE: dict[str, float] = {
+    "kick": 0.15,
+    "snare": 0.15,
+    "hh": 0.10,
+    "toms": 0.10,
+    "ride": 0.08,
+    "crash": 0.08,
+}
+
+
+def _snap_to_grid(t: float, beat_times: np.ndarray, subdivisions: int = 4) -> float:
+    """Snap timestamp *t* to the nearest beat subdivision (default: 16th note)."""
+    if len(beat_times) < 2:
+        return t
+    idx = int(np.searchsorted(beat_times, t))
+    lo = max(0, min(idx - 1, len(beat_times) - 2))
+    hi = lo + 1
+    beat_start = float(beat_times[lo])
+    beat_dur = float(beat_times[hi]) - beat_start
+    if beat_dur <= 0:
+        return t
+    sub_dur = beat_dur / subdivisions
+    phase = (t - beat_start) / beat_dur
+    sub_idx = round(phase * subdivisions)
+    sub_idx = max(0, min(subdivisions, sub_idx))  # can snap to start of next beat
+    return beat_start + sub_idx * sub_dur
+
+
+def _quantize_for_sonification(reduced: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of *reduced* with drum hits and bass note onsets snapped to 16th notes.
+
+    Also drops drum hits below per-component velocity thresholds and deduplicates
+    same-component hits that snap to the same grid position.
+
+    Vocals are left untouched (intentionally loose timing).
+    No-ops when ``reduced["beats"]["beat_times_s"]`` is absent or too short.
+    """
+    import copy
+    result = copy.deepcopy(reduced)
+
+    beat_times_list = result.get("beats", {}).get("beat_times_s")
+    if not beat_times_list or len(beat_times_list) < 2:
+        return result
+    beat_times = np.asarray(beat_times_list, dtype=np.float64)
+
+    # ── Drums: gate → quantize → dedup ──
+    drums = result.setdefault("drums", {})
+    hits = drums.get("hits", [])
+    gated = [
+        h for h in hits
+        if float(h.get("velocity", 0.5)) >= _DRUM_VEL_GATE.get(h.get("component", "kick"), 0.10)
+    ]
+    quantized: list[dict[str, Any]] = [
+        dict(h, t=round(_snap_to_grid(float(h["t"]), beat_times), 4))
+        for h in gated
+    ]
+    # Dedup: same component + same quantized time → keep highest velocity
+    best: dict[tuple, dict[str, Any]] = {}
+    for h in quantized:
+        key = (h.get("component", "kick"), h["t"])
+        if key not in best or float(h.get("velocity", 0.5)) > float(best[key].get("velocity", 0.5)):
+            best[key] = h
+    drums["hits"] = sorted(best.values(), key=lambda h: h["t"])
+
+    # ── Bass: quantize onsets (offsets handled downstream by _extend_note_durations) ──
+    bass = result.setdefault("bass", {})
+    bass["notes"] = [
+        dict(n, onset_s=round(_snap_to_grid(float(n["onset_s"]), beat_times), 4))
+        for n in bass.get("notes", [])
+    ]
+
+    return result
+
+
 # ── SoundFont / MIDI rendering ──
 
 # GM drum map for our component names.
@@ -124,6 +202,7 @@ def _reduced_to_midi(reduced: dict[str, Any]) -> Any:
     and bass (Electric Bass finger, program 33).  MIDI pitches are rounded to
     int; velocities are scaled from 0.0-1.0 to 0-127.
     """
+    reduced = _quantize_for_sonification(reduced)
     import pretty_midi
 
     midi = pretty_midi.PrettyMIDI(initial_tempo=120.0)
@@ -448,6 +527,7 @@ def _sonify_reduced_raw(
 
     Returns a peak-normalized mono float64 buffer.
     """
+    reduced = _quantize_for_sonification(reduced)
     n_samples = _compute_duration_samples(reduced, sr)
 
     # Pre-compute drum templates (one per component, reused for every hit)

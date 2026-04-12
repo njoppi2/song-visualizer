@@ -14,7 +14,9 @@ import numpy as np
 
 from .analyze import analyze_audio
 from .features import (
+    _torchcrepe_available,
     bass_note_events_basic_pitch,
+    bass_pitch_crepe,
     bass_pitch_hz,
     drums_band_energy_3,
     drums_band_energy_3_from_components,
@@ -34,6 +36,7 @@ from .reduction import (
     extract_bass_notes,
     extract_drum_hits,
     extract_drum_hits_fallback,
+    extract_drum_hits_template,
     extract_vocal_notes,
 )
 from .render import RenderConfig, render_mp4, render_mp4_stems4
@@ -109,11 +112,17 @@ def _build_stem_analyses(
 
             # ── Drum hit extraction (reduced representation) ──
             beat_times = analysis.get("beats", {}).get("beat_times_s")
+            drum_hits = None
             if drumsep is not None and comp_audio is not None:
-                drum_hits = extract_drum_hits(
+                # Try template approach first (grove detection); fall back to onset detection
+                drum_hits = extract_drum_hits_template(
                     comp_audio, int(sr), hop_length=hop_length, beat_times_s=beat_times,
                 )
-            else:
+                if drum_hits is None:
+                    drum_hits = extract_drum_hits(
+                        comp_audio, int(sr), hop_length=hop_length, beat_times_s=beat_times,
+                    )
+            if drum_hits is None:
                 drum_hits = extract_drum_hits_fallback(
                     y, int(sr), hop_length=hop_length, n_fft=frame_length,
                     beat_times_s=beat_times,
@@ -130,6 +139,7 @@ def _build_stem_analyses(
                 except Exception:
                     pass
             reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["beats"] = {"beat_times_s": list(beat_times) if beat_times else []}
             reduced["drums"] = drum_hits
             reduced_path.write_text(
                 json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",
@@ -150,6 +160,18 @@ def _build_stem_analyses(
             except Exception:
                 pass
 
+            # torchcrepe pitch track (primary source — better accuracy for sub-bass)
+            _crepe_pitch: np.ndarray | None = None
+            if _torchcrepe_available():
+                try:
+                    _crepe_pitch = bass_pitch_crepe(
+                        y, int(sr), hop_length=hop_length,
+                        fmin=40.0, fmax=_bass_max_freq if _bass_max_freq <= 80.0 else 400.0,
+                    )
+                    feats["pitch_hz_crepe"] = _crepe_pitch
+                except Exception:
+                    pass
+
             # ── Bass note extraction (reduced representation) ──
             beat_times = analysis.get("beats", {}).get("beat_times_s")
             bass_notes = extract_bass_notes(
@@ -159,6 +181,7 @@ def _build_stem_analyses(
                 beat_times_s=beat_times,
                 scale_pcs=key_scale_pcs,
                 sub_bass_mode=(_bass_max_freq <= 80.0),
+                crepe_pitch_hz=_crepe_pitch,
             )
             feats["bass_notes"] = bass_notes
 
@@ -172,6 +195,7 @@ def _build_stem_analyses(
                 except Exception:
                     pass
             reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["beats"] = {"beat_times_s": list(beat_times) if beat_times else []}
             reduced["bass"] = bass_notes
             reduced_path.write_text(
                 json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",
@@ -203,6 +227,7 @@ def _build_stem_analyses(
                 except Exception:
                     pass
             reduced["schema_version"] = _REDUCED_SCHEMA_VERSION
+            reduced["beats"] = {"beat_times_s": list(beat_times) if beat_times else []}
             reduced["vocals"] = vocal_notes
             reduced_path.write_text(
                 json.dumps(reduced, indent=2, sort_keys=True) + "\n", encoding="utf-8",

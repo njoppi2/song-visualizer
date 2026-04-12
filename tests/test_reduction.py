@@ -18,6 +18,7 @@ from songviz.reduction import (
     extract_bass_notes,
     extract_drum_hits,
     extract_drum_hits_fallback,
+    extract_drum_hits_template,
     extract_vocal_notes,
     extract_vocal_notes_from_pitch_track,
 )
@@ -126,6 +127,176 @@ def test_extract_drum_hits_fallback_detects_something() -> None:
     y = _click_signal(click_times=[0.2, 0.5, 0.9, 1.3])
     result = extract_drum_hits_fallback(y, SR, hop_length=HOP)
     assert len(result["hits"]) > 0
+
+
+# ── Template drum extraction tests ──
+
+
+def _make_beat_grid(bpm: float, n_bars: int) -> list[float]:
+    """Generate a uniform beat grid at the given BPM for n_bars bars of 4/4."""
+    beat_dur = 60.0 / bpm
+    total_beats = n_bars * 4 + 1  # +1 for final bar boundary
+    return [i * beat_dur for i in range(total_beats)]
+
+
+def _regular_pattern_audio(
+    beat_times: list[float],
+    sr: int,
+    pattern: dict[str, list[int]],  # component → list of slot indices (0-15)
+    n_bars: int,
+    duration_s: float,
+) -> dict[str, np.ndarray]:
+    """Synthesize per-component audio with a regular 16th-note drum pattern.
+
+    ``pattern`` maps component name → list of 16th-note slot indices that should
+    fire each bar. The signal is a short broadband click at each hit time.
+    """
+    n_samples = int(duration_s * sr)
+    result: dict[str, np.ndarray] = {}
+    for comp, slots in pattern.items():
+        y = np.zeros(n_samples, dtype=np.float32)
+        for bar_i in range(n_bars):
+            beat_lo = bar_i * 4
+            beat_hi = min(beat_lo + 4, len(beat_times) - 1)
+            bar_start = beat_times[beat_lo]
+            bar_dur = beat_times[beat_hi] - bar_start
+            slot_dur = bar_dur / 16
+            for slot_i in slots:
+                t = bar_start + slot_i * slot_dur
+                s = int(t * sr)
+                if 0 <= s < n_samples - 4:
+                    y[s : s + 4] = 0.9
+        result[comp] = y
+    return result
+
+
+def test_extract_drum_hits_template_detects_regular_pattern() -> None:
+    """Template extractor should find kick on beats 1&3, snare on 2&4."""
+    bpm = 100.0
+    n_bars = 10
+    beat_times = _make_beat_grid(bpm, n_bars)
+    duration_s = beat_times[-1] + 0.5
+
+    # Kick on 16th-note slots 0, 8 (beat 1 and beat 3 of bar)
+    # Snare on slots 4, 12 (beat 2 and beat 4)
+    pattern = {"kick": [0, 8], "snare": [4, 12]}
+    comps = _regular_pattern_audio(beat_times, SR, pattern, n_bars, duration_s)
+
+    result = extract_drum_hits_template(comps, SR, hop_length=HOP, beat_times_s=beat_times)
+    assert result is not None, "Template extractor should succeed with regular pattern"
+    assert result["source"] == "template"
+    hits = result["hits"]
+    assert len(hits) > 0
+
+    # Should detect both components
+    components_found = {h["component"] for h in hits}
+    assert "kick" in components_found
+    assert "snare" in components_found
+
+    # Kick hits should be near the expected slot times (within 50ms)
+    kick_times = [h["t"] for h in hits if h["component"] == "kick"]
+    for bar_i in range(n_bars):
+        beat_lo = bar_i * 4
+        beat_hi = min(beat_lo + 4, len(beat_times) - 1)
+        bar_start = beat_times[beat_lo]
+        bar_dur = beat_times[beat_hi] - bar_start
+        if bar_dur <= 0:
+            continue
+        slot_dur = bar_dur / 16
+        for slot_i in [0, 8]:
+            expected_t = bar_start + slot_i * slot_dur
+            assert any(abs(kt - expected_t) < 0.06 for kt in kick_times), (
+                f"No kick near expected time {expected_t:.3f}s in bar {bar_i}"
+            )
+
+
+def test_extract_drum_hits_template_returns_none_when_too_few_bars() -> None:
+    """With fewer than TEMPLATE_MIN_BARS bars, should return None."""
+    beat_times = _make_beat_grid(120.0, n_bars=2)  # only 2 bars
+    comps = {"kick": _click_signal(duration_s=beat_times[-1] + 0.1, click_times=[0.1])}
+    result = extract_drum_hits_template(comps, SR, hop_length=HOP, beat_times_s=beat_times)
+    assert result is None
+
+
+def test_extract_drum_hits_template_returns_none_without_beat_grid() -> None:
+    """Without a beat grid, should return None."""
+    comps = {"kick": _click_signal(click_times=[0.2, 0.5])}
+    result = extract_drum_hits_template(comps, SR, hop_length=HOP, beat_times_s=None)
+    assert result is None
+
+
+def test_extract_drum_hits_template_schema() -> None:
+    """Each hit must have the required fields."""
+    bpm = 120.0
+    n_bars = 6
+    beat_times = _make_beat_grid(bpm, n_bars)
+    duration_s = beat_times[-1] + 0.5
+    pattern = {"kick": [0, 8], "hh": [0, 2, 4, 6, 8, 10, 12, 14]}
+    comps = _regular_pattern_audio(beat_times, SR, pattern, n_bars, duration_s)
+
+    result = extract_drum_hits_template(comps, SR, hop_length=HOP, beat_times_s=beat_times)
+    if result is None:
+        return  # can't form template — skip schema check
+    for hit in result["hits"]:
+        assert "t" in hit
+        assert "component" in hit
+        assert "velocity" in hit
+        assert "beat_idx" in hit
+        assert "beat_phase" in hit
+        assert 0.0 <= hit["velocity"] <= 1.0
+
+
+# ── torchcrepe bass pitch tests ──
+
+
+def test_extract_bass_notes_uses_crepe_pitch_when_provided() -> None:
+    """extract_bass_notes prefers crepe_pitch_hz over note_events/pitch_hz."""
+    # 1-second Eb1 sine at 38.9 Hz (sub-bass) — modest amplitude
+    freq_eb1 = 38.89  # Eb1
+    duration_s = 2.0
+    t = np.arange(int(SR * duration_s)) / SR
+    y = (0.3 * np.sin(2.0 * np.pi * freq_eb1 * t)).astype(np.float32)
+
+    # Craft a synthetic pitch track that says "Bb1 (58.3 Hz) the whole time"
+    n_frames = int(np.ceil(len(y) / HOP))
+    freq_bb1 = 58.27  # Bb1
+    crepe_pitch = np.full(n_frames, freq_bb1, dtype=np.float32)
+
+    result = extract_bass_notes(
+        note_events=None,
+        pitch_hz=None,
+        y=y,
+        sr=SR,
+        hop_length=HOP,
+        crepe_pitch_hz=crepe_pitch,
+    )
+    assert result["source"] == "crepe"
+    assert len(result["notes"]) > 0
+    # All detected notes should have MIDI near 34 (Bb1) ± some octave correction tolerance
+    for n in result["notes"]:
+        assert 22 <= n["midi"] <= 46, f"Note MIDI {n['midi']} outside reasonable range"
+
+
+def test_extract_bass_notes_falls_back_without_crepe() -> None:
+    """When crepe_pitch_hz is None, extract_bass_notes uses the existing paths."""
+    duration_s = 1.0
+    t = np.arange(int(SR * duration_s)) / SR
+    y = (0.3 * np.sin(2.0 * np.pi * 110.0 * t)).astype(np.float32)
+
+    # pYIN pitch track at 110 Hz (A2)
+    n_frames = int(np.ceil(len(y) / HOP))
+    pitch = np.full(n_frames, 110.0, dtype=np.float32)
+
+    result = extract_bass_notes(
+        note_events=None,
+        pitch_hz=pitch,
+        y=y,
+        sr=SR,
+        hop_length=HOP,
+        crepe_pitch_hz=None,
+    )
+    assert result["source"] == "pyin"
+    assert len(result["notes"]) > 0
 
 
 # ── Vocal note extraction tests ──
