@@ -1233,7 +1233,11 @@ def compute_story(
             duration_s=duration_s,
         )
         bounds_s = [0.0] + internal + [duration_s]
-        bounds_s = _merge_short_segments(bounds_s, min_len_s=12.0, duration_s=duration_s)
+        # min_len_s=8.0: intros and pre-verse sections can be as short as 8s
+        # (one 4/4 phrase at ~120 BPM, two bars at 60 BPM).  The upstream
+        # score+filter already removed weak candidates, so surviving boundaries
+        # that create 8-12s sections are genuine structural events.
+        bounds_s = _merge_short_segments(bounds_s, min_len_s=8.0, duration_s=duration_s)
         # Force-split any section that is still too long
         bounds_s = _force_split_long_sections(
             bounds_s,

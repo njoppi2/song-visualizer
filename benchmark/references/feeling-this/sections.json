@@ -1,0 +1,14 @@
+{
+  "layer": "sections",
+  "confidence": "silver",
+  "source": "Listening (172.6s, ~94 BPM punk-rock)",
+  "description": "Feeling This — 6 structural sections. Drum intro → verse1 → pre-chorus → chorus1 → verse2/bridge → final chorus+outro.",
+  "sections": [
+    {"start_s":   0.0, "end_s":  11.3, "label": "intro",          "note": "drum intro, no vocals"},
+    {"start_s":  11.3, "end_s":  42.0, "label": "verse1",         "note": "Tom verse 1, full punk groove"},
+    {"start_s":  42.0, "end_s":  56.7, "label": "pre_chorus",     "note": "pre-chorus / build section"},
+    {"start_s":  56.7, "end_s":  83.9, "label": "chorus1",        "note": "first chorus, high energy"},
+    {"start_s":  83.9, "end_s": 116.5, "label": "verse2",         "note": "verse 2 / bridge section"},
+    {"start_s": 116.5, "end_s": 172.6, "label": "chorus_outro",   "note": "final chorus through outro, sustains energy to end"}
+  ]
+}
