@@ -532,7 +532,16 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     return 2
 
-            results = evaluate_reduced(reduced, ref_dir)
+            # Load story.json if available (for section evaluation)
+            story: dict | None = None
+            story_p = story_path_for_output_dir(out_dir)
+            if story_p.exists():
+                try:
+                    story = json.loads(story_p.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+
+            results = evaluate_reduced(reduced, ref_dir, story=story)
 
             if args.json_output:
                 print(json.dumps(results, indent=2))

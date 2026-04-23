@@ -662,6 +662,135 @@ def evaluate_register_stability(
     }
 
 
+# ── Section-level evaluation ──
+
+
+def evaluate_sections(
+    detected_sections: list[dict[str, Any]],
+    reference_sections: list[dict[str, Any]],
+    *,
+    tolerance_3s: float = 3.0,
+    tolerance_05s: float = 0.5,
+    sample_interval_s: float = 0.5,
+) -> dict[str, Any]:
+    """Compare detected section boundaries against a reference.
+
+    Metrics:
+    - **boundary_f1_3s**: precision/recall/F1 at 3s tolerance (standard MIR)
+    - **boundary_f1_05s**: same at 0.5s tolerance (stricter)
+    - **over_seg_ratio**: n_detected_boundaries / n_reference_boundaries
+    - **under_seg_rate**: fraction of reference boundaries missed at 3s
+    - **pairwise_f1**: pairwise frame-clustering F1 (sampled at sample_interval_s)
+
+    *detected_sections* and *reference_sections* are lists of dicts with
+    ``start_s`` and ``end_s`` keys.
+    """
+    if not reference_sections or not detected_sections:
+        return {
+            "n_detected": len(detected_sections),
+            "n_reference": len(reference_sections),
+            "boundary_f1_3s": 0.0, "boundary_f1_05s": 0.0,
+        }
+
+    # Internal boundaries only (exclude 0.0 and duration endpoints).
+    def _internal(sections: list[dict[str, Any]]) -> list[float]:
+        bounds: list[float] = []
+        for i, sec in enumerate(sections):
+            if i > 0:
+                bounds.append(float(sec["start_s"]))
+        return sorted(set(bounds))
+
+    det_bounds = _internal(detected_sections)
+    ref_bounds = _internal(reference_sections)
+
+    # ── Boundary matching (greedy nearest-neighbour) ──
+    def _boundary_match(
+        ref_b: list[float], det_b: list[float], tol: float
+    ) -> tuple[int, int, int]:
+        matched_det: set[int] = set()
+        tp = 0
+        for rb in ref_b:
+            best_dist = float("inf")
+            best_di = -1
+            for di, db in enumerate(det_b):
+                if di in matched_det:
+                    continue
+                dist = abs(db - rb)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_di = di
+            if best_di >= 0 and best_dist <= tol:
+                matched_det.add(best_di)
+                tp += 1
+        fp = len(det_b) - tp
+        fn = len(ref_b) - tp
+        return tp, fp, fn
+
+    def _prf(tp: int, fp: int, fn: int) -> dict[str, float]:
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+        return {"precision": round(p, 4), "recall": round(r, 4), "f1": round(f, 4)}
+
+    tp3, fp3, fn3 = _boundary_match(ref_bounds, det_bounds, tolerance_3s)
+    tp05, fp05, fn05 = _boundary_match(ref_bounds, det_bounds, tolerance_05s)
+
+    # ── Over/under segmentation ──
+    over_seg = len(det_bounds) / len(ref_bounds) if ref_bounds else 0.0
+    under_seg = fn3 / len(ref_bounds) if ref_bounds else 0.0
+
+    # ── Pairwise frame-clustering F1 ──
+    # Sample time points, determine which detected vs reference section each
+    # falls in, then compare pairwise "same section" labels.
+    duration_s = max(
+        reference_sections[-1]["end_s"],
+        detected_sections[-1]["end_s"],
+    )
+    times = np.arange(0.0, duration_s, sample_interval_s)
+
+    def _section_idx(t: float, sections: list[dict[str, Any]]) -> int:
+        for i, sec in enumerate(sections):
+            if float(sec["start_s"]) <= t < float(sec["end_s"]):
+                return i
+        return len(sections) - 1
+
+    n_frames = len(times)
+    det_labels = np.array([_section_idx(t, detected_sections) for t in times])
+    ref_labels = np.array([_section_idx(t, reference_sections) for t in times])
+
+    # Build pairwise same/diff arrays (sample only — all pairs is O(n^2))
+    # Use a random sample of 2000 pairs to keep it fast
+    rng = np.random.default_rng(seed=42)
+    n_pairs = min(2000, n_frames * (n_frames - 1) // 2)
+    idx_a = rng.integers(0, n_frames, size=n_pairs)
+    idx_b = rng.integers(0, n_frames, size=n_pairs)
+    mask = idx_a != idx_b
+    idx_a, idx_b = idx_a[mask], idx_b[mask]
+
+    ref_same = (ref_labels[idx_a] == ref_labels[idx_b])
+    det_same = (det_labels[idx_a] == det_labels[idx_b])
+
+    # Pairwise precision/recall/F1 (treating "same section" as positive class)
+    pair_tp = int(np.sum(ref_same & det_same))
+    pair_fp = int(np.sum(~ref_same & det_same))
+    pair_fn = int(np.sum(ref_same & ~det_same))
+    pw_prf = _prf(pair_tp, pair_fp, pair_fn)
+
+    return {
+        "n_detected": len(detected_sections),
+        "n_reference": len(reference_sections),
+        "n_det_boundaries": len(det_bounds),
+        "n_ref_boundaries": len(ref_bounds),
+        "over_seg_ratio": round(over_seg, 3),
+        "under_seg_rate": round(under_seg, 3),
+        "boundary_f1_3s": _prf(tp3, fp3, fn3),
+        "boundary_f1_05s": _prf(tp05, fp05, fn05),
+        "pairwise_f1": pw_prf,
+        "ref_boundaries_s": ref_bounds,
+        "det_boundaries_s": [round(b, 2) for b in det_bounds],
+    }
+
+
 # ── Layer-level evaluation ──
 
 
@@ -754,8 +883,14 @@ def evaluate_layer(
 def evaluate_reduced(
     reduced: dict[str, Any],
     ref_dir: Path,
+    *,
+    story: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate all layers of a reduced dict against available references."""
+    """Evaluate all layers of a reduced dict against available references.
+
+    If *story* is provided and a ``sections.json`` reference exists, also
+    evaluates section boundary detection quality.
+    """
     results: dict[str, Any] = {"layers": {}}
 
     for layer in ("drums", "vocals", "bass"):
@@ -768,6 +903,17 @@ def evaluate_reduced(
             continue
         reference = load_reference(ref_path)
         results["layers"][layer] = evaluate_layer(layer_data, reference, ref_dir=ref_dir)
+
+    # ── Section evaluation (optional — requires story + sections.json) ──
+    sections_ref_path = ref_dir / "sections.json"
+    if story is not None and sections_ref_path.exists():
+        sec_ref = load_reference(sections_ref_path)
+        detected_secs = story.get("sections", [])
+        ref_secs = sec_ref.get("sections", [])
+        if detected_secs and ref_secs:
+            results["sections"] = evaluate_sections(detected_secs, ref_secs)
+            results["sections"]["ref_source"] = sec_ref.get("source", "unknown")
+            results["sections"]["ref_confidence"] = sec_ref.get("confidence", "unknown")
 
     return results
 
@@ -940,5 +1086,39 @@ def format_report(results: dict[str, Any]) -> str:
                 f"    Counts: ref={nt['ref_note_count']} det={nt['det_note_count']} "
                 f"fragmentation={nt['fragmentation_ratio']:.2f}x"
             )
+
+    # ── Section evaluation ──
+    sec = results.get("sections")
+    if sec:
+        conf = sec.get("ref_confidence", "?")
+        src = sec.get("ref_source", "?")
+        lines.append(f"\n--- Sections ({conf}: {src}) ---")
+        lines.append(
+            f"  Detected: {sec['n_detected']} sections  "
+            f"Reference: {sec['n_reference']} sections  "
+            f"Over-seg: {sec['over_seg_ratio']:.2f}x"
+        )
+        b3 = sec["boundary_f1_3s"]
+        b05 = sec["boundary_f1_05s"]
+        lines.append(
+            f"  Boundary F1 @3s:  {b3['f1']:.3f} "
+            f"(P={b3['precision']:.3f} R={b3['recall']:.3f})"
+        )
+        lines.append(
+            f"  Boundary F1 @0.5s:{b05['f1']:.3f} "
+            f"(P={b05['precision']:.3f} R={b05['recall']:.3f})"
+        )
+        pw = sec["pairwise_f1"]
+        lines.append(
+            f"  Pairwise F1:      {pw['f1']:.3f} "
+            f"(P={pw['precision']:.3f} R={pw['recall']:.3f})"
+        )
+        lines.append(f"  Under-seg rate:   {sec['under_seg_rate']:.1%} of ref boundaries missed @3s")
+        lines.append(
+            f"  Ref  boundaries: {sec['ref_boundaries_s']}"
+        )
+        lines.append(
+            f"  Det  boundaries: {sec['det_boundaries_s']}"
+        )
 
     return "\n".join(lines)

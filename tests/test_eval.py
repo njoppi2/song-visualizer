@@ -20,6 +20,7 @@ from songviz.eval import (
     evaluate_pitch_range,
     evaluate_reduced,
     evaluate_register_stability,
+    evaluate_sections,
     format_report,
     load_reference,
 )
@@ -585,3 +586,117 @@ def test_note_transcription_empty_ref() -> None:
     result = evaluate_note_transcription(det, [])
     assert result["onset_f1"] == pytest.approx(0.0)
     assert result["onset_fp"] == 2
+
+
+# ── evaluate_sections ──
+
+
+def _make_sections(bounds: list[float]) -> list[dict]:
+    """Create section dicts from boundary times (boundaries include 0 and end)."""
+    return [
+        {"start_s": bounds[i], "end_s": bounds[i + 1], "label": f"sec{i}"}
+        for i in range(len(bounds) - 1)
+    ]
+
+
+def test_evaluate_sections_perfect_match() -> None:
+    """Identical boundaries → boundary F1=1.0."""
+    ref = _make_sections([0.0, 30.0, 80.0, 120.0, 200.0])
+    det = _make_sections([0.0, 30.0, 80.0, 120.0, 200.0])
+    result = evaluate_sections(det, ref)
+    assert result["boundary_f1_3s"]["f1"] == pytest.approx(1.0)
+    assert result["over_seg_ratio"] == pytest.approx(1.0)
+    assert result["under_seg_rate"] == pytest.approx(0.0)
+
+
+def test_evaluate_sections_within_3s_tolerance() -> None:
+    """Boundaries shifted by 2s → still match at 3s tolerance, miss at 0.5s."""
+    ref = _make_sections([0.0, 30.0, 80.0, 200.0])
+    det = _make_sections([0.0, 32.0, 82.0, 200.0])  # 2s off
+    result = evaluate_sections(det, ref)
+    assert result["boundary_f1_3s"]["f1"] == pytest.approx(1.0)
+    assert result["boundary_f1_05s"]["f1"] == pytest.approx(0.0)
+
+
+def test_evaluate_sections_over_segmentation() -> None:
+    """More detected than reference boundaries → over_seg_ratio > 1."""
+    ref = _make_sections([0.0, 60.0, 120.0, 200.0])   # 2 boundaries
+    det = _make_sections([0.0, 30.0, 60.0, 90.0, 120.0, 160.0, 200.0])  # 5 boundaries
+    result = evaluate_sections(det, ref)
+    assert result["over_seg_ratio"] > 2.0
+    # Some boundaries still match the reference ones
+    assert result["boundary_f1_3s"]["recall"] == pytest.approx(1.0)
+
+
+def test_evaluate_sections_under_segmentation() -> None:
+    """Fewer detected than reference → under_seg_rate > 0."""
+    ref = _make_sections([0.0, 30.0, 80.0, 120.0, 200.0])  # 3 boundaries
+    det = _make_sections([0.0, 100.0, 200.0])   # 1 boundary, misses 2
+    result = evaluate_sections(det, ref)
+    assert result["under_seg_rate"] > 0.5
+    assert result["boundary_f1_3s"]["recall"] < 0.5
+
+
+def test_evaluate_sections_pairwise_f1_reflects_grouping() -> None:
+    """Pairwise F1 measures whether frames cluster the same way as reference."""
+    ref = _make_sections([0.0, 100.0, 200.0])  # 2 equal halves
+    det = _make_sections([0.0, 100.0, 200.0])  # identical
+    result = evaluate_sections(det, ref)
+    assert result["pairwise_f1"]["f1"] > 0.9
+
+
+def test_evaluate_sections_integrated_with_evaluate_reduced(tmp_path: Path) -> None:
+    """evaluate_reduced includes sections when story and sections.json are present."""
+    # Write a sections reference
+    sec_ref = {
+        "layer": "sections",
+        "confidence": "silver",
+        "source": "test",
+        "sections": [
+            {"start_s": 0.0, "end_s": 50.0, "label": "intro"},
+            {"start_s": 50.0, "end_s": 150.0, "label": "verse"},
+            {"start_s": 150.0, "end_s": 200.0, "label": "outro"},
+        ],
+    }
+    (tmp_path / "sections.json").write_text(json.dumps(sec_ref))
+
+    # Fake story with perfect boundary match
+    story = {
+        "sections": [
+            {"start_s": 0.0, "end_s": 50.0, "role": "intro"},
+            {"start_s": 50.0, "end_s": 150.0, "role": "payoff"},
+            {"start_s": 150.0, "end_s": 200.0, "role": "outro"},
+        ],
+    }
+
+    results = evaluate_reduced({}, tmp_path, story=story)
+    assert "sections" in results
+    assert results["sections"]["boundary_f1_3s"]["f1"] == pytest.approx(1.0)
+    assert results["sections"]["n_detected"] == 3
+    assert results["sections"]["n_reference"] == 3
+
+
+def test_evaluate_sections_format_report_includes_section_block() -> None:
+    """format_report renders the sections block when present."""
+    results = {
+        "layers": {},
+        "sections": {
+            "n_detected": 8,
+            "n_reference": 6,
+            "n_det_boundaries": 7,
+            "n_ref_boundaries": 5,
+            "over_seg_ratio": 1.4,
+            "under_seg_rate": 0.2,
+            "ref_source": "listening",
+            "ref_confidence": "silver",
+            "boundary_f1_3s": {"precision": 0.7, "recall": 1.0, "f1": 0.824},
+            "boundary_f1_05s": {"precision": 0.5, "recall": 0.8, "f1": 0.615},
+            "pairwise_f1": {"precision": 0.8, "recall": 0.9, "f1": 0.847},
+            "ref_boundaries_s": [12.7, 63.4, 95.0, 137.9, 165.7],
+            "det_boundaries_s": [12.5, 40.0, 63.2, 79.1, 95.3, 138.0, 188.9],
+        },
+    }
+    report = format_report(results)
+    assert "Sections" in report
+    assert "0.824" in report
+    assert "over_seg" in report.lower() or "Over-seg" in report

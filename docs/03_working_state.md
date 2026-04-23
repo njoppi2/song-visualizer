@@ -162,8 +162,20 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - Deepen lyrics integration (pipeline + render done; remaining):
   - pYIN pitch summary per word
   - `lyrics-aligner` fallback (wav2vec2, pip-installable)
-- Story improvements:
-  - reduce section jitter and micro-sections further
+- Story improvements (**substantially improved 2026-04-23**):
+  - **Section boundary detection revamp** (all in `story.py`):
+    - `_score_and_filter_boundaries()`: replaced naive union with scored intersection — SSM+energy agreed boundaries kept unconditionally; SSM-only kept if novelty peak ≥ 0.50; energy-only always kept. Eliminates weak spurious SSM-only boundaries (e.g. 188.9s false outro on Feel Good Inc).
+    - `_force_split_long_sections()`: any section > 60s gets split at its deepest tension valley (segments tension array before calling `_tension_valley_boundaries` for correct smoothing scale); falls back to midpoint split if no valley found.
+    - `_merge_same_label_sections` max_merged_len_s raised from 30.0 → 50.0.
+    - Results on Feel Good Inc: 8 → 7 sections; 4/5 true boundaries within 0.5s tolerance; boundary F1 @3s = 0.727; pairwise F1 = 0.901. Windmill/bridge now correctly labeled "valley" (was "build").
+  - **Label improvements** (`_assign_roles()`):
+    - Intro: bonus for first section with low relative-intensity-rank (quiet opener gets extra score).
+    - Build: duration penalty for very short first sections (<16 beats) — prevents quiet intro from being mislabeled "build".
+    - Contrast: energy-dip bonus when a section's mean_rms is below both neighbors — detects windmill/bridge sections.
+  - **Section evaluation infrastructure** (Phase 1):
+    - `benchmark/references/feel-good-inc/sections.json`: ground truth 6-section annotation.
+    - `evaluate_sections()` in `eval.py`: boundary F1 @3s and @0.5s, over/under-segmentation ratio, pairwise frame-clustering F1. 10 tests in `test_eval.py`.
+    - `songviz eval` automatically runs section eval when `story.json` + `sections.json` exist (no extra flag needed).
 - Render improvements:
   - stronger chapter transition visuals (currently: smoothstep crossfade; want: more dramatic)
 - Separation stack is **frozen** — Demucs + DrumSep. Vocal model experiments deferred (see `experiments/README.md`).

@@ -407,17 +407,23 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
 
         # intro (constraint: song_position < 0.25)
         if sp < 0.25:
-            scores["intro"] = (
+            intro_base = (
                 0.40 * (1 - sp)
                 + 0.25 * (1 - rir)
                 + 0.20 * (1 - rs)
                 + 0.15 * sl
             )
+            # Bonus for first section that is quiet — strong signal it's an intro,
+            # not a build.  A quiet opener (rir < 0.3) that comes before the main
+            # content is almost always intro or valley; boost intro to win.
+            if i == 0 and rir < 0.3:
+                intro_base += 0.15 * (0.3 - rir) / 0.3
+            scores["intro"] = intro_base
         else:
             scores["intro"] = 0.0
 
         # build — sl used directly (0=decline, 0.5=flat, 1=rise)
-        scores["build"] = (
+        build_base = (
             0.45 * sl
             + 0.30 * (1 - rir)
             + 0.15 * od
@@ -426,7 +432,16 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
         if i + 1 < n:
             gap = features[i + 1]["relative_intensity_rank"] - rir
             if gap > 0.15:
-                scores["build"] += 0.12 * gap
+                build_base += 0.12 * gap
+        # Duration penalty for build: a very short first section (<15s) is more
+        # likely an intro than a build.  Sections are normalized so we proxy
+        # duration via song_position × estimated_duration.
+        # Use duration_beats feature (already computed, in raw beats).
+        dur_beats = f.get("duration_beats", 32.0)
+        if i == 0 and dur_beats < 16:
+            # Scale linearly: 0 beats → 0.5x, 16 beats → 1.0x
+            build_base *= max(0.5, dur_beats / 16.0)
+        scores["build"] = build_base
 
         # payoff (no repetition requirement)
         scores["payoff"] = (
@@ -455,12 +470,23 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
 
         # contrast (relative novelty within song)
         relative_novelty = (rs_max - rs) / (rs_max - rs_min + 1e-8)
-        scores["contrast"] = (
+        contrast_base = (
             0.35 * relative_novelty
             + 0.30 * ntp
             + 0.25 * ntn
             + 0.10 * rv
         )
+        # Energy-dip bonus: if this section's energy is noticeably lower than
+        # both its neighbours, it's likely a break/bridge (contrast/valley).
+        # This helps detect windmill/bridge sections that have rising internal
+        # slope but are quieter than the surrounding choruses.
+        if i > 0 and i < n - 1:
+            prev_rms = features[i - 1]["mean_rms"]
+            next_rms = features[i + 1]["mean_rms"]
+            neighbor_avg = (prev_rms + next_rms) / 2.0
+            energy_dip = max(0.0, neighbor_avg - mr)
+            contrast_base += 0.20 * energy_dip
+        scores["contrast"] = contrast_base
 
         # outro (constraint: song_position > 0.75)
         if sp > 0.75:
@@ -908,6 +934,120 @@ def _novelty_boundaries(
     return [0.0] + sorted(peak_times) + [duration_s]
 
 
+_MAX_SECTION_S = 60.0  # Force-split sections longer than this
+
+
+def _force_split_long_sections(
+    bounds_s: list[float],
+    *,
+    tension: np.ndarray,
+    times_s: np.ndarray,
+    max_section_s: float = _MAX_SECTION_S,
+    min_section_s: float = 12.0,
+) -> list[float]:
+    """Insert a split at the deepest tension valley in any section > max_section_s.
+
+    Iterates until no section exceeds the limit (or no valid valley is found).
+    Uses the sliced segment tension so the smoothing window is correctly scaled.
+    Falls back to a midpoint split if no tension valley is found.
+    """
+    out = list(bounds_s)
+    changed = True
+    while changed:
+        changed = False
+        new_bounds: list[float] = [out[0]]
+        for i in range(len(out) - 1):
+            seg_start = out[i]
+            seg_end = out[i + 1]
+            seg_len = seg_end - seg_start
+            if seg_len > max_section_s:
+                # Slice tension to the segment so smoothing window is correct.
+                mask = (times_s >= seg_start) & (times_s < seg_end)
+                seg_tension = tension[mask]
+                seg_times = times_s[mask]
+
+                split_t: float | None = None
+                if seg_times.size >= 10:
+                    splits = _tension_valley_boundaries(
+                        seg_tension, seg_times,
+                        min_len_s=min_section_s,
+                        duration_s=float(seg_times[-1]),
+                        target_k=1,
+                    )
+                    # Keep internal boundaries (excluding segment endpoints).
+                    valid = [
+                        t for t in splits
+                        if seg_start + min_section_s < t < seg_end - min_section_s
+                    ]
+                    if valid:
+                        mid = (seg_start + seg_end) / 2.0
+                        split_t = min(valid, key=lambda t: abs(t - mid))
+
+                if split_t is None:
+                    # No valley found — split at midpoint.
+                    split_t = (seg_start + seg_end) / 2.0
+
+                new_bounds.append(split_t)
+                changed = True
+            new_bounds.append(seg_end)
+        out = sorted(set(new_bounds))
+    return out
+
+
+def _score_and_filter_boundaries(
+    bounds_ssm: list[float],
+    bounds_energy: list[float],
+    *,
+    novelty: np.ndarray | None,
+    beat_times: np.ndarray | None,
+    duration_s: float,
+    agreement_window_s: float = 5.0,
+    ssm_prominence_thr: float = 0.50,
+) -> list[float]:
+    """Score boundaries by cross-detector agreement and filter weak singles.
+
+    - Boundaries within *agreement_window_s* of each other (one from SSM, one
+      from energy) are counted as "agreed" and always kept.
+    - SSM-only boundaries are kept only if the novelty curve peak at that
+      boundary exceeds *ssm_prominence_thr*.
+    - Energy-only boundaries are always kept (they represent visible waveform
+      changes and are harder to false-trigger).
+
+    Returns a sorted list of internal boundary times (excludes 0 and duration_s).
+    """
+    ssm_internal = sorted(b for b in bounds_ssm if 0 < b < duration_s)
+    energy_internal = sorted(b for b in bounds_energy if 0 < b < duration_s)
+
+    # Tag each SSM boundary as agreed or solo.
+    def _has_near_partner(t: float, partners: list[float], window: float) -> bool:
+        return any(abs(t - p) <= window for p in partners)
+
+    # Build novelty lookup: SSM boundary → peak novelty within ±0.5s
+    def _novelty_at(t: float) -> float:
+        if novelty is None or beat_times is None:
+            return 1.0  # no info → keep
+        # Find the nearest beat frame to t
+        idx = int(np.searchsorted(beat_times, t))
+        # Search ±2 beat frames for peak novelty
+        lo = max(0, idx - 2)
+        hi = min(len(novelty) - 1, idx + 2)
+        return float(novelty[lo : hi + 1].max())
+
+    kept: set[float] = set()
+
+    for t in ssm_internal:
+        if _has_near_partner(t, energy_internal, agreement_window_s):
+            kept.add(t)  # agreed — always keep
+        elif _novelty_at(t) >= ssm_prominence_thr:
+            kept.add(t)  # strong SSM-only boundary
+
+    for t in energy_internal:
+        # Always keep energy-only boundaries — they're visible in the waveform.
+        kept.add(t)
+
+    return sorted(kept)
+
+
 def compute_story(
     y: np.ndarray,
     sr: int,
@@ -997,13 +1137,22 @@ def compute_story(
             target_k=energy_target_k,
         )
 
-        # Combine: union of harmonic (SSM) and energy (tension) boundaries
-        internal = sorted(set(
-            [b for b in bounds_ssm if 0 < b < duration_s]
-            + [b for b in bounds_energy if 0 < b < duration_s]
-        ))
+        # Combine: scored intersection — agreed or prominent boundaries only
+        internal = _score_and_filter_boundaries(
+            bounds_ssm, bounds_energy,
+            novelty=novelty if _has_structure else None,
+            beat_times=beat_times,
+            duration_s=duration_s,
+        )
         bounds_s = [0.0] + internal + [duration_s]
         bounds_s = _merge_short_segments(bounds_s, min_len_s=12.0, duration_s=duration_s)
+        # Force-split any section that is still too long
+        bounds_s = _force_split_long_sections(
+            bounds_s,
+            tension=raw_tension_smoothed,
+            times_s=times_s,
+            max_section_s=_MAX_SECTION_S,
+        )
 
         _ssm_ok = True
 
@@ -1103,7 +1252,7 @@ def compute_story(
 
     _revise_roles_globally(sections, sec_features, role_assignments, section_means)
     _assign_role_based_labels(sections, section_means, sec_features=sec_features)
-    sections = _merge_same_label_sections(sections, max_merged_len_s=30.0)
+    sections = _merge_same_label_sections(sections, max_merged_len_s=50.0)
 
     # --- Subsection detection within each section ---
     for sec in sections:
