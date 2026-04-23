@@ -1,0 +1,15 @@
+{
+  "layer": "sections",
+  "confidence": "silver",
+  "source": "Listening + SSM analysis (175.0s, ~135 BPM, twenty one pilots - Scaled and Icy 2021)",
+  "description": "Shy Away — 7 structural sections. Soft keyboard intro → verse-chorus pattern → bridge → final chorus → outro. SSM novelty=0.463 confirms real transition at 107.6s (bridge returning to final chorus).",
+  "sections": [
+    {"start_s":   0.0, "end_s":   9.3, "label": "intro",           "note": "soft keyboard melody, no drums"},
+    {"start_s":   9.3, "end_s":  29.7, "label": "verse1",          "note": "Tyler's verse 1, light groove"},
+    {"start_s":  29.7, "end_s":  49.5, "label": "pre_chorus1",     "note": "pre-chorus build"},
+    {"start_s":  49.5, "end_s":  80.4, "label": "chorus1",         "note": "first chorus, high energy"},
+    {"start_s":  80.4, "end_s": 107.6, "label": "verse2_bridge",   "note": "verse 2 / bridge, different timbre from chorus"},
+    {"start_s": 107.6, "end_s": 150.3, "label": "chorus2_extended","note": "final chorus extended, highest energy section"},
+    {"start_s": 150.3, "end_s": 175.0, "label": "outro",           "note": "energy wind-down"}
+  ]
+}

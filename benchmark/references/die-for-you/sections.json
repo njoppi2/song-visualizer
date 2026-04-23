@@ -1,0 +1,16 @@
+{
+  "layer": "sections",
+  "confidence": "bronze",
+  "source": "Structural inference from audio features (212.9s, Grabbitz)",
+  "description": "Die For You — 8 sections. Song opens near-silent for ~5s then full groove enters. Bronze confidence: section boundaries inferred from SSM+energy analysis, not independent listening verification.",
+  "sections": [
+    {"start_s":   0.0, "end_s":   5.5, "label": "intro",   "note": "near-silent fade-in"},
+    {"start_s":   5.5, "end_s":  46.1, "label": "verse1",  "note": "main groove / verse 1, ~40s"},
+    {"start_s":  46.1, "end_s":  71.4, "label": "bridge1", "note": "lower-energy section, possible breakdown"},
+    {"start_s":  71.4, "end_s":  92.2, "label": "chorus1", "note": "higher energy payoff"},
+    {"start_s":  92.2, "end_s": 111.4, "label": "verse2",  "note": "return to groove"},
+    {"start_s": 111.4, "end_s": 133.3, "label": "chorus2", "note": "second payoff"},
+    {"start_s": 133.3, "end_s": 169.3, "label": "build",   "note": "extended build section ~36s"},
+    {"start_s": 169.3, "end_s": 212.9, "label": "outro",   "note": "final section / outro ~43s"}
+  ]
+}

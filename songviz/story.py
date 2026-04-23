@@ -1238,6 +1238,14 @@ def compute_story(
         # score+filter already removed weak candidates, so surviving boundaries
         # that create 8-12s sections are genuine structural events.
         bounds_s = _merge_short_segments(bounds_s, min_len_s=8.0, duration_s=duration_s)
+        # Inject a quiet-intro boundary AFTER the merge pass (so it's not
+        # dropped by the min_len gate). The SSM checkerboard can't detect
+        # song-start onset: there's no prior context to form self-similarity.
+        _intro_end = _detect_intro_onset_boundary(tension, times_s, duration_s=duration_s)
+        if _intro_end is not None and not any(
+            0 < b < _intro_end + 5.0 for b in bounds_s[1:]  # skip 0.0
+        ):
+            bounds_s = sorted(set(bounds_s + [_intro_end]))
         # Force-split any section that is still too long
         bounds_s = _force_split_long_sections(
             bounds_s,
