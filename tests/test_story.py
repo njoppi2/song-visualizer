@@ -8,6 +8,7 @@ from songviz.story import (
     _assign_roles,
     _checkerboard_novelty,
     _compute_section_features,
+    _detect_intro_onset_boundary,
     _detect_subsections,
     _merge_same_label_sections,
     _revise_roles_globally,
@@ -327,3 +328,85 @@ def test_role_based_labels_same_role_same_letter() -> None:
     assert sections[1]["label"] == sections[3]["label"]
     assert sections[0]["label"] != sections[1]["label"]
 
+
+# ---------------------------------------------------------------------------
+# _detect_intro_onset_boundary
+# ---------------------------------------------------------------------------
+
+def test_intro_onset_detected_for_quiet_start() -> None:
+    """A song with a quiet intro followed by a loud section should detect the boundary."""
+    # 222s song, normalized tension: quiet 0-12.7s (≈0.05), loud after (≈0.65)
+    sr = 22050
+    hop = 512
+    n_frames = int(222.0 * sr / hop)
+    times = np.arange(n_frames) * (hop / sr)
+    tension = np.where(times < 12.7, 0.05, 0.65).astype(np.float32)
+
+    result = _detect_intro_onset_boundary(tension, times, duration_s=222.0)
+
+    assert result is not None, "Expected intro boundary to be detected"
+    # Should land within 2s of the actual onset at 12.7s
+    assert abs(result - 12.7) <= 2.0, f"Expected ~12.7s, got {result:.2f}s"
+
+
+def test_intro_onset_returns_none_for_loud_start() -> None:
+    """A song that starts loud should not produce a false intro boundary."""
+    sr = 22050
+    hop = 512
+    n_frames = int(180.0 * sr / hop)
+    times = np.arange(n_frames) * (hop / sr)
+    tension = np.full(n_frames, 0.70, dtype=np.float32)
+
+    result = _detect_intro_onset_boundary(tension, times, duration_s=180.0)
+
+    assert result is None, f"Expected None for loud-start song, got {result}"
+
+
+def test_intro_onset_returns_none_for_uniform_quiet() -> None:
+    """A uniformly quiet song has no onset to detect."""
+    sr = 22050
+    hop = 512
+    n_frames = int(180.0 * sr / hop)
+    times = np.arange(n_frames) * (hop / sr)
+    tension = np.full(n_frames, 0.10, dtype=np.float32)
+
+    result = _detect_intro_onset_boundary(tension, times, duration_s=180.0)
+
+    assert result is None, f"Expected None for uniformly quiet song, got {result}"
+
+
+# ---------------------------------------------------------------------------
+# _detect_subsections — quiet-start detection
+# ---------------------------------------------------------------------------
+
+def test_subsections_quiet_start_adds_split() -> None:
+    """A section that starts very quiet should get an extra subsection split."""
+    # 28s section: quiet for first 6s, then rises, with a valley mid-way.
+    sr = 22050
+    hop = 512
+    n_frames = int(240.0 * sr / hop)
+    times = np.arange(n_frames) * (hop / sr)
+
+    sec_start = 100.0
+    sec_end = 128.0  # 28s section
+    tension = np.zeros(n_frames, dtype=np.float32)
+    for i, t in enumerate(times):
+        if t < sec_start or t >= sec_end:
+            tension[i] = 0.65  # surroundings are loud
+        elif t < sec_start + 6.0:
+            tension[i] = 0.08   # quiet opening
+        elif t < sec_start + 16.0:
+            tension[i] = 0.08 + (t - (sec_start + 6.0)) / 10.0 * 0.55  # rising
+        elif t < sec_start + 20.0:
+            tension[i] = 0.45   # valley dip
+        else:
+            tension[i] = 0.60   # resumes high
+
+    section = {"label": "C", "start_s": sec_start, "end_s": sec_end}
+    subs = _detect_subsections(section, tension, times)
+
+    assert len(subs) >= 2, f"Expected ≥2 subsections for quiet-start section, got {len(subs)}"
+    # First subsection must not span the whole section — quiet-start split was added
+    sec_mid = (sec_start + sec_end) / 2.0
+    assert subs[0]["end_s"] < sec_end, f"Only subsection spans the whole section"
+    assert subs[0]["start_s"] == sec_start, "First subsection must start at section start"

@@ -772,6 +772,24 @@ def _detect_subsections(
         if len(selected_times) >= target_k:
             break
 
+    # Quiet-start detection: if the section's opening is significantly below its
+    # mean tension, insert a split at the first upward crossing.  This catches
+    # the "sparse opening before the groove rebuilds" pattern that tension-valley
+    # detection misses because the derivative is monotonically rising at the start.
+    quiet_frac = 0.20
+    q_idx = max(1, int(quiet_frac * len(smooth)))
+    q_mean = float(smooth[:q_idx].mean())
+    sec_mean = float(smooth.mean())
+    cross_level = sec_mean - 0.15 * section_range
+    if q_mean < cross_level and section_len >= min_subsection_len_s * 2.0:
+        for ci in range(q_idx, len(smooth)):
+            if smooth[ci] >= sec_mean:
+                t = float(local_times[min(ci, len(local_times) - 1)])
+                if (t - start_s) >= min_subsection_len_s and (end_s - t) >= min_subsection_len_s:
+                    if all(abs(t - s) >= min_subsection_len_s for s in selected_times):
+                        selected_times.append(t)
+                break
+
     if not selected_times:
         return [_make_subsection(start_s, end_s, tension, times_s)]
 
@@ -935,6 +953,49 @@ def _novelty_boundaries(
 
 
 _MAX_SECTION_S = 60.0  # Force-split sections longer than this
+
+
+def _detect_intro_onset_boundary(
+    tension: np.ndarray,
+    times_s: np.ndarray,
+    *,
+    duration_s: float,
+    quiet_window_s: float = 5.0,
+    quiet_threshold: float = 0.25,
+    active_threshold: float = 0.35,
+    max_intro_fraction: float = 0.25,
+) -> float | None:
+    """Detect intro-end boundary: first time tension rises from a quiet start.
+
+    If the song's first ``quiet_window_s`` seconds have mean normalized tension
+    below ``quiet_threshold``, scan forward for the first frame where tension
+    exceeds ``active_threshold``.  Returns that time, or None if the song does
+    not start quietly or no crossing is found within the first
+    ``max_intro_fraction`` of the song.
+
+    ``tension`` must already be normalized to [0, 1].
+    """
+    if times_s.size < 10:
+        return None
+
+    quiet_mask = times_s < quiet_window_s
+    if not quiet_mask.any():
+        return None
+    if float(tension[quiet_mask].mean()) >= quiet_threshold:
+        return None  # Song doesn't start quiet — no intro onset to detect
+
+    max_search_t = duration_s * max_intro_fraction
+    search_mask = (times_s >= quiet_window_s) & (times_s < max_search_t)
+    if not search_mask.any():
+        return None
+
+    search_tension = tension[search_mask]
+    search_times = times_s[search_mask]
+
+    crossing = np.flatnonzero(search_tension >= active_threshold)
+    if crossing.size == 0:
+        return None
+    return float(search_times[crossing[0]])
 
 
 def _force_split_long_sections(
@@ -1144,6 +1205,17 @@ def compute_story(
             beat_times=beat_times,
             duration_s=duration_s,
         )
+        # Intro-onset: if song starts quiet, detect where energy first rises.
+        # The SSM/energy detectors both miss low→high energy transitions because
+        # SSM novelty at the beat of the first drum hit is typically below the
+        # prominence threshold, and tension-valley detectors only fire at peaks
+        # followed by dips. This fills that gap.
+        intro_t = _detect_intro_onset_boundary(
+            tension, times_s, duration_s=duration_s,
+        )
+        if intro_t is not None and all(abs(intro_t - b) > 5.0 for b in internal):
+            internal = sorted(internal + [intro_t])
+
         bounds_s = [0.0] + internal + [duration_s]
         bounds_s = _merge_short_segments(bounds_s, min_len_s=12.0, duration_s=duration_s)
         # Force-split any section that is still too long
