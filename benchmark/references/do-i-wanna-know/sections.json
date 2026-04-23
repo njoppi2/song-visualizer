@@ -1,0 +1,16 @@
+{
+  "layer": "sections",
+  "confidence": "silver",
+  "source": "Listening + SSM analysis (272s, 86 BPM)",
+  "description": "Do I Wanna Know — 8 structural sections. Consistent groove throughout; verse sections are musically very similar.",
+  "sections": [
+    {"start_s":   0.0, "end_s":  13.0, "label": "intro",          "note": "solo guitar riff, no drums"},
+    {"start_s":  13.0, "end_s":  95.0, "label": "verse1_verse2",  "note": "full band enters, verses 1+2 back-to-back (~39s each)"},
+    {"start_s":  95.0, "end_s": 119.0, "label": "chorus1",        "note": "Do I wanna know hook, higher energy"},
+    {"start_s": 119.0, "end_s": 156.0, "label": "verse3",         "note": "verse 3, back to groove"},
+    {"start_s": 156.0, "end_s": 185.0, "label": "bridge",         "note": "tension valley, pre-chorus or instrumental bridge"},
+    {"start_s": 185.0, "end_s": 232.0, "label": "chorus2",        "note": "second chorus, extended"},
+    {"start_s": 232.0, "end_s": 248.8, "label": "chorus2_coda",   "note": "chorus coda / breakdown"},
+    {"start_s": 248.8, "end_s": 272.4, "label": "outro",          "note": "outro, energy declines"}
+  ]
+}

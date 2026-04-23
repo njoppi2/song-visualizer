@@ -1054,12 +1054,12 @@ def _force_split_long_sections(
                         mid = (seg_start + seg_end) / 2.0
                         split_t = min(valid, key=lambda t: abs(t - mid))
 
-                if split_t is None:
-                    # No valley found — split at midpoint.
-                    split_t = (seg_start + seg_end) / 2.0
-
-                new_bounds.append(split_t)
-                changed = True
+                # No valley found — leave the section unsplit.
+                # A long section with no tension valley has uniform energy;
+                # splitting at the midpoint would create a false boundary.
+                if split_t is not None:
+                    new_bounds.append(split_t)
+                    changed = True
             new_bounds.append(seg_end)
         out = sorted(set(new_bounds))
     return out
