@@ -438,9 +438,11 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
         # duration via song_position × estimated_duration.
         # Use duration_beats feature (already computed, in raw beats).
         dur_beats = f.get("duration_beats", 32.0)
-        if i == 0 and dur_beats < 16:
-            # Scale linearly: 0 beats → 0.5x, 16 beats → 1.0x
-            build_base *= max(0.5, dur_beats / 16.0)
+        if i == 0 and dur_beats < 24:
+            # Scale linearly: 0 beats → 0.5x, 24 beats → 1.0x.
+            # Intro sections are typically 4-6 bars (16-24 beats). A rising first
+            # section shorter than 24 beats is more likely an intro than a build.
+            build_base *= max(0.5, dur_beats / 24.0)
         scores["build"] = build_base
 
         # payoff (no repetition requirement)
@@ -470,9 +472,13 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
 
         # contrast (relative novelty within song)
         relative_novelty = (rs_max - rs) / (rs_max - rs_min + 1e-8)
+        # Use novelty_to_prev only when there actually IS a previous section.
+        # For section 0 ntp is stored as 1.0 (sentinel), which would incorrectly
+        # boost contrast for the opening section.
+        effective_ntp = ntp if i > 0 else 0.0
         contrast_base = (
             0.35 * relative_novelty
-            + 0.30 * ntp
+            + 0.30 * effective_ntp
             + 0.25 * ntn
             + 0.10 * rv
         )
@@ -486,6 +492,10 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
             neighbor_avg = (prev_rms + next_rms) / 2.0
             energy_dip = max(0.0, neighbor_avg - mr)
             contrast_base += 0.20 * energy_dip
+        # Position gate: a contrast section needs something before it to contrast
+        # against.  Ramp from 0 at sp=0 to full weight at sp=0.10.
+        if sp < 0.10:
+            contrast_base *= sp / 0.10
         scores["contrast"] = contrast_base
 
         # outro (constraint: song_position > 0.75)
@@ -1106,6 +1116,23 @@ def _score_and_filter_boundaries(
         # Always keep energy-only boundaries — they're visible in the waveform.
         kept.add(t)
 
+    # --- Intro-end rescue ---
+    # Intro→verse boundaries are often feature-subtle: the SSM detects the
+    # groove onset (drums entering, bass locking in) but novelty is below the
+    # main threshold because the timbral change is gradual in beat-sync space.
+    # If nothing survived in the first 25% of the song, rescue the strongest
+    # SSM candidate there that clears a relaxed novelty floor of 0.20.
+    early_cutoff = duration_s * 0.25
+    if not any(t < early_cutoff for t in kept):
+        early_candidates = [
+            (t, _novelty_at(t))
+            for t in ssm_internal
+            if t < early_cutoff and _novelty_at(t) >= 0.20
+        ]
+        if early_candidates:
+            best_t, _ = max(early_candidates, key=lambda x: x[1])
+            kept.add(best_t)
+
     return sorted(kept)
 
 
@@ -1205,17 +1232,6 @@ def compute_story(
             beat_times=beat_times,
             duration_s=duration_s,
         )
-        # Intro-onset: if song starts quiet, detect where energy first rises.
-        # The SSM/energy detectors both miss low→high energy transitions because
-        # SSM novelty at the beat of the first drum hit is typically below the
-        # prominence threshold, and tension-valley detectors only fire at peaks
-        # followed by dips. This fills that gap.
-        intro_t = _detect_intro_onset_boundary(
-            tension, times_s, duration_s=duration_s,
-        )
-        if intro_t is not None and all(abs(intro_t - b) > 5.0 for b in internal):
-            internal = sorted(internal + [intro_t])
-
         bounds_s = [0.0] + internal + [duration_s]
         bounds_s = _merge_short_segments(bounds_s, min_len_s=12.0, duration_s=duration_s)
         # Force-split any section that is still too long

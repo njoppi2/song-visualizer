@@ -1,12 +1,13 @@
 {
   "layer": "sections",
   "confidence": "silver",
-  "source": "Listening + bass activity regions",
-  "description": "Feel Good Inc — 6 structural sections. Bass drops out entirely for rap verse (63-95s) and windmill/bridge (138-167s).",
+  "source": "Listening + SSM analysis (novelty=0.997 at 79.1s confirmed two-rapper swap)",
+  "description": "Feel Good Inc — 7 structural sections. Bass drops out for rap verse (63-95s) and windmill/bridge (138-167s). Rap verse split at 79.1s: De La Soul vocalist swap creates max SSM novelty (0.997) in the whole song.",
   "sections": [
     {"start_s":   0.0, "end_s":  12.7, "label": "intro",               "note": "keyboard drone only, no drums/bass"},
     {"start_s":  12.7, "end_s":  63.4, "label": "verse1_chorus1",      "note": "main groove, sub-bass riff enters"},
-    {"start_s":  63.4, "end_s":  95.0, "label": "rap_verse",           "note": "Del rap, no bass, different texture"},
+    {"start_s":  63.4, "end_s":  79.1, "label": "rap_verse1",          "note": "De La Soul rapper 1 (Trugoy), groove continues"},
+    {"start_s":  79.1, "end_s":  95.0, "label": "rap_verse2",          "note": "De La Soul rapper 2 swap, highest spectral novelty in song"},
     {"start_s":  95.0, "end_s": 137.9, "label": "chorus2",             "note": "main groove returns after rap"},
     {"start_s": 137.9, "end_s": 165.7, "label": "windmill_bridge",     "note": "no bass, windmill/chant section"},
     {"start_s": 165.7, "end_s": 222.0, "label": "verse3_chorus3_outro","note": "final groove section through end"}
