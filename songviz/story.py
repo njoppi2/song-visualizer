@@ -443,6 +443,12 @@ def _assign_roles(features: list[dict[str, float]]) -> list[dict[str, Any]]:
             # Intro sections are typically 4-6 bars (16-24 beats). A rising first
             # section shorter than 24 beats is more likely an intro than a build.
             build_base *= max(0.5, dur_beats / 24.0)
+        # Quiet-island penalty: if this section is the absolute quietest in the
+        # song (rir == 0), it can't be a "build" — true builds have baseline
+        # energy that they're escalating from.  Only rir=0 is targeted so that
+        # other low-energy sections (verse, rap verse) are unaffected.
+        if rir < 0.01:  # catches only rank-0 (the single quietest section)
+            build_base = 0.0
         scores["build"] = build_base
 
         # payoff (no repetition requirement)
