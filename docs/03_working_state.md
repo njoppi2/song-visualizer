@@ -164,18 +164,27 @@ For the phased roadmap, see `docs/01_roadmap.md`.
   - `lyrics-aligner` fallback (wav2vec2, pip-installable)
 - Story improvements (**substantially improved 2026-04-23**):
   - **Section boundary detection revamp** (all in `story.py`):
-    - `_score_and_filter_boundaries()`: replaced naive union with scored intersection — SSM+energy agreed boundaries kept unconditionally; SSM-only kept if novelty peak ≥ 0.50; energy-only always kept. Eliminates weak spurious SSM-only boundaries (e.g. 188.9s false outro on Feel Good Inc).
-    - `_force_split_long_sections()`: any section > 60s gets split at its deepest tension valley (segments tension array before calling `_tension_valley_boundaries` for correct smoothing scale); falls back to midpoint split if no valley found.
-    - `_merge_same_label_sections` max_merged_len_s raised from 30.0 → 50.0.
-    - Results on Feel Good Inc: 8 → 7 sections; 4/5 true boundaries within 0.5s tolerance; boundary F1 @3s = 0.727; pairwise F1 = 0.901. Windmill/bridge now correctly labeled "valley" (was "build").
+    - `_score_and_filter_boundaries()`: replaced naive union with scored intersection — SSM+energy agreed boundaries kept unconditionally; SSM-only kept if novelty peak ≥ 0.50; energy-only always kept. Rescue heuristic: if nothing survived in first 25% of song, rescues strongest SSM candidate with relaxed floor (novelty ≥ 0.20).
+    - `_force_split_long_sections()`: any section > 45s gets split at its deepest tension valley; midpoint fallback removed (uniform-energy long sections left unsplit, preventing false splits on slow-build intros).
+    - `_merge_short_segments` min_len_s lowered 12.0 → 8.0s to preserve genuine short intros (e.g. Feeling This 11.3s drum intro, SSM novelty=0.809).
+    - `_detect_intro_onset_boundary()`: detects quiet-intro end (first-5s tension mean < 0.25) and injects the boundary AFTER the merge pass so it bypasses the 8s minimum. Fires only for songs with near-silent openings (e.g. Die For You 5.5s silent fade-in); returns None for loud starts (Feel Good Inc, Do I Wanna Know, Shy Away).
+    - `_merge_same_label_sections` max_merged_len_s = 50.0 (from 30.0).
   - **Label improvements** (`_assign_roles()`):
-    - Intro: bonus for first section with low relative-intensity-rank (quiet opener gets extra score).
-    - Build: duration penalty for very short first sections (<16 beats) — prevents quiet intro from being mislabeled "build".
-    - Contrast: energy-dip bonus when a section's mean_rms is below both neighbors — detects windmill/bridge sections.
-  - **Section evaluation infrastructure** (Phase 1):
-    - `benchmark/references/feel-good-inc/sections.json`: ground truth 6-section annotation.
-    - `evaluate_sections()` in `eval.py`: boundary F1 @3s and @0.5s, over/under-segmentation ratio, pairwise frame-clustering F1. 10 tests in `test_eval.py`.
+    - Intro: bonus for first section with low relative-intensity-rank (quiet opener gets extra score); build duration penalty for short (<24-beat) first sections.
+    - Build: quiet-island penalty — if rir < 0.01 (the single quietest section in the song, rank-minimum), build score is zeroed. Prevents windmill/bridge sections with rising internal slope from being mislabeled "build".
+    - Contrast: energy-dip bonus (0.20×) when a section's mean_rms is below both neighbors.
+    - Contrast position gate: ramps from 0 at sp=0 to full weight at sp=0.10 (contrast can't open a song).
+    - `effective_ntp = ntp if i > 0 else 0.0`: first section uses sentinel ntp=1.0; zeroing prevents spurious contrast score on section 0.
+  - **Section evaluation infrastructure**:
+    - `benchmark/references/{feel-good-inc,do-i-wanna-know,feeling-this,shy-away,die-for-you}/sections.json`: ground truth annotations for all 5 benchmark songs.
+    - `evaluate_sections()` in `eval.py`: boundary F1 @3s and @0.5s, over/under-segmentation ratio, pairwise frame-clustering F1.
     - `songviz eval` automatically runs section eval when `story.json` + `sections.json` exist (no extra flag needed).
+  - **Benchmark results (all 5 songs, 2026-04-23)**:
+    - Feel Good Inc (silver, 7 sections): F1@3s=1.000, F1@0.5s=0.667 (beat-quantization gap ≤0.7s); windmill correctly labeled valley.
+    - Do I Wanna Know (silver, 8 sections): F1@3s=1.000, F1@0.5s=1.000.
+    - Feeling This (silver, 6 sections): F1@3s=1.000, F1@0.5s=1.000.
+    - Shy Away (silver, 7 sections): F1@3s=1.000, F1@0.5s=1.000.
+    - Die For You (bronze, 8 sections): F1@3s=1.000, F1@0.5s=1.000 (circular ground truth).
 - Render improvements:
   - stronger chapter transition visuals (currently: smoothstep crossfade; want: more dramatic)
 - Separation stack is **frozen** — Demucs + DrumSep. Vocal model experiments deferred (see `experiments/README.md`).
