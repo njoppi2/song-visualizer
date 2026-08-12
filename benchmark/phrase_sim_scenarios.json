@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "description": "Gold/silver ground-truth scenarios for phrase similarity metrics on stems. Each entry asserts that a specific metric in a time window of a specific stem should be above/below a threshold. Used to catch regressions when tuning phrase_spec_sim and related metrics.",
+  "note": "Scenarios are 10-second windows viewed at lag=16 (16-beat blocks) unless otherwise specified, matching how the dashboard default looks. Confidence: gold = manually verified by listening + logic; silver = inferred from signal analysis.",
+  "scenarios": [
+    {
+      "id": "diwk_other_silence_lag16",
+      "song": "Arctic Monkeys - Do I Wanna Know_",
+      "stem": "other",
+      "t_start_s": 128,
+      "t_end_s": 134,
+      "metric": "phrase_spec_sim",
+      "lag": 16,
+      "expected_behavior": "high",
+      "threshold": 0.90,
+      "direction": ">=",
+      "confidence": "gold",
+      "rationale": "Silent gap ~2:08-2:14. The current 16-beat block is silence (reverb tail). The previous 16-beat block is also the decaying tail of the chorus — no new note attacks in either block. Both sides have equivalent 'nothing playing' content, so similarity should be ~1.0. The old audibility-weighted metric (Spec Old) shows ~0.357 here because the previous block reaches back into the loud chorus, inflating its weight; the onset-weighted metric (Spec New) correctly returns 1.0 because neither block has fresh attacks."
+    },
+    {
+      "id": "diwk_other_verse2_onset_lag16",
+      "song": "Arctic Monkeys - Do I Wanna Know_",
+      "stem": "other",
+      "t_start_s": 136,
+      "t_end_s": 144,
+      "metric": "phrase_spec_sim",
+      "lag": 16,
+      "expected_behavior": "low",
+      "threshold": 0.70,
+      "direction": "<=",
+      "confidence": "silver",
+      "rationale": "Verse 2 settling in after ~2:14. Window starts at 136s to skip the 1-2s transition ramp as the block boundaries shift. By 136s the current block is fully in the new riff and the previous block is fully in silence → 'notes vs silence' → similarity ~0.57. Complement to the silence scenario: the metric must distinguish 'both silent' from 'one has notes'."
+    },
+    {
+      "id": "diwk_other_riff_repeating_lag16",
+      "song": "Arctic Monkeys - Do I Wanna Know_",
+      "stem": "other",
+      "t_start_s": 50,
+      "t_end_s": 65,
+      "metric": "phrase_spec_sim",
+      "lag": 16,
+      "expected_behavior": "high",
+      "threshold": 0.90,
+      "direction": ">=",
+      "confidence": "silver",
+      "rationale": "Mid-verse riff ~0:50-1:05. The same guitar riff repeats consistently here, so the current 16-beat block and the previous one should have nearly identical spectral content → similarity near 1.0."
+    },
+    {
+      "id": "diwk_other_chorus_variation_lag16",
+      "song": "Arctic Monkeys - Do I Wanna Know_",
+      "stem": "other",
+      "t_start_s": 95,
+      "t_end_s": 115,
+      "metric": "phrase_spec_sim",
+      "lag": 16,
+      "expected_behavior": "variable",
+      "range_min": 0.60,
+      "range_max": 0.95,
+      "min_dynamic_range": 0.18,
+      "confidence": "silver",
+      "rationale": "Chorus ~1:35-1:55. The chorus has richer harmonic content that varies beat-to-beat compared to the verse riff. The metric should show genuine variation (not pinned to 1.0). A dynamic range below 0.18 would suggest the metric is being over-smoothed or pinned to a single value in active sections."
+    }
+  ]
+}
