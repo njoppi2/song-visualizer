@@ -9,5 +9,5 @@ venv:
 	@test -x "$(PY)" || python3 -m venv "$(VENV)"
 	@$(PIP) install -e '.[stems,viz,lyrics]'
 
-ui: venv
-	@$(PY) -m songviz ui --layout $(UI_LAYOUT)
+ui:
+	uv run streamlit run songviz/dashboard.py

@@ -895,6 +895,117 @@ def _beat_sync_features(
     return C_sync, M_sync, C_sync_raw, M_sync_raw, beat_times, beat_duration_s
 
 
+def _bar_phase_similarity_diagnostic(
+    Q_beat: np.ndarray | None,
+    rms_beat: np.ndarray | None,
+    *,
+    beats_per_bar: int = 4,
+    parent_beats: int = 16,
+    min_samples: int = 6,
+    min_margin: float = 0.03,
+) -> dict[str, Any]:
+    """Weak internal fallback for bar phase from Spec Old 8-in-16 contrast.
+
+    This heuristic is intentionally demoted: on real songs it can pick the
+    wrong phase because phrase-similarity contrast is not the same signal as
+    musical downbeat evidence. Prefer external downbeat trackers (Beat This or
+    madmom) whenever available; keep this only as a diagnostic/fallback.
+    """
+    method = "internal_weak_similarity_fallback"
+    if beats_per_bar <= 1 or parent_beats <= 1:
+        return {
+            "beats_per_bar": int(max(1, beats_per_bar)),
+            "phase": 0,
+            "estimated_phase": 0,
+            "confidence": 0.0,
+            "accepted": False,
+            "scores": {},
+            "sample_counts": {},
+            "method": method,
+            "warning": "weak internal fallback; prefer external downbeat tracker",
+        }
+
+    if Q_beat is None or rms_beat is None:
+        return {
+            "beats_per_bar": int(beats_per_bar),
+            "phase": 0,
+            "estimated_phase": 0,
+            "confidence": 0.0,
+            "accepted": False,
+            "scores": {str(i): 0.0 for i in range(beats_per_bar)},
+            "sample_counts": {str(i): 0 for i in range(beats_per_bar)},
+            "method": method,
+            "warning": "weak internal fallback; prefer external downbeat tracker",
+        }
+
+    Q = np.log1p(np.asarray(Q_beat, dtype=np.float64))
+    rms = np.asarray(rms_beat, dtype=np.float64).ravel()
+    if Q.ndim != 2 or Q.shape[1] < parent_beats * 2 or rms.size < parent_beats * 2:
+        return {
+            "beats_per_bar": int(beats_per_bar),
+            "phase": 0,
+            "estimated_phase": 0,
+            "confidence": 0.0,
+            "accepted": False,
+            "scores": {str(i): 0.0 for i in range(beats_per_bar)},
+            "sample_counts": {str(i): 0 for i in range(beats_per_bar)},
+            "method": method,
+            "warning": "weak internal fallback; prefer external downbeat tracker",
+        }
+
+    n_beats = min(int(Q.shape[1]), int(rms.size))
+    Q = Q[:, :n_beats]
+    rms = rms[:n_beats]
+    audible_floor = float(rms.max()) * (10.0 ** (_PHRASE_AUDIBLE_FLOOR_DB / 20.0))
+    audibility = np.clip((rms - audible_floor) / max(float(rms.max()) - audible_floor, 1e-12), 0.0, 1.0)
+    scores: dict[int, float] = {}
+    sample_counts: dict[int, int] = {}
+
+    def spec_old_similarity(prv_s: int, cur_s: int, length: int) -> float:
+        if length <= 0:
+            return 1.0
+        Q_prv = Q[:, prv_s:prv_s + length]
+        Q_cur = Q[:, cur_s:cur_s + length]
+        weights = np.maximum(
+            audibility[prv_s:prv_s + length],
+            audibility[cur_s:cur_s + length],
+        )
+        if float(weights.max()) < _PHRASE_COVERAGE_THRESHOLD:
+            return 1.0
+        return float(np.clip(_weighted_cosine_01(Q_cur, Q_prv, weights), 0.0, 1.0))
+
+    for phase in range(beats_per_bar):
+        sims: list[float] = []
+        for prv_s, cur_s, length in _matched_half_block_pairs(n_beats, phase, parent_beats):
+            sims.append(spec_old_similarity(prv_s, cur_s, length))
+        sample_counts[phase] = len(sims)
+        if len(sims) < min_samples:
+            scores[phase] = 0.0
+        else:
+            arr = np.asarray(sims, dtype=np.float64)
+            scores[phase] = float(np.percentile(arr, 80) - np.percentile(arr, 20))
+
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    estimated_phase = int(ranked[0][0]) if ranked else 0
+    best = float(ranked[0][1]) if ranked else 0.0
+    second = float(ranked[1][1]) if len(ranked) > 1 else 0.0
+    confidence = max(0.0, best - second)
+    accepted = sample_counts.get(estimated_phase, 0) >= min_samples and confidence >= min_margin
+    phase = estimated_phase if accepted else 0
+
+    return {
+        "beats_per_bar": int(beats_per_bar),
+        "phase": int(phase),
+        "estimated_phase": int(estimated_phase),
+        "confidence": float(confidence),
+        "accepted": bool(accepted),
+        "scores": {str(k): float(v) for k, v in scores.items()},
+        "sample_counts": {str(k): int(v) for k, v in sample_counts.items()},
+        "method": method,
+        "warning": "weak internal fallback; prefer external downbeat tracker",
+    }
+
+
 def _build_ssm(features: np.ndarray, *, n_path: int = 11) -> np.ndarray:
     """Build an affinity self-similarity matrix with path enhancement."""
     if float(np.std(features)) < 1e-6:
@@ -1142,12 +1253,1410 @@ def _score_and_filter_boundaries(
     return sorted(kept)
 
 
+_LAG_MAX_BEATS = 32
+_NOVELTY_SCALES: dict[str, int] = {"short": 4, "medium": 16, "long": 32}
+
+
+def _lag_matrix_novelty(
+    features: np.ndarray,
+    beat_times: np.ndarray,
+    frame_times: np.ndarray,
+    lag_max: int | None = None,
+) -> np.ndarray:
+    """Time-lag similarity matrix.
+
+    L[lag-1, t] = cosine_similarity(features[:, t], features[:, t-lag]).
+
+    High values (bright) = current beat strongly resembles the beat `lag` beats
+    ago, which indicates a repeating riff. Low values (dark) = novelty/change.
+    Rows run from lag=1 (top, small scale) to lag=lag_max (bottom, large scale).
+    Each row is normalized independently to [0, 1] then interpolated to frame times.
+    """
+    if lag_max is None:
+        lag_max = _LAG_MAX_BEATS
+    F = np.asarray(features, dtype=np.float64)
+    n_b = F.shape[1]
+    norms = np.linalg.norm(F, axis=0) + 1e-8
+    result = np.zeros((lag_max, n_b), dtype=np.float64)
+
+    for lag in range(1, lag_max + 1):
+        for t in range(lag, n_b):
+            result[lag - 1, t] = (
+                np.dot(F[:, t], F[:, t - lag]) / (norms[t] * norms[t - lag])
+            )
+
+    for i in range(lag_max):
+        row = result[i]
+        mn, mx = row.min(), row.max()
+        if mx - mn > 1e-6:
+            result[i] = (row - mn) / (mx - mn)
+
+    out = np.zeros((lag_max, len(frame_times)), dtype=np.float32)
+    for i in range(lag_max):
+        out[i] = np.interp(frame_times, beat_times, result[i])
+    return out
+
+
+def _novelty_curves_from_lag(
+    L_chroma: np.ndarray,
+    L_mfcc: np.ndarray,
+    scales: dict[str, int] | None = None,
+) -> dict[str, np.ndarray]:
+    """Derive 1D novelty curves from time-lag similarity matrices.
+
+    novelty(t, S) = 1 - max over lag in [1, S] of L[lag, t]
+
+    "How unlike the current beat is from its closest match in the last S beats."
+    Riffs that repeat within window S → low novelty. Genuinely new content with
+    no past match → high novelty. Decays as the new pattern starts repeating.
+    """
+    if scales is None:
+        scales = _NOVELTY_SCALES
+    L = 0.5 * np.asarray(L_chroma, dtype=np.float64) + 0.5 * np.asarray(L_mfcc, dtype=np.float64)
+    out: dict[str, np.ndarray] = {}
+    for name, S in scales.items():
+        s_clip = min(S, L.shape[0])
+        nov = 1.0 - L[:s_clip].max(axis=0)
+        mn, mx = float(nov.min()), float(nov.max())
+        if mx - mn > 1e-6:
+            nov = (nov - mn) / (mx - mn)
+        out[name] = nov.astype(np.float32)
+    return out
+
+
+def _rep_strength(
+    R_chroma: np.ndarray,
+    R_mfcc: np.ndarray,
+    beat_times: np.ndarray,
+    frame_times: np.ndarray,
+    *,
+    min_lag_beats: int = 4,
+) -> np.ndarray:
+    """Per-beat mean SSM similarity to non-adjacent beats, interpolated to frame times."""
+    R = 0.55 * np.asarray(R_chroma, dtype=np.float64) + 0.45 * np.asarray(R_mfcc, dtype=np.float64)
+    n_b = R.shape[0]
+    rep_beats = np.zeros(n_b)
+    for i in range(n_b):
+        mask = np.ones(n_b, dtype=bool)
+        mask[max(0, i - min_lag_beats): min(n_b, i + min_lag_beats + 1)] = False
+        if mask.sum() > 0:
+            rep_beats[i] = R[i, mask].mean()
+    mn, mx = rep_beats.min(), rep_beats.max()
+    if mx - mn > 1e-6:
+        rep_beats = (rep_beats - mn) / (mx - mn)
+    return np.interp(frame_times, beat_times, rep_beats).astype(np.float32)
+
+
+def _stem_novelties(
+    stem_y: np.ndarray,
+    sr: int,
+    n_frames: int,
+    hop_length: int,
+    frame_length: int,
+    beat_times: np.ndarray | None = None,
+    frame_times: np.ndarray | None = None,
+    stem_name: str = "",
+    block_offsets_override: dict[int, int] | None = None,
+    bar_grid_override: dict[str, Any] | None = None,
+    alignment_source_stem: str | None = None,
+) -> dict[str, Any]:
+    """Compute energy + time-lag harmonic/timbre similarity for a single stem."""
+    rms = librosa.feature.rms(y=stem_y, frame_length=frame_length, hop_length=hop_length, center=True)[0]
+    energy = _normalize_01(rms[:n_frames]).astype(float).tolist()
+
+    if frame_times is None:
+        frame_times = librosa.frames_to_time(np.arange(n_frames), sr=sr, hop_length=hop_length)
+
+    C = librosa.feature.chroma_cqt(y=stem_y, sr=sr, hop_length=hop_length)
+    M = librosa.feature.mfcc(y=stem_y, sr=sr, n_mfcc=20, hop_length=hop_length, n_fft=frame_length)
+    Q_mag = np.abs(librosa.cqt(y=stem_y, sr=sr, hop_length=hop_length,
+                                n_bins=84, bins_per_octave=12,
+                                fmin=librosa.note_to_hz("C1")))
+
+    if beat_times is not None and len(beat_times) > 1:
+        bf = librosa.time_to_frames(beat_times, sr=sr, hop_length=hop_length)
+        C_sync = librosa.util.sync(C, bf, aggregate=np.median)
+        M_sync = librosa.util.sync(M, bf, aggregate=np.mean)
+        Q_sync = librosa.util.sync(Q_mag, bf, aggregate=np.mean)
+        R_sync = librosa.util.sync(rms.reshape(1, -1), bf, aggregate=np.mean)[0]
+        n_sync = min(
+            C_sync.shape[1],
+            M_sync.shape[1],
+            Q_sync.shape[1],
+            R_sync.shape[0],
+            len(beat_times),
+            len(bf),
+        )
+        C_sync = C_sync[:, :n_sync]
+        M_sync = M_sync[:, :n_sync]
+        Q_sync = Q_sync[:, :n_sync]
+        R_sync = R_sync[:n_sync]
+        _bt = beat_times[:n_sync]
+        bf = bf[:n_sync]
+    else:
+        _bt = np.arange(0, float(frame_times[-1]) + 0.5, 0.5)
+        bf = librosa.time_to_frames(_bt, sr=sr, hop_length=hop_length)
+        C_sync = librosa.util.sync(C, bf, aggregate=np.median)
+        M_sync = librosa.util.sync(M, bf, aggregate=np.mean)
+        Q_sync = librosa.util.sync(Q_mag, bf, aggregate=np.mean)
+        R_sync = librosa.util.sync(rms.reshape(1, -1), bf, aggregate=np.mean)[0]
+        n_sync = min(C_sync.shape[1], M_sync.shape[1], Q_sync.shape[1], R_sync.shape[0], len(_bt), len(bf))
+        C_sync = C_sync[:, :n_sync]
+        M_sync = M_sync[:, :n_sync]
+        Q_sync = Q_sync[:, :n_sync]
+        R_sync = R_sync[:n_sync]
+        _bt = _bt[:n_sync]
+        bf = bf[:n_sync]
+
+    h = _lag_matrix_novelty(C_sync, _bt, frame_times)
+    t = _lag_matrix_novelty(M_sync[1:] if M_sync.shape[0] > 1 else M_sync, _bt, frame_times)
+    curves = _novelty_curves_from_lag(h, t)
+
+    Q_sync = Q_sync[:, : C_sync.shape[1]]
+
+    # Weak fallback only. This does not use true downbeat evidence and has been
+    # observed to choose bad phases; external downbeat trackers should override
+    # it when integrated.
+    local_bar_grid = _bar_phase_similarity_diagnostic(Q_sync, R_sync)
+    if block_offsets_override is None:
+        stem_bar_grid = local_bar_grid
+        block_offsets = _stem_block_offsets(
+            R_sync,
+            _STEM_COMPARISON_LAGS,
+            bar_phase=int(stem_bar_grid.get("phase", 0)),
+        )
+    else:
+        stem_bar_grid = dict(bar_grid_override or local_bar_grid)
+        block_offsets = {
+            int(lag): int(block_offsets_override.get(int(lag), 0))
+            for lag in _STEM_COMPARISON_LAGS
+        }
+    median_beat_s = float(np.median(np.diff(_bt))) if len(_bt) > 1 else 0.5
+
+    def span_end(beat_idx: int) -> float:
+        if beat_idx < len(_bt):
+            return float(_bt[beat_idx])
+        return float(_bt[-1]) + max(0, beat_idx - len(_bt) + 1) * median_beat_s
+
+    block_spans: dict[str, list[dict[str, float]]] = {}
+    for lag in _STEM_COMPARISON_LAGS:
+        offset = _block_offset_for_lag(block_offsets, lag)
+        block_spans[f"{lag}b"] = [
+            {"start_s": float(_bt[cur_s]), "end_s": span_end(cur_s + length)}
+            for _prv_s, cur_s, length in _full_block_pairs(len(_bt), offset, lag)
+        ]
+        child = max(1, lag // 2)
+        block_spans[f"{child}-in-{lag}"] = [
+            {"start_s": float(_bt[cur_s]), "end_s": span_end(cur_s + length)}
+            for _prv_s, cur_s, length in _matched_half_block_pairs(len(_bt), offset, lag)
+        ]
+
+    cqt = _cqt_similarity_curves(Q_sync, _bt, frame_times, block_offsets=block_offsets)
+    phrase = _phrase_similarity_curves(Q_sync, rms, bf, _bt, frame_times, block_offsets=block_offsets)
+    onset = _onset_similarity_curves(
+        Q_mag,
+        rms,
+        bf,
+        _bt,
+        frame_times,
+        sr=sr,
+        hop_length=hop_length,
+        block_offsets=block_offsets,
+    )
+
+    return {
+        "energy": energy,
+        "bar_grid": stem_bar_grid,
+        "local_bar_grid": local_bar_grid,
+        "alignment_source_stem": alignment_source_stem or stem_name,
+        "block_offsets": {str(k): int(v) for k, v in block_offsets.items()},
+        "block_spans": block_spans,
+        "novelty_short": curves["short"].astype(float).tolist(),
+        "novelty_medium": curves["medium"].astype(float).tolist(),
+        "novelty_long": curves["long"].astype(float).tolist(),
+        **{k: v.astype(float).tolist() for k, v in cqt.items()},
+        **{k: v.astype(float).tolist() for k, v in phrase.items()},
+        **{k: v.astype(float).tolist() for k, v in onset.items()},
+    }
+
+
+_STEM_COMPARISON_LAGS = (8, 16, 32)
+_CQT_LAGS = _STEM_COMPARISON_LAGS
+
+
+def _first_stable_active_beat(rms_beat: np.ndarray, *, hold: int = 4) -> int:
+    """Return the first beat where a stem is stably audible."""
+    energy = _normalize_01(np.asarray(rms_beat, dtype=np.float64))
+    if energy.size == 0 or float(energy.max()) < 1e-7:
+        return 0
+
+    threshold = 0.15
+    hold = max(1, int(hold))
+    for i in range(0, energy.size):
+        window = energy[i : min(i + hold, energy.size)]
+        if energy[i] >= threshold and window.size and float(np.mean(window >= threshold)) >= 0.5:
+            return int(i)
+    return 0
+
+
+def _snap_anchor_to_bar_beat(
+    anchor_beat: int,
+    *,
+    beats_per_bar: int = 4,
+    bar_phase: int = 0,
+    max_shift: int = 2,
+) -> int:
+    """Snap a stem entrance to a nearby assumed bar boundary."""
+    if anchor_beat <= 0 or beats_per_bar <= 1 or max_shift < 0:
+        return max(0, int(anchor_beat))
+
+    anchor = int(anchor_beat)
+    phase = int(bar_phase) % int(beats_per_bar)
+    lower = phase + ((anchor - phase) // beats_per_bar) * beats_per_bar
+    upper = lower + beats_per_bar
+    candidates = [lower, upper]
+    snapped = min(candidates, key=lambda c: (abs(c - anchor), c))
+    if abs(snapped - anchor) <= max_shift:
+        return int(snapped)
+    return anchor
+
+
+def _stem_block_anchor(rms_beat: np.ndarray, *, bar_phase: int = 0) -> int:
+    """Choose the beat-index anchor used for all block sizes of one stem."""
+    first_active = _first_stable_active_beat(rms_beat)
+    return _snap_anchor_to_bar_beat(first_active, bar_phase=bar_phase)
+
+
+def _stem_block_offset(rms_beat: np.ndarray, lag: int, *, bar_phase: int = 0) -> int:
+    """Choose a per-lag comparison offset from the stem's beat-index anchor."""
+    if lag <= 1:
+        return 0
+    return int(_stem_block_anchor(rms_beat, bar_phase=bar_phase) % lag)
+
+
+def _stem_block_offsets(
+    rms_beat: np.ndarray,
+    lags: tuple[int, ...],
+    *,
+    bar_phase: int = 0,
+) -> dict[int, int]:
+    """Choose per-lag offsets from one stem-specific beat-index anchor."""
+    if not lags:
+        return {}
+    anchor = _stem_block_anchor(rms_beat, bar_phase=bar_phase)
+    return {
+        int(lag): int(anchor % int(lag)) if int(lag) > 1 else 0
+        for lag in lags
+    }
+
+
+def _block_offset_for_lag(block_offsets: dict[int, int] | None, lag: int) -> int:
+    if not block_offsets:
+        return 0
+    return int(np.clip(block_offsets.get(lag, 0), 0, max(0, lag - 1)))
+
+
+def _full_block_pairs(n_beats: int, offset: int, lag: int) -> list[tuple[int, int, int]]:
+    """Return (previous_start, current_start, length) for normal adjacent blocks."""
+    pairs: list[tuple[int, int, int]] = []
+    n_chunks = max(0, (n_beats - offset) // lag)
+    for i in range(1, n_chunks):
+        cur_s = offset + i * lag
+        prv_s = offset + (i - 1) * lag
+        length = min(n_beats - cur_s, n_beats - prv_s, lag)
+        if length > 0:
+            pairs.append((prv_s, cur_s, length))
+    return pairs
+
+
+def _matched_half_block_pairs(n_beats: int, offset: int, lag: int) -> list[tuple[int, int, int]]:
+    """Return half-size slices matched to the same position in the previous block."""
+    sub_lag = max(1, lag // 2)
+    pairs: list[tuple[int, int, int]] = []
+    n_chunks = max(0, (n_beats - offset) // lag)
+    for i in range(1, n_chunks):
+        prev_parent = offset + (i - 1) * lag
+        cur_parent = offset + i * lag
+        for pos in range(0, lag, sub_lag):
+            cur_s = cur_parent + pos
+            prv_s = prev_parent + pos
+            length = min(n_beats - cur_s, n_beats - prv_s, sub_lag)
+            if length > 0:
+                pairs.append((prv_s, cur_s, length))
+    return pairs
+
+
+def _cqt_similarity_curves(
+    Q_beat: np.ndarray,
+    beat_times: np.ndarray,
+    frame_times: np.ndarray,
+    lags: tuple[int, ...] = _CQT_LAGS,
+    block_offsets: dict[int, int] | None = None,
+) -> dict[str, np.ndarray]:
+    """Block comparison using log-CQT cosine similarity (84 bins, no octave collapse).
+
+    Unlike chroma, this preserves register: G2 and G3 map to different bins, so
+    a bass-line change is visible even when pitch classes overlap. Unlike MFCC,
+    it is not cepstrally smoothed, so timbral averaging doesn't mask pitch changes.
+    """
+    n_beats = min(Q_beat.shape[1], len(beat_times))
+    Q = np.log1p(Q_beat[:, :n_beats])   # log-compress; all values ≥ 0
+
+    out: dict[str, np.ndarray] = {}
+    bt = beat_times[:n_beats]
+
+    for lag in lags:
+        sim_beat = np.ones(n_beats, dtype=np.float32)
+        nov_beat = np.zeros(n_beats, dtype=np.float32)
+        sim_half_beat = np.ones(n_beats, dtype=np.float32)
+        nov_half_beat = np.zeros(n_beats, dtype=np.float32)
+        offset = _block_offset_for_lag(block_offsets, lag)
+
+        def score_pair(prv_s: int, cur_s: int, length: int) -> float:
+            Q_c = Q[:, cur_s:cur_s + length]
+            Q_p = Q[:, prv_s:prv_s + length]
+
+            nc = np.linalg.norm(Q_c, axis=0) + 1e-8
+            np_ = np.linalg.norm(Q_p, axis=0) + 1e-8
+            s = np.clip(np.sum(Q_c * Q_p, axis=0) / (nc * np_), 0.0, 1.0)
+            return float(s.mean())
+
+        for prv_s, cur_s, L in _full_block_pairs(n_beats, offset, lag):
+            mean_sim = score_pair(prv_s, cur_s, L)
+            sim_beat[cur_s:cur_s + L] = mean_sim
+            nov_beat[cur_s:cur_s + L] = 1.0 - mean_sim
+
+        for prv_s, cur_s, L in _matched_half_block_pairs(n_beats, offset, lag):
+            mean_sim = score_pair(prv_s, cur_s, L)
+            sim_half_beat[cur_s:cur_s + L] = mean_sim
+            nov_half_beat[cur_s:cur_s + L] = 1.0 - mean_sim
+
+        out[f"cqt_sim_{lag}"] = np.interp(frame_times, bt, sim_beat).astype(np.float32)
+        out[f"cqt_nov_{lag}"] = np.interp(frame_times, bt, nov_beat).astype(np.float32)
+        out[f"cqt_half_sim_{lag}"] = np.interp(frame_times, bt, sim_half_beat).astype(np.float32)
+        out[f"cqt_half_nov_{lag}"] = np.interp(frame_times, bt, nov_half_beat).astype(np.float32)
+
+    return out
+
+
+_PHRASE_LAGS = _STEM_COMPARISON_LAGS
+_PHRASE_BINS_PER_BEAT = 2
+_PHRASE_WEIGHTS = {
+    "spectrum": 0.55,
+    "attack": 0.25,
+    "energy": 0.15,
+    "peaks": 0.05,
+}
+_PHRASE_ENV_WEIGHTS = {
+    "energy": 0.45,
+    "attack": 0.25,
+    "peaks": 0.15,
+    "valleys": 0.15,
+}
+_PHRASE_AUDIBLE_FLOOR_DB = -36.0
+_PHRASE_COVERAGE_THRESHOLD = 0.05
+_PHRASE_SPEC_AUD_ALPHA     = 0.20  # weight given to audible-but-not-onset beats in phrase_spec_sim
+_PHRASE_COVERAGE_POWER = 2.0
+_PHRASE_ACCENT_SMOOTH_S = 0.10
+_PHRASE_ACCENT_MIN_DIST_S = 0.10
+_PHRASE_ACCENT_PROMINENCE = 0.10
+_PHRASE_ACCENT_TOL_S = 0.45
+_PHRASE_ACCENT_TIMING_SIGMA_S = 0.22
+_PHRASE_ACCENT_CURVE_WEIGHT = 0.75
+_PHRASE_ACCENT_CURVE_POINTS = 128
+_PHRASE_AMP_SMOOTH_S = 0.08
+_PHRASE_AMP_CURVE_POINTS = 128
+_PHRASE_AMP_MIN_DIST_S = 0.15   # calibrated: ~20 bass note attacks per 11s (Do I Wanna Know 50-61s)
+_PHRASE_AMP_WEIGHTS = {
+    "shape": 0.45,
+    "texture": 0.40,
+    "pulse": 0.15,
+}
+
+
+def _cosine_01(a: np.ndarray, b: np.ndarray) -> float:
+    aa = np.asarray(a, dtype=np.float64).ravel()
+    bb = np.asarray(b, dtype=np.float64).ravel()
+    n = min(aa.size, bb.size)
+    if n == 0:
+        return 1.0
+    aa = aa[:n]
+    bb = bb[:n]
+    denom = float(np.linalg.norm(aa) * np.linalg.norm(bb))
+    if denom < 1e-12:
+        return 1.0 if float(np.linalg.norm(aa - bb)) < 1e-12 else 0.0
+    return float(np.clip(np.dot(aa, bb) / denom, 0.0, 1.0))
+
+
+def _weighted_cosine_01(a: np.ndarray, b: np.ndarray, weights: np.ndarray) -> float:
+    aa = np.asarray(a, dtype=np.float64)
+    bb = np.asarray(b, dtype=np.float64)
+    ww = np.asarray(weights, dtype=np.float64).ravel()
+    n = min(aa.shape[-1], bb.shape[-1], ww.size)
+    if n == 0:
+        return 1.0
+    ww = np.clip(ww[:n], 0.0, 1.0)
+    if float(ww.sum()) < 1e-9:
+        return 1.0
+    aa = aa[..., :n] * np.sqrt(ww)
+    bb = bb[..., :n] * np.sqrt(ww)
+    return _cosine_01(aa, bb)
+
+
+def _shape_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    aa = np.asarray(a, dtype=np.float64).ravel()
+    bb = np.asarray(b, dtype=np.float64).ravel()
+    n = min(aa.size, bb.size)
+    if n == 0:
+        return 1.0
+    aa = aa[:n]
+    bb = bb[:n]
+    l1 = 1.0 - (float(np.abs(aa - bb).sum()) / (float(aa.sum() + bb.sum()) + 1e-8))
+    return float(np.clip(0.7 * _cosine_01(aa, bb) + 0.3 * l1, 0.0, 1.0))
+
+
+def _weighted_shape_similarity(a: np.ndarray, b: np.ndarray, weights: np.ndarray) -> float:
+    aa = np.asarray(a, dtype=np.float64).ravel()
+    bb = np.asarray(b, dtype=np.float64).ravel()
+    ww = np.asarray(weights, dtype=np.float64).ravel()
+    n = min(aa.size, bb.size, ww.size)
+    if n == 0:
+        return 1.0
+    aa = aa[:n]
+    bb = bb[:n]
+    ww = np.clip(ww[:n], 0.0, 1.0)
+    if float(ww.sum()) < 1e-9:
+        return 1.0
+
+    dot = float(np.sum(ww * aa * bb))
+    denom = float(np.sqrt(np.sum(ww * aa * aa)) * np.sqrt(np.sum(ww * bb * bb)))
+    cosine = 1.0 if denom < 1e-12 else dot / denom
+    l1 = 1.0 - (
+        float(np.sum(ww * np.abs(aa - bb)))
+        / (float(np.sum(ww * (aa + bb))) + 1e-8)
+    )
+    return float(np.clip(0.7 * cosine + 0.3 * l1, 0.0, 1.0))
+
+
+def _binned_block_shape(values: np.ndarray, start: int, end: int, bins: int, *, reduce: str) -> np.ndarray:
+    vals = np.asarray(values, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    if end <= start or bins <= 0:
+        return np.zeros(max(0, bins), dtype=np.float64)
+
+    seg = vals[start:end]
+    edges = np.linspace(0, len(seg), bins + 1, dtype=int)
+    out = np.zeros(bins, dtype=np.float64)
+    for i in range(bins):
+        lo, hi = int(edges[i]), int(edges[i + 1])
+        if hi <= lo:
+            continue
+        part = seg[lo:hi]
+        out[i] = float(part.max() if reduce == "max" else part.mean())
+    return out
+
+
+def _binned_onset_strength(attack: np.ndarray, start: int, end: int, bins: int) -> np.ndarray:
+    """Per-beat MAX of the frame-resolution attack envelope (half-wave-rectified d/dt log-RMS)."""
+    vals = np.asarray(attack, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    if end <= start or bins <= 0:
+        return np.zeros(max(0, bins), dtype=np.float64)
+    seg = vals[start:end]
+    edges = np.linspace(0, len(seg), bins + 1, dtype=int)
+    out = np.zeros(bins, dtype=np.float64)
+    for i in range(bins):
+        lo, hi = int(edges[i]), int(edges[i + 1])
+        if hi > lo:
+            out[i] = float(seg[lo:hi].max())
+    return out
+
+
+def _binned_audibility(rms: np.ndarray, start: int, end: int, bins: int, floor: float) -> np.ndarray:
+    vals = np.asarray(rms, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    if end <= start or bins <= 0:
+        return np.zeros(max(0, bins), dtype=np.float64)
+
+    seg = vals[start:end]
+    scale = max(float(vals.max()) - floor, 1e-12)
+    aud = np.clip((seg - floor) / scale, 0.0, 1.0)
+    edges = np.linspace(0, len(aud), bins + 1, dtype=int)
+    out = np.zeros(bins, dtype=np.float64)
+    for i in range(bins):
+        lo, hi = int(edges[i]), int(edges[i + 1])
+        if hi > lo:
+            out[i] = float(aud[lo:hi].mean())
+    return out
+
+
+def _macro_peak_count_similarity(a: np.ndarray, b: np.ndarray, weights: np.ndarray | None = None) -> float:
+    from scipy.signal import find_peaks as _find_peaks
+
+    def count(x: np.ndarray, w: np.ndarray | None) -> int:
+        xx = _smooth_1d(np.asarray(x, dtype=np.float32), win=3)
+        if w is not None:
+            ww = np.asarray(w, dtype=np.float32)
+            xx = xx[: ww.size] * ww[: xx.size]
+        if xx.size == 0 or float(xx.max()) < 1e-9:
+            return 0
+        peaks, _ = _find_peaks(xx, height=0.2 * float(xx.max()), distance=2)
+        if xx[0] >= 0.2 * float(xx.max()) and (xx.size == 1 or xx[0] >= xx[1]):
+            peaks = np.unique(np.concatenate([np.array([0], dtype=int), peaks]))
+        return int(peaks.size)
+
+    ww = None if weights is None else np.asarray(weights, dtype=np.float64)
+    ca = count(a, ww)
+    cb = count(b, ww)
+    mx = max(ca, cb)
+    if mx == 0:
+        return 1.0
+    return 1.0 - (abs(ca - cb) / mx)
+
+
+def _macro_valley_count_similarity(a: np.ndarray, b: np.ndarray, weights: np.ndarray | None = None) -> float:
+    from scipy.signal import find_peaks as _find_peaks
+
+    def count(x: np.ndarray, w: np.ndarray | None) -> int:
+        xx = _smooth_1d(np.asarray(x, dtype=np.float32), win=3)
+        if w is not None:
+            ww = np.asarray(w, dtype=np.float32)
+            xx = xx[: ww.size] * ww[: xx.size]
+        if xx.size == 0 or float(xx.max() - xx.min()) < 1e-9:
+            return 0
+        inv = float(xx.max()) - xx
+        if float(inv.max()) < 1e-9:
+            return 0
+        valleys, _ = _find_peaks(inv, height=0.2 * float(inv.max()), distance=2)
+        if inv[0] >= 0.2 * float(inv.max()) and (inv.size == 1 or inv[0] >= inv[1]):
+            valleys = np.unique(np.concatenate([np.array([0], dtype=int), valleys]))
+        return int(valleys.size)
+
+    ww = None if weights is None else np.asarray(weights, dtype=np.float64)
+    ca = count(a, ww)
+    cb = count(b, ww)
+    mx = max(ca, cb)
+    if mx == 0:
+        return 1.0
+    return 1.0 - (abs(ca - cb) / mx)
+
+
+def _accent_peak_events(
+    rms: np.ndarray,
+    start: int,
+    end: int,
+    frame_s: float,
+    *,
+    smooth_s: float = _PHRASE_ACCENT_SMOOTH_S,
+    min_dist_s: float = _PHRASE_ACCENT_MIN_DIST_S,
+    prominence: float = _PHRASE_ACCENT_PROMINENCE,
+) -> list[tuple[float, float]]:
+    from scipy.signal import find_peaks as _find_peaks
+
+    vals = np.asarray(rms, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    if end <= start or frame_s <= 0:
+        return []
+
+    seg = vals[start:end]
+    span = float(seg.max() - seg.min()) if seg.size else 0.0
+    if span < 1e-10:
+        return []
+
+    x = (seg - float(seg.min())) / (span + 1e-12)
+    smooth_win = max(1, int(round(smooth_s / frame_s)))
+    x = _smooth_1d(x.astype(np.float32), win=smooth_win).astype(np.float64)
+    if float(x.max() - x.min()) < 1e-8:
+        return []
+
+    min_dist = max(1, int(round(min_dist_s / frame_s)))
+    peaks, props = _find_peaks(x, distance=min_dist, prominence=prominence)
+    if peaks.size == 0:
+        return []
+
+    prominences = np.asarray(props.get("prominences", np.zeros_like(peaks, dtype=float)), dtype=np.float64)
+    duration_s = max((end - start - 1) * frame_s, frame_s)
+    events: list[tuple[float, float]] = []
+    for peak, prom in zip(peaks, prominences):
+        rel_s = float(peak) * frame_s
+        strength = float(np.clip(0.5 * x[int(peak)] + 0.5 * prom, 0.0, 1.0))
+        events.append((rel_s / duration_s, strength))
+    return events
+
+
+def _accent_envelope_curve(
+    rms: np.ndarray,
+    start: int,
+    end: int,
+    frame_s: float,
+    *,
+    smooth_s: float = _PHRASE_ACCENT_SMOOTH_S,
+    points: int = _PHRASE_ACCENT_CURVE_POINTS,
+) -> np.ndarray:
+    vals = np.asarray(rms, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    points = max(8, int(points))
+    if end <= start or frame_s <= 0:
+        return np.zeros(points, dtype=np.float64)
+
+    seg = vals[start:end]
+    span = float(seg.max() - seg.min()) if seg.size else 0.0
+    if span < 1e-10:
+        return np.zeros(points, dtype=np.float64)
+
+    x = (seg - float(seg.min())) / (span + 1e-12)
+    smooth_win = max(1, int(round(smooth_s / frame_s)))
+    x = _smooth_1d(x.astype(np.float32), win=smooth_win).astype(np.float64)
+    x = np.maximum(x - float(np.quantile(x, 0.20)), 0.0)
+    if float(x.max()) > 1e-12:
+        x = x / float(x.max())
+
+    xp = np.linspace(0.0, 1.0, x.size)
+    yp = np.linspace(0.0, 1.0, points)
+    return np.interp(yp, xp, x).astype(np.float64)
+
+
+def _accent_curve_similarity(
+    prev_curve: np.ndarray,
+    cur_curve: np.ndarray,
+    block_s: float,
+    *,
+    max_shift_s: float = _PHRASE_ACCENT_TOL_S,
+) -> float:
+    aa = np.asarray(prev_curve, dtype=np.float64).ravel()
+    bb = np.asarray(cur_curve, dtype=np.float64).ravel()
+    n = min(aa.size, bb.size)
+    if n == 0:
+        return 1.0
+    aa = aa[:n]
+    bb = bb[:n]
+    if float(aa.max()) < 1e-9 and float(bb.max()) < 1e-9:
+        return 1.0
+    if block_s <= 0:
+        return _shape_similarity(aa, bb)
+
+    max_shift = int(round((max_shift_s / block_s) * n))
+    max_shift = int(np.clip(max_shift, 0, max(0, n // 4)))
+    best = _shape_similarity(aa, bb)
+    for shift in range(1, max_shift + 1):
+        best = max(best, _shape_similarity(aa[shift:], bb[:-shift]))
+        best = max(best, _shape_similarity(aa[:-shift], bb[shift:]))
+    return float(np.clip(best, 0.0, 1.0))
+
+
+def _accent_event_similarity(
+    prev_events: list[tuple[float, float]],
+    cur_events: list[tuple[float, float]],
+    *,
+    block_s: float,
+    tol_s: float = _PHRASE_ACCENT_TOL_S,
+    timing_sigma_s: float = _PHRASE_ACCENT_TIMING_SIGMA_S,
+) -> float:
+    from scipy.optimize import linear_sum_assignment as _linear_sum_assignment
+
+    if not prev_events and not cur_events:
+        return 1.0
+    if not prev_events or not cur_events or block_s <= 0:
+        return 0.0
+
+    n_total = max(len(prev_events), len(cur_events))
+    scores = np.zeros((len(cur_events), len(prev_events)), dtype=np.float64)
+    tol_rel = tol_s / block_s
+    sigma_rel = max(timing_sigma_s / block_s, 1e-6)
+    for i, (rel_c, str_c) in enumerate(cur_events):
+        for j, (rel_p, str_p) in enumerate(prev_events):
+            d = abs(rel_c - rel_p)
+            if d > tol_rel:
+                continue
+            timing = float(np.exp(-((d / sigma_rel) ** 2)))
+            strength = 1.0 - (abs(str_c - str_p) / (max(str_c, str_p, 1e-6)))
+            scores[i, j] = timing * float(np.clip(0.8 + 0.2 * strength, 0.0, 1.0))
+
+    if not np.any(scores > 0.0):
+        return 0.0
+
+    row_ind, col_ind = _linear_sum_assignment(-scores)
+    return float(scores[row_ind, col_ind].sum()) / n_total
+
+
+def _relative_vector_similarity(
+    a: np.ndarray,
+    b: np.ndarray,
+    weights: np.ndarray | None = None,
+) -> float:
+    aa = np.asarray(a, dtype=np.float64).ravel()
+    bb = np.asarray(b, dtype=np.float64).ravel()
+    n = min(aa.size, bb.size)
+    if n == 0:
+        return 1.0
+    aa = aa[:n]
+    bb = bb[:n]
+    if weights is None:
+        ww = np.ones(n, dtype=np.float64)
+    else:
+        ww = np.asarray(weights, dtype=np.float64).ravel()[:n]
+    ww = np.clip(ww, 0.0, None)
+    if float(ww.sum()) < 1e-12:
+        return 1.0
+
+    scale = np.maximum(np.maximum(np.abs(aa), np.abs(bb)), 0.10)
+    sims = 1.0 - (np.abs(aa - bb) / scale)
+    return float(np.clip(np.sum(ww * np.clip(sims, 0.0, 1.0)) / np.sum(ww), 0.0, 1.0))
+
+
+def _amp_envelope_curve(
+    rms: np.ndarray,
+    start: int,
+    end: int,
+    frame_s: float,
+    *,
+    smooth_s: float = _PHRASE_AMP_SMOOTH_S,
+    points: int = _PHRASE_AMP_CURVE_POINTS,
+) -> np.ndarray:
+    vals = np.asarray(rms, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    points = max(8, int(points))
+    if end <= start or frame_s <= 0:
+        return np.zeros(points, dtype=np.float64)
+
+    seg = vals[start:end]
+    smooth_win = max(1, int(round(smooth_s / frame_s)))
+    x = _smooth_1d(seg.astype(np.float32), win=smooth_win).astype(np.float64)
+    lo = float(np.quantile(x, 0.05))
+    hi = float(np.quantile(x, 0.95))
+    if hi - lo < 1e-10:
+        return np.zeros(points, dtype=np.float64)
+
+    x = np.clip((x - lo) / (hi - lo + 1e-12), 0.0, 1.0)
+    xp = np.linspace(0.0, 1.0, x.size)
+    yp = np.linspace(0.0, 1.0, points)
+    return np.interp(yp, xp, x).astype(np.float64)
+
+
+def _amp_texture_features(
+    rms: np.ndarray,
+    start: int,
+    end: int,
+    frame_s: float,
+    audible_floor: float,
+    *,
+    smooth_s: float = _PHRASE_AMP_SMOOTH_S,
+) -> np.ndarray:
+    from scipy.signal import find_peaks as _find_peaks
+
+    vals = np.asarray(rms, dtype=np.float64)
+    start = int(np.clip(start, 0, vals.size))
+    end = int(np.clip(end, start, vals.size))
+    if end <= start or frame_s <= 0:
+        return np.zeros(10, dtype=np.float64)
+
+    seg = vals[start:end]
+    smooth_win = max(1, int(round(smooth_s / frame_s)))
+    smoothed = _smooth_1d(seg.astype(np.float32), win=smooth_win).astype(np.float64)
+    duration_s = max((end - start) * frame_s, frame_s)
+    mean = float(np.mean(smoothed))
+    std = float(np.std(smoothed))
+    p10 = float(np.quantile(smoothed, 0.10))
+    p90 = float(np.quantile(smoothed, 0.90))
+    p95 = float(np.quantile(smoothed, 0.95))
+    span = max(p95 - p10, 0.0)
+
+    lo = float(np.quantile(smoothed, 0.05))
+    hi = float(np.quantile(smoothed, 0.95))
+    if hi - lo > 1e-10:
+        x = np.clip((smoothed - lo) / (hi - lo + 1e-12), 0.0, 1.0)
+    else:
+        x = np.zeros_like(smoothed)
+
+    min_dist = max(1, int(round(_PHRASE_AMP_MIN_DIST_S / frame_s)))
+    peaks, peak_props = _find_peaks(x, distance=min_dist, prominence=0.10)
+    valleys, valley_props = _find_peaks(1.0 - x, distance=min_dist, prominence=0.10)
+    peak_prom = np.asarray(peak_props.get("prominences", np.zeros(0)), dtype=np.float64)
+    valley_prom = np.asarray(valley_props.get("prominences", np.zeros(0)), dtype=np.float64)
+    slope = float(np.mean(np.abs(np.diff(x)))) if x.size > 1 else 0.0
+
+    return np.array(
+        [
+            np.clip((std / (mean + 1e-9)) / 2.5, 0.0, 1.0),
+            np.clip(span / (p90 + 1e-9), 0.0, 1.0),
+            np.clip(((p95 / (mean + 1e-9)) - 1.0) / 4.0, 0.0, 1.0),
+            np.clip(float(np.mean(smoothed > audible_floor)), 0.0, 1.0),
+            np.clip(float(np.mean(x > 0.15)), 0.0, 1.0),
+            np.clip(float(np.mean(x < 0.15)), 0.0, 1.0),
+            np.clip((len(peaks) / duration_s) / 4.0, 0.0, 1.0),
+            np.clip((len(valleys) / duration_s) / 4.0, 0.0, 1.0),
+            np.clip(float(np.mean(peak_prom)) if peak_prom.size else 0.0, 0.0, 1.0),
+            np.clip(4.0 * slope, 0.0, 1.0),
+        ],
+        dtype=np.float64,
+    )
+
+
+def _amp_pulse_profile(curve: np.ndarray, points: int = 32) -> np.ndarray:
+    x = np.asarray(curve, dtype=np.float64).ravel()
+    points = max(4, int(points))
+    if x.size < 4:
+        return np.zeros(points, dtype=np.float64)
+    x = x - float(np.mean(x))
+    denom = float(np.dot(x, x))
+    if denom < 1e-12:
+        return np.zeros(points, dtype=np.float64)
+
+    max_lag = max(2, x.size // 2)
+    corr = np.array([np.dot(x[:-lag], x[lag:]) / denom for lag in range(1, max_lag)], dtype=np.float64)
+    corr = np.maximum(corr, 0.0)
+    if corr.size == 0:
+        return np.zeros(points, dtype=np.float64)
+    xp = np.linspace(0.0, 1.0, corr.size)
+    yp = np.linspace(0.0, 1.0, points)
+    return np.interp(yp, xp, corr).astype(np.float64)
+
+
+def _phrase_similarity_curves(
+    Q_beat: np.ndarray,
+    rms: np.ndarray,
+    beat_frames: np.ndarray,
+    beat_times: np.ndarray,
+    frame_times: np.ndarray,
+    lags: tuple[int, ...] = _PHRASE_LAGS,
+    bins_per_beat: int = _PHRASE_BINS_PER_BEAT,
+    block_offsets: dict[int, int] | None = None,
+) -> dict[str, np.ndarray]:
+    """Whole-block phrase similarity.
+
+    It exports the plain full-block blend, spectral/envelope components,
+    accent/amp metrics, and an audibility-aware variant.
+    """
+    n_beats = min(Q_beat.shape[1], len(beat_times), len(beat_frames))
+    Q = np.log1p(Q_beat[:, :n_beats])
+    rms_use = np.asarray(rms, dtype=np.float64)
+    n_frames = rms_use.size
+    bf = np.clip(beat_frames[:n_beats], 0, max(0, n_frames - 1)).astype(int)
+    frame_s = float(np.median(np.diff(frame_times))) if len(frame_times) > 1 else 0.023
+    audible_floor = float(rms_use.max()) * (10.0 ** (_PHRASE_AUDIBLE_FLOOR_DB / 20.0))
+    log_rms = np.log1p(rms_use)
+    attack = np.maximum(np.diff(log_rms, prepend=0.0), 0.0)
+    attack = _smooth_1d(_normalize_01(attack).astype(np.float32), win=3).astype(np.float64)
+    energy = _smooth_1d(_normalize_01(rms_use).astype(np.float32), win=3).astype(np.float64)
+
+    def frame_range(b_start: int, b_end: int) -> tuple[int, int]:
+        f0 = int(bf[min(b_start, n_beats - 1)])
+        f1 = int(bf[b_end]) if b_end < n_beats else n_frames
+        return max(0, min(f0, n_frames)), max(0, min(f1, n_frames))
+
+    out: dict[str, np.ndarray] = {}
+    bt = beat_times[:n_beats]
+
+    for lag in lags:
+        sim = {
+            "phrase": np.ones(n_beats, dtype=np.float32),
+            "spec": np.ones(n_beats, dtype=np.float32),
+            "spec_aud": np.ones(n_beats, dtype=np.float32),
+            "env": np.ones(n_beats, dtype=np.float32),
+            "accent": np.ones(n_beats, dtype=np.float32),
+            "amp": np.ones(n_beats, dtype=np.float32),
+            "aud": np.ones(n_beats, dtype=np.float32),
+        }
+        nov = {k: np.zeros(n_beats, dtype=np.float32) for k in sim}
+        half_sim = {k: np.ones(n_beats, dtype=np.float32) for k in sim}
+        half_nov = {k: np.zeros(n_beats, dtype=np.float32) for k in sim}
+        offset = _block_offset_for_lag(block_offsets, lag)
+
+        def score_pair(prv_s: int, cur_s: int, L: int) -> dict[str, float]:
+            if L < 1:
+                return {
+                    "phrase": 1.0,
+                    "spec": 1.0,
+                    "spec_aud": 1.0,
+                    "env": 1.0,
+                    "accent": 1.0,
+                    "amp": 1.0,
+                    "aud": 1.0,
+                }
+
+            cur_f0, cur_f1 = frame_range(cur_s, cur_s + L)
+            prv_f0, prv_f1 = frame_range(prv_s, prv_s + L)
+            bins = max(4, int(L * bins_per_beat))
+            cur_aud_beat = _binned_audibility(rms_use, cur_f0, cur_f1, L, audible_floor)
+            prv_aud_beat = _binned_audibility(rms_use, prv_f0, prv_f1, L, audible_floor)
+            beat_audibility = np.maximum(cur_aud_beat, prv_aud_beat)
+            cur_onset_beat = _binned_onset_strength(attack, cur_f0, cur_f1, L)
+            prv_onset_beat = _binned_onset_strength(attack, prv_f0, prv_f1, L)
+
+            Q_cur = Q[:, cur_s:cur_s + L]
+            Q_prv = Q[:, prv_s:prv_s + L]
+            spectral_plain = _cosine_01(Q_cur, Q_prv)
+            spectral_audible = _weighted_cosine_01(Q_cur, Q_prv, beat_audibility)
+            # Onset-biased spectral comparison: weight by the MAX of both blocks'
+            # per-beat onset strength so neither block's active moments are missed.
+            # Gate on current-block onset: if the current window has no detectable
+            # note attacks (only noise floor or reverb tail), there is nothing
+            # meaningful to compare → treat as equivalent silence (1.0).
+            # Using cur_onset gated by audibility prevents noise-floor attack
+            # derivatives from spuriously triggering the comparison.
+            cur_aud_above = np.maximum(0.0, cur_aud_beat - _PHRASE_COVERAGE_THRESHOLD)
+            cur_note_beat = cur_onset_beat * (cur_aud_above > 0.0).astype(np.float64)
+            beat_onset_weight = np.maximum(cur_note_beat, prv_onset_beat)
+            if float(cur_note_beat.max()) < _PHRASE_COVERAGE_THRESHOLD:
+                spectral_onset = 1.0
+            else:
+                spectral_onset = _weighted_cosine_01(Q_cur, Q_prv, beat_onset_weight)
+
+            cur_attack = _binned_block_shape(attack, cur_f0, cur_f1, bins, reduce="mean")
+            prv_attack = _binned_block_shape(attack, prv_f0, prv_f1, bins, reduce="mean")
+            cur_energy = _binned_block_shape(energy, cur_f0, cur_f1, bins, reduce="mean")
+            prv_energy = _binned_block_shape(energy, prv_f0, prv_f1, bins, reduce="mean")
+            cur_aud = _binned_audibility(rms_use, cur_f0, cur_f1, bins, audible_floor)
+            prv_aud = _binned_audibility(rms_use, prv_f0, prv_f1, bins, audible_floor)
+            audibility = np.maximum(cur_aud, prv_aud)
+            silence_agreement = float(np.clip(1.0 - np.mean(np.abs(cur_aud - prv_aud)), 0.0, 1.0))
+            coverage = float(np.mean(audibility > _PHRASE_COVERAGE_THRESHOLD))
+            active_weight = float(np.clip(coverage ** _PHRASE_COVERAGE_POWER, 0.0, 1.0))
+
+            attack_plain = _shape_similarity(cur_attack, prv_attack)
+            energy_plain = _shape_similarity(cur_energy, prv_energy)
+            peak_plain = _macro_peak_count_similarity(cur_attack, prv_attack)
+            energy_peak_plain = _macro_peak_count_similarity(cur_energy, prv_energy)
+            energy_valley_plain = _macro_valley_count_similarity(cur_energy, prv_energy)
+            mean_sim = (
+                _PHRASE_WEIGHTS["spectrum"] * spectral_plain
+                + _PHRASE_WEIGHTS["attack"] * attack_plain
+                + _PHRASE_WEIGHTS["energy"] * energy_plain
+                + _PHRASE_WEIGHTS["peaks"] * peak_plain
+            )
+            mean_sim = float(np.clip(mean_sim, 0.0, 1.0))
+            spec_sim = float(np.clip(spectral_onset, 0.0, 1.0))
+            # Old audibility-weighted spec (kept for comparison in the dashboard).
+            if float(beat_audibility.max()) < _PHRASE_COVERAGE_THRESHOLD:
+                spec_aud_sim = 1.0
+            else:
+                spec_aud_sim = float(np.clip(spectral_audible, 0.0, 1.0))
+            env_sim = (
+                _PHRASE_ENV_WEIGHTS["energy"] * energy_plain
+                + _PHRASE_ENV_WEIGHTS["attack"] * attack_plain
+                + _PHRASE_ENV_WEIGHTS["peaks"] * energy_peak_plain
+                + _PHRASE_ENV_WEIGHTS["valleys"] * energy_valley_plain
+            )
+            env_sim = float(np.clip(env_sim, 0.0, 1.0))
+            cur_events = _accent_peak_events(rms_use, cur_f0, cur_f1, frame_s)
+            prv_events = _accent_peak_events(rms_use, prv_f0, prv_f1, frame_s)
+            block_s = max((min(cur_f1 - cur_f0, prv_f1 - prv_f0) - 1) * frame_s, frame_s)
+            curve_sim = _accent_curve_similarity(
+                _accent_envelope_curve(rms_use, prv_f0, prv_f1, frame_s),
+                _accent_envelope_curve(rms_use, cur_f0, cur_f1, frame_s),
+                block_s=block_s,
+            )
+            event_sim = _accent_event_similarity(prv_events, cur_events, block_s=block_s)
+            curve_weight = float(np.clip(_PHRASE_ACCENT_CURVE_WEIGHT, 0.0, 1.0))
+            accent_sim = curve_weight * curve_sim + (1.0 - curve_weight) * event_sim
+            accent_sim = float(np.clip(accent_sim, 0.0, 1.0))
+            prv_amp_curve = _amp_envelope_curve(rms_use, prv_f0, prv_f1, frame_s)
+            cur_amp_curve = _amp_envelope_curve(rms_use, cur_f0, cur_f1, frame_s)
+            amp_shape_sim = _accent_curve_similarity(prv_amp_curve, cur_amp_curve, block_s=block_s)
+            amp_texture_sim = _relative_vector_similarity(
+                _amp_texture_features(rms_use, prv_f0, prv_f1, frame_s, audible_floor),
+                _amp_texture_features(rms_use, cur_f0, cur_f1, frame_s, audible_floor),
+                weights=np.array([1.0, 1.2, 1.0, 0.8, 0.8, 0.8, 1.4, 1.0, 0.8, 1.2], dtype=np.float64),
+            )
+            amp_pulse_sim = _shape_similarity(_amp_pulse_profile(prv_amp_curve), _amp_pulse_profile(cur_amp_curve))
+            amp_sim = (
+                _PHRASE_AMP_WEIGHTS["shape"] * amp_shape_sim
+                + _PHRASE_AMP_WEIGHTS["texture"] * amp_texture_sim
+                + _PHRASE_AMP_WEIGHTS["pulse"] * amp_pulse_sim
+            )
+            amp_sim = float(np.clip(amp_sim, 0.0, 1.0))
+
+            attack_audible = _weighted_shape_similarity(cur_attack, prv_attack, audibility)
+            energy_audible = _weighted_shape_similarity(cur_energy, prv_energy, audibility)
+            peak_audible = _macro_peak_count_similarity(cur_attack, prv_attack, audibility)
+            active_sim = (
+                _PHRASE_WEIGHTS["spectrum"] * spectral_audible
+                + _PHRASE_WEIGHTS["attack"] * attack_audible
+                + _PHRASE_WEIGHTS["energy"] * energy_audible
+                + _PHRASE_WEIGHTS["peaks"] * peak_audible
+            )
+            audible_sim = active_weight * active_sim + (1.0 - active_weight) * silence_agreement
+            audible_sim = float(np.clip(audible_sim, 0.0, 1.0))
+
+            return {
+                "phrase": mean_sim,
+                "spec": spec_sim,
+                "spec_aud": spec_aud_sim,
+                "env": env_sim,
+                "accent": accent_sim,
+                "amp": amp_sim,
+                "aud": audible_sim,
+            }
+
+        def write_scores(
+            sim_arrays: dict[str, np.ndarray],
+            nov_arrays: dict[str, np.ndarray],
+            cur_s: int,
+            L: int,
+            scores: dict[str, float],
+        ) -> None:
+            for key, value in scores.items():
+                sim_arrays[key][cur_s:cur_s + L] = value
+                nov_arrays[key][cur_s:cur_s + L] = 1.0 - value
+
+        for prv_s, cur_s, L in _full_block_pairs(n_beats, offset, lag):
+            write_scores(sim, nov, cur_s, L, score_pair(prv_s, cur_s, L))
+
+        for prv_s, cur_s, L in _matched_half_block_pairs(n_beats, offset, lag):
+            write_scores(half_sim, half_nov, cur_s, L, score_pair(prv_s, cur_s, L))
+
+        out[f"phrase_sim_{lag}"] = np.interp(frame_times, bt, sim["phrase"]).astype(np.float32)
+        out[f"phrase_nov_{lag}"] = np.interp(frame_times, bt, nov["phrase"]).astype(np.float32)
+        out[f"phrase_spec_sim_{lag}"] = np.interp(frame_times, bt, sim["spec"]).astype(np.float32)
+        out[f"phrase_spec_nov_{lag}"] = np.interp(frame_times, bt, nov["spec"]).astype(np.float32)
+        out[f"phrase_env_sim_{lag}"] = np.interp(frame_times, bt, sim["env"]).astype(np.float32)
+        out[f"phrase_env_nov_{lag}"] = np.interp(frame_times, bt, nov["env"]).astype(np.float32)
+        out[f"phrase_accent_sim_{lag}"] = np.interp(frame_times, bt, sim["accent"]).astype(np.float32)
+        out[f"phrase_accent_nov_{lag}"] = np.interp(frame_times, bt, nov["accent"]).astype(np.float32)
+        out[f"phrase_amp_sim_{lag}"] = np.interp(frame_times, bt, sim["amp"]).astype(np.float32)
+        out[f"phrase_amp_nov_{lag}"] = np.interp(frame_times, bt, nov["amp"]).astype(np.float32)
+        out[f"phrase_aud_sim_{lag}"] = np.interp(frame_times, bt, sim["aud"]).astype(np.float32)
+        out[f"phrase_aud_nov_{lag}"] = np.interp(frame_times, bt, nov["aud"]).astype(np.float32)
+        out[f"phrase_spec_aud_sim_{lag}"] = np.interp(frame_times, bt, sim["spec_aud"]).astype(np.float32)
+        out[f"phrase_spec_aud_nov_{lag}"] = np.interp(frame_times, bt, nov["spec_aud"]).astype(np.float32)
+
+        out[f"phrase_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["phrase"]).astype(np.float32)
+        out[f"phrase_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["phrase"]).astype(np.float32)
+        out[f"phrase_spec_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["spec"]).astype(np.float32)
+        out[f"phrase_spec_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["spec"]).astype(np.float32)
+        out[f"phrase_env_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["env"]).astype(np.float32)
+        out[f"phrase_env_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["env"]).astype(np.float32)
+        out[f"phrase_accent_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["accent"]).astype(np.float32)
+        out[f"phrase_accent_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["accent"]).astype(np.float32)
+        out[f"phrase_amp_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["amp"]).astype(np.float32)
+        out[f"phrase_amp_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["amp"]).astype(np.float32)
+        out[f"phrase_aud_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["aud"]).astype(np.float32)
+        out[f"phrase_aud_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["aud"]).astype(np.float32)
+        out[f"phrase_spec_aud_half_sim_{lag}"] = np.interp(frame_times, bt, half_sim["spec_aud"]).astype(np.float32)
+        out[f"phrase_spec_aud_half_nov_{lag}"] = np.interp(frame_times, bt, half_nov["spec_aud"]).astype(np.float32)
+
+    return out
+
+
+_ONSET_LAGS     = _STEM_COMPARISON_LAGS
+_ONSET_TOL_BEATS = 0.5    # ±0.5 beats tolerance for matching onsets between blocks
+_ONSET_TIMING_SIGMA_BEATS = 0.18
+_ONSET_MIN_DIST  = 13     # min frames between detected peaks (~151ms @ 44.1kHz/512hop); calibrated to ~20 bass note attacks per 11s
+_ONSET_RMS_FRAC  = 0.08   # peak must be ≥8% of block's max RMS
+_ONSET_ACTIVITY_BINS = 32
+_ONSET_ACTIVITY_FRAC = 0.18
+_ONSET_EVENT_WEIGHT = 0.75
+_ONSET_ACTIVITY_WEIGHT = 1.0 - _ONSET_EVENT_WEIGHT
+
+
+def _onset_similarity_curves(
+    Q_mag: np.ndarray,
+    rms: np.ndarray,
+    beat_frames: np.ndarray,
+    beat_times: np.ndarray,
+    frame_times: np.ndarray,
+    sr: int,
+    hop_length: int,
+    lags: tuple[int, ...] = _ONSET_LAGS,
+    tol_beats: float = _ONSET_TOL_BEATS,
+    timing_sigma_beats: float = _ONSET_TIMING_SIGMA_BEATS,
+    min_dist: int = _ONSET_MIN_DIST,
+    rms_frac: float = _ONSET_RMS_FRAC,
+    activity_bins: int = _ONSET_ACTIVITY_BINS,
+    activity_frac: float = _ONSET_ACTIVITY_FRAC,
+    event_weight: float = _ONSET_EVENT_WEIGHT,
+    block_offsets: dict[int, int] | None = None,
+) -> dict[str, np.ndarray]:
+    """Block comparison via onset-based fingerprint matching.
+
+    For each block, finds attack peaks, extracts a log-CQT spectral fingerprint
+    at each peak, then optimally matches peaks between consecutive blocks by
+    relative beat position.
+
+    Event match score = spectral_sim * timing_sim, where timing_sim decays as
+    matched attacks drift away from the same relative beat position.
+
+    The final score also includes a coarse activity mask comparison so rests,
+    valleys, and sustain length affect similarity without fragile local-minimum
+    detection.
+
+    Unmatched onsets count as zero, penalising both missed and extra events.
+    Captures "does the same sequence of note attacks happen at the same times?"
+    rather than comparing averaged spectral content per beat window.
+    """
+    from scipy.optimize import linear_sum_assignment as _linear_sum_assignment
+    from scipy.signal import find_peaks as _find_peaks
+
+    n_beats  = min(len(beat_times), len(beat_frames))
+    n_f_rms  = len(rms)
+    n_f_cqt  = Q_mag.shape[1]
+    Q_log    = np.log1p(Q_mag)   # (84, n_f_cqt)
+    bf       = np.clip(beat_frames[:n_beats], 0, min(n_f_rms, n_f_cqt) - 1).astype(int)
+    n_f      = min(n_f_rms, n_f_cqt)
+    rms_use  = np.asarray(rms[:n_f], dtype=np.float64)
+
+    if float(np.max(Q_mag)) > 1e-12:
+        S_db = librosa.amplitude_to_db(Q_mag[:, :n_f], ref=float(np.max(Q_mag)))
+        spectral_onset = librosa.onset.onset_strength(
+            S=S_db, sr=sr, hop_length=hop_length
+        )[:n_f]
+    else:
+        spectral_onset = np.zeros(n_f, dtype=np.float64)
+
+    rms_attack = np.maximum(
+        np.diff(np.log1p(rms_use), prepend=0.0),
+        0.0,
+    )
+    rms_attack01 = _normalize_01(rms_attack)
+    spectral_onset01 = _normalize_01(np.asarray(spectral_onset, dtype=np.float64))
+    attack_env = rms_attack01 if float(rms_attack01.max()) > 1e-7 else spectral_onset01
+    activity_env = _smooth_1d(rms_use.astype(np.float32), win=3).astype(np.float64)
+
+    median_beat_s = float(np.median(np.diff(beat_times[:n_beats]))) if n_beats > 1 else 0.5
+
+    def block_frame_range(b_start: int, b_end: int) -> tuple[int, int]:
+        f0 = int(bf[min(b_start, n_beats - 1)])
+        if b_end < n_beats:
+            f1 = int(bf[b_end])
+        else:
+            f1 = n_f
+        return max(0, min(f0, n_f)), max(0, min(f1, n_f))
+
+    def block_time_range(b_start: int, b_end: int) -> tuple[float, float]:
+        t0 = float(beat_times[min(b_start, n_beats - 1)])
+        if b_end < n_beats:
+            t1 = float(beat_times[b_end])
+        else:
+            t1 = t0 + max(b_end - b_start, 1) * median_beat_s
+        return t0, max(t1, t0 + 1e-6)
+
+    def fingerprint(pf: int) -> np.ndarray:
+        fa = max(0, pf - 2)
+        fb = min(n_f_cqt, pf + 3)
+        fp = Q_log[:, fa:fb].mean(axis=1)
+        norm = np.linalg.norm(fp) + 1e-8
+        return fp / norm
+
+    def block_onsets(b_start: int, b_end: int) -> list[tuple[float, np.ndarray]]:
+        """Return [(rel_beat_pos, L2-normed fingerprint), ...] for peaks in beat range."""
+        f0, f1 = block_frame_range(b_start, b_end)
+        if f1 <= f0:
+            return []
+        seg = attack_env[f0:f1]
+        seg_max = seg.max()
+        if seg_max < 1e-7:
+            return []
+
+        peaks_local, _ = _find_peaks(seg, height=rms_frac * seg_max, distance=min_dist)
+        if seg[0] >= rms_frac * seg_max and (seg.size == 1 or seg[0] >= seg[1]):
+            peaks_local = np.unique(np.concatenate([np.array([0], dtype=int), peaks_local]))
+        if peaks_local.size == 0:
+            return []
+
+        t0, t1 = block_time_range(b_start, b_end)
+        beat_dur_s = (t1 - t0) / max(b_end - b_start, 1)
+
+        events = []
+        for pl in peaks_local:
+            pf = int(f0 + pl)
+            t  = librosa.frames_to_time(pf, sr=sr, hop_length=hop_length)
+            rel_pos = (t - t0) / beat_dur_s   # fractional beat units within block
+            events.append((rel_pos, fingerprint(pf)))
+        return events
+
+    def block_activity_mask(b_start: int, b_end: int) -> np.ndarray:
+        f0, f1 = block_frame_range(b_start, b_end)
+        if f1 <= f0:
+            return np.zeros(activity_bins, dtype=bool)
+        seg = activity_env[f0:f1]
+        if float(seg.max()) < 1e-7:
+            return np.zeros(activity_bins, dtype=bool)
+
+        edges = np.linspace(0, len(seg), activity_bins + 1, dtype=int)
+        binned = np.zeros(activity_bins, dtype=np.float64)
+        for i in range(activity_bins):
+            lo, hi = int(edges[i]), int(edges[i + 1])
+            if hi > lo:
+                binned[i] = float(seg[lo:hi].mean())
+        return binned >= (activity_frac * float(binned.max()))
+
+    def activity_score(prev_mask: np.ndarray, cur_mask: np.ndarray) -> float:
+        union = int(np.logical_or(prev_mask, cur_mask).sum())
+        if union == 0:
+            return 1.0
+        inter = int(np.logical_and(prev_mask, cur_mask).sum())
+        return inter / union
+
+    def event_match_score(prev_ev: list, cur_ev: list, tol: float) -> float | None:
+        if not prev_ev and not cur_ev:
+            return None
+        if not prev_ev or not cur_ev:
+            return 0.0
+
+        n_total = max(len(prev_ev), len(cur_ev))
+        scores = np.zeros((len(cur_ev), len(prev_ev)), dtype=np.float64)
+
+        for i, (rel_c, fp_c) in enumerate(cur_ev):
+            for j, (rel_p, fp_p) in enumerate(prev_ev):
+                d = abs(rel_c - rel_p)
+                if d > tol:
+                    continue
+                spectral = max(0.0, float(np.dot(fp_c, fp_p)))
+                timing = float(np.exp(-((d / max(timing_sigma_beats, 1e-6)) ** 2)))
+                scores[i, j] = spectral * timing
+
+        if not np.any(scores > 0.0):
+            return 0.0
+
+        row_ind, col_ind = _linear_sum_assignment(-scores)
+        return float(scores[row_ind, col_ind].sum()) / n_total
+
+    def match_score(
+        prev_ev: list,
+        cur_ev: list,
+        prev_mask: np.ndarray,
+        cur_mask: np.ndarray,
+    ) -> float:
+        activity = activity_score(prev_mask, cur_mask)
+        events = event_match_score(prev_ev, cur_ev, tol_beats)
+        if events is None:
+            return activity
+        ew = float(np.clip(event_weight, 0.0, 1.0))
+        return ew * events + (1.0 - ew) * activity
+
+    out: dict[str, np.ndarray] = {}
+    bt = beat_times[:n_beats]
+
+    for lag in lags:
+        sim_beat = np.ones(n_beats, dtype=np.float32)
+        nov_beat = np.zeros(n_beats, dtype=np.float32)
+        sim_half_beat = np.ones(n_beats, dtype=np.float32)
+        nov_half_beat = np.zeros(n_beats, dtype=np.float32)
+        offset = _block_offset_for_lag(block_offsets, lag)
+
+        def score_pair(prv_s: int, cur_s: int, length: int) -> float:
+            prev_ev = block_onsets(prv_s, prv_s + length)
+            cur_ev  = block_onsets(cur_s,  cur_s  + length)
+            prev_mask = block_activity_mask(prv_s, prv_s + length)
+            cur_mask  = block_activity_mask(cur_s,  cur_s  + length)
+            return match_score(prev_ev, cur_ev, prev_mask, cur_mask)
+
+        for prv_s, cur_s, L in _full_block_pairs(n_beats, offset, lag):
+            ms = score_pair(prv_s, cur_s, L)
+            sim_beat[cur_s:cur_s + L] = ms
+            nov_beat[cur_s:cur_s + L] = 1.0 - ms
+
+        for prv_s, cur_s, L in _matched_half_block_pairs(n_beats, offset, lag):
+            ms = score_pair(prv_s, cur_s, L)
+            sim_half_beat[cur_s:cur_s + L] = ms
+            nov_half_beat[cur_s:cur_s + L] = 1.0 - ms
+
+        out[f"onset_sim_{lag}"] = np.interp(frame_times, bt, sim_beat).astype(np.float32)
+        out[f"onset_nov_{lag}"] = np.interp(frame_times, bt, nov_beat).astype(np.float32)
+        out[f"onset_half_sim_{lag}"] = np.interp(frame_times, bt, sim_half_beat).astype(np.float32)
+        out[f"onset_half_nov_{lag}"] = np.interp(frame_times, bt, nov_half_beat).astype(np.float32)
+
+    return out
+
+
+_SILENCE_RMS_FRAC = 0.05
+_SILENCE_MIN_S    = 0.8
+_STEM_ENTER_FRAC  = 0.10
+_STEM_EXIT_FRAC   = 0.05
+_STEM_MIN_HOLD_S  = 0.6
+
+
+def _detect_silence_events(
+    rms: np.ndarray,
+    times_s: np.ndarray,
+    *,
+    min_s: float = _SILENCE_MIN_S,
+    frac: float = _SILENCE_RMS_FRAC,
+) -> list[dict[str, float]]:
+    """Return contiguous silent regions lasting ≥ min_s."""
+    if rms.size == 0:
+        return []
+    thr = float(rms.max()) * frac
+    below = rms < thr
+    events: list[dict[str, float]] = []
+    i, n = 0, len(below)
+    while i < n:
+        if not below[i]:
+            i += 1
+            continue
+        j = i
+        while j < n and below[j]:
+            j += 1
+        t0 = float(times_s[i])
+        t1 = float(times_s[j - 1])
+        if (t1 - t0) >= min_s:
+            events.append({
+                "start_s": t0,
+                "end_s": t1,
+                "min_rms": float(rms[i:j].min()),
+            })
+        i = j
+    return events
+
+
+def _detect_stem_transitions(
+    stems: dict[str, np.ndarray],
+    sr: int,
+    *,
+    hop_length: int,
+    frame_length: int,
+) -> list[dict[str, Any]]:
+    """Detect per-stem enter/exit events with hysteresis to suppress flicker."""
+    out: list[dict[str, Any]] = []
+    min_hold_frames = max(1, int(round(_STEM_MIN_HOLD_S * sr / hop_length)))
+    for name, stem_y in stems.items():
+        if stem_y is None or stem_y.size == 0:
+            continue
+        rms = librosa.feature.rms(
+            y=stem_y, frame_length=frame_length, hop_length=hop_length
+        )[0]
+        if rms.size == 0:
+            continue
+        peak = float(rms.max())
+        if peak <= 0:
+            continue
+        enter_thr = peak * _STEM_ENTER_FRAC
+        exit_thr  = peak * _STEM_EXIT_FRAC
+        rms_t = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop_length)
+
+        active = False
+        run = 0
+        for i, v in enumerate(rms):
+            target = (v >= enter_thr) if not active else (v >= exit_thr)
+            if target == active:
+                run = 0  # consistent with current state — reset flip counter
+            else:
+                run += 1  # counting consecutive frames pushing toward a flip
+            if run >= min_hold_frames:
+                active = target
+                out.append({
+                    "stem": name,
+                    "kind": "enter" if active else "exit",
+                    "time_s": float(rms_t[max(0, i - min_hold_frames + 1)]),
+                })
+                run = 0
+    return out
+
+
 def compute_story(
     y: np.ndarray,
     sr: int,
     *,
     hop_length: int = 512,
     frame_length: int = 2048,
+    other_y: np.ndarray | None = None,
+    stems: dict[str, np.ndarray] | None = None,
 ) -> dict[str, Any]:
     """
     Heuristic "song story" signals:
@@ -1194,6 +2703,8 @@ def compute_story(
     C_sync_raw: np.ndarray | None = None
     M_sync_raw: np.ndarray | None = None
     beat_times: np.ndarray | None = None
+    R_chroma_ssm: np.ndarray | None = None
+    R_mfcc_ssm: np.ndarray | None = None
 
     try:
         # Only run SSM if the signal has meaningful temporal variation.
@@ -1209,6 +2720,8 @@ def compute_story(
         if _has_structure:
             R_chroma = _build_ssm(C_sync)
             R_mfcc = _build_ssm(M_sync)
+            R_chroma_ssm = R_chroma
+            R_mfcc_ssm = R_mfcc
 
             kw = int(np.clip(n_beats // 20, 4, 32))
             nov_chroma = _normalize_01(_checkerboard_novelty(R_chroma, kernel_width=kw))
@@ -1239,11 +2752,17 @@ def compute_story(
             duration_s=duration_s,
         )
         bounds_s = [0.0] + internal + [duration_s]
-        # min_len_s=8.0: intros and pre-verse sections can be as short as 8s
-        # (one 4/4 phrase at ~120 BPM, two bars at 60 BPM).  The upstream
-        # score+filter already removed weak candidates, so surviving boundaries
-        # that create 8-12s sections are genuine structural events.
-        bounds_s = _merge_short_segments(bounds_s, min_len_s=8.0, duration_s=duration_s)
+        # min_len_s=2.0: only deduplicate near-identical boundaries from
+        # different detectors; do not enforce a minimum section length.
+        # Quality filtering is already handled by _score_and_filter_boundaries.
+        _pre_merge_bounds = list(bounds_s)
+        bounds_s = _merge_short_segments(bounds_s, min_len_s=2.0, duration_s=duration_s)
+        _kept_set = {round(b, 3) for b in bounds_s}
+        boundary_candidates: list[dict[str, Any]] = [
+            {"time_s": float(b), "source": "ssm_discarded_short"}
+            for b in _pre_merge_bounds
+            if 0.0 < b < duration_s and round(b, 3) not in _kept_set
+        ]
         # Inject a quiet-intro boundary AFTER the merge pass (so it's not
         # dropped by the min_len gate). The SSM checkerboard can't detect
         # song-start onset: there's no prior context to form self-similarity.
@@ -1252,6 +2771,27 @@ def compute_story(
             0 < b < _intro_end + 5.0 for b in bounds_s[1:]  # skip 0.0
         ):
             bounds_s = sorted(set(bounds_s + [_intro_end]))
+
+        # Inject the FIRST bass/drums entry in the opening 20% of the song as a
+        # section boundary.  The SSM misses these because there is no prior
+        # context at song-start; only one boundary per stem is injected so that
+        # the rhythmic enter/exit pattern inside a riff doesn't produce clutter.
+        if stems:
+            _early_stem_tr = _detect_stem_transitions(
+                stems, sr, hop_length=hop_length, frame_length=frame_length,
+            )
+            _early_cutoff = duration_s * 0.20
+            _stems_injected: set[str] = set()
+            for _tr in _early_stem_tr:
+                if (
+                    _tr["kind"] == "enter"
+                    and _tr["stem"] in ("bass", "drums")
+                    and 0 < _tr["time_s"] < _early_cutoff
+                    and _tr["stem"] not in _stems_injected
+                    and not any(abs(_tr["time_s"] - b) < 3.0 for b in bounds_s)
+                ):
+                    bounds_s = sorted(set(bounds_s + [_tr["time_s"]]))
+                    _stems_injected.add(_tr["stem"])
         # Force-split any section that is still too long
         bounds_s = _force_split_long_sections(
             bounds_s,
@@ -1281,11 +2821,40 @@ def compute_story(
         bounds_frames = np.concatenate([[0], change.astype(int), [int(seg_labels.size)]])
         bounds_s = librosa.frames_to_time(bounds_frames, sr=sr, hop_length=hop_length).astype(float).tolist()
         bounds_s = _merge_short_segments(bounds_s, min_len_s=15.0, duration_s=duration_s)
+        boundary_candidates = []
 
         if len(bounds_s) <= 3 and duration_s > 60.0:
             bounds_s = _tension_valley_boundaries(
                 raw_tension_smoothed, times_s, min_len_s=15.0, duration_s=duration_s,
             )
+
+    # --- Time-lag similarity matrix (beat-synced; uses "other" stem if available) ---
+    y_nov = other_y if other_y is not None else y
+    C_raw = librosa.feature.chroma_cqt(y=y_nov, sr=sr, hop_length=hop_length)
+    mfcc_nov = librosa.feature.mfcc(y=y_nov, sr=sr, n_mfcc=20, hop_length=hop_length, n_fft=frame_length)
+
+    if beat_times is not None and len(beat_times) > 1:
+        _bf_nov = librosa.time_to_frames(beat_times, sr=sr, hop_length=hop_length)
+        C_nov_sync = librosa.util.sync(C_raw, _bf_nov, aggregate=np.median)
+        M_nov_sync = librosa.util.sync(mfcc_nov, _bf_nov, aggregate=np.mean)
+        _bt_nov = beat_times
+    else:
+        _bt_nov = np.arange(0, duration_s, 0.5)
+        _bf_nov = librosa.time_to_frames(_bt_nov, sr=sr, hop_length=hop_length)
+        C_nov_sync = librosa.util.sync(C_raw, _bf_nov, aggregate=np.median)
+        M_nov_sync = librosa.util.sync(mfcc_nov, _bf_nov, aggregate=np.mean)
+        _bt_nov = _bt_nov[: C_nov_sync.shape[1]]
+
+    h_lag_matrix = _lag_matrix_novelty(C_nov_sync, _bt_nov, times_s)
+    t_lag_matrix = _lag_matrix_novelty(
+        M_nov_sync[1:] if M_nov_sync.shape[0] > 1 else M_nov_sync, _bt_nov, times_s
+    )
+    nov_curves = _novelty_curves_from_lag(h_lag_matrix, t_lag_matrix)
+
+    if R_chroma_ssm is not None and R_mfcc_ssm is not None and beat_times is not None:
+        rep = _rep_strength(R_chroma_ssm, R_mfcc_ssm, beat_times, times_s)
+    else:
+        rep = np.zeros(n, dtype=np.float32)
 
     # --- Motif-aware labels ---
     hop_s = float(hop_length / sr)
@@ -1416,6 +2985,69 @@ def compute_story(
             }
         )
 
+    stem_novelties: dict[str, Any] = {}
+    if stems:
+        alignment_stem = next(
+            (
+                name for name, stem_y in stems.items()
+                if str(name).lower() in {"drum", "drums"} and stem_y is not None and stem_y.size > 0
+            ),
+            None,
+        )
+        shared_block_offsets: dict[int, int] | None = None
+        shared_bar_grid: dict[str, Any] | None = None
+        if alignment_stem is not None:
+            try:
+                drum_result = _stem_novelties(
+                    stems[alignment_stem], sr, n_frames=n,
+                    hop_length=hop_length, frame_length=frame_length,
+                    beat_times=beat_times, frame_times=times_s,
+                    stem_name=alignment_stem,
+                    alignment_source_stem=alignment_stem,
+                )
+                stem_novelties[alignment_stem] = drum_result
+                shared_block_offsets = {
+                    int(k): int(v)
+                    for k, v in drum_result.get("block_offsets", {}).items()
+                }
+                shared_bar_grid = dict(drum_result.get("bar_grid", {}))
+            except Exception:
+                shared_block_offsets = None
+                shared_bar_grid = None
+
+        for stem_name, stem_y in stems.items():
+            if stem_name in stem_novelties:
+                continue
+            if stem_y is not None and stem_y.size > 0:
+                try:
+                    stem_novelties[stem_name] = _stem_novelties(
+                        stem_y, sr, n_frames=n,
+                        hop_length=hop_length, frame_length=frame_length,
+                        beat_times=beat_times, frame_times=times_s,
+                        stem_name=stem_name,
+                        block_offsets_override=shared_block_offsets,
+                        bar_grid_override=shared_bar_grid,
+                        alignment_source_stem=alignment_stem or stem_name,
+                    )
+                except Exception:
+                    pass
+
+    # Build section-diff step function: how different is each section from the previous one?
+    section_diff_curve = np.zeros(n, dtype=np.float32)
+    for sec in sections:
+        val = float(sec.get("novelty_to_prev", 0.0))
+        s0_f = max(0, int(round(sec["start_s"] / hop_s)))
+        s1_f = max(s0_f + 1, min(int(round(sec["end_s"] / hop_s)), n))
+        section_diff_curve[s0_f:s1_f] = val
+
+    silences = _detect_silence_events(rms[:n], times_s[:n])
+    stem_transitions = (
+        _detect_stem_transitions(
+            stems, sr, hop_length=hop_length, frame_length=frame_length
+        )
+        if stems else []
+    )
+
     return {
         "sections": sections,
         "tension": {
@@ -1423,9 +3055,21 @@ def compute_story(
             "times_s": times_s.astype(float).tolist(),
             "value": tension.astype(float).tolist(),
         },
+        "novelties": {
+            "times_s": times_s.astype(float).tolist(),
+            "novelty_short": nov_curves["short"].astype(float).tolist(),
+            "novelty_medium": nov_curves["medium"].astype(float).tolist(),
+            "novelty_long": nov_curves["long"].astype(float).tolist(),
+            "repetition": rep.astype(float).tolist(),
+            "section_diff": section_diff_curve.astype(float).tolist(),
+        },
+        "stem_novelties": stem_novelties,
         "events": {
             "drop_times_s": drop_times,
             "buildups": buildups,
+            "silences": silences,
+            "stem_transitions": stem_transitions,
+            "boundary_candidates": boundary_candidates,
         },
         "meta": {
             "duration_s": float(duration_s),

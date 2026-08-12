@@ -85,9 +85,28 @@ def analyze_file(
     y = np.asarray(y, dtype=np.float32)
 
     analysis = analyze_audio(y, sr, hop_length=hop_length, frame_length=frame_length)
-    # Optional "story" signals (segmentation + tension). Kept lightweight so v0 stays fast.
-    analysis["story"] = compute_story(y, sr, hop_length=hop_length, frame_length=frame_length)
+
+    # Load stems if they exist
+    stems_dir = p.parent.parent / "outputs" / p.stem / "stems"
+    stem_names = ["drums", "bass", "vocals", "other"]
+    stems: dict[str, np.ndarray] = {}
+    for name in stem_names:
+        sp = stems_dir / f"{name}.wav"
+        if sp.exists():
+            raw, _ = librosa.load(sp, sr=target_sr, mono=True)
+            stems[name] = np.asarray(raw, dtype=np.float32)
+
+    other_y = stems.get("other", None)
+
+    analysis["story"] = compute_story(
+        y, sr,
+        hop_length=hop_length, frame_length=frame_length,
+        other_y=other_y,
+        stems=stems if stems else None,
+    )
     analysis["meta"]["song_id"] = song_id
+    analysis["meta"]["novelty_source"] = "other_stem" if other_y is not None else "full_mix"
+    analysis["meta"]["stems_loaded"] = list(stems.keys())
     return analysis
 
 

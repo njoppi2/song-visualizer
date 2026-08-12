@@ -20,6 +20,10 @@ outputs/
 *.wav
 *.png
 *.npy
+.playwright-mcp/
+.streamlit/dashboard.log
+2026-*-this-session-is-being-continued-from-a-previous-c.txt
+experiments/results/
 
 # Lock files
 uv.lock
