@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SongViz · Rhythm comparison</title>
+<style>
+body{background:#101a24;color:#e3eff7;font:16px/1.5 system-ui;margin:0}main{max-width:960px;margin:auto;padding:30px 20px 70px}h1{font-size:30px}h2{font-size:21px}p{color:#b9cbd7}section{padding:20px;border:1px solid #364b59;border-radius:12px;margin:25px 0;background:#142430}video,img{width:100%;display:block}button,select,input{font:inherit;padding:9px 12px;border-radius:6px;border:1px solid #607988;background:#213948;color:#e3eff7;margin:4px 4px 4px 0}button{cursor:pointer}button[aria-pressed=true]{background:#b6efd5;color:#112a21}textarea{box-sizing:border-box;width:100%;min-height:90px;background:#0d1821;color:white;font:inherit;padding:12px;border:1px solid #607988;border-radius:6px;margin-top:12px}audio{display:block;width:100%;margin:8px 0 16px}details{margin:16px 0}summary{cursor:pointer;color:#91d3f9}a{color:#91d3f9}.time{width:110px}.note{border-left:3px solid #b6efd5;padding-left:14px}.playing{font-weight:600}
+</style><main><h1>Does the pulse follow the music now?</h1>
+<p>Your first review pointed to irregular beats and unreadable drum hits. This comparison tests a different beat clock and gives kick, snare/clap and hi-hat separate indicators.</p>
+<p class="note">Try the first clip. Switch between the two pulse buttons at the same moment, or restart each version. Both have identical original audio and percussion indicators; only the pulse timing changes.</p>
+<p>A pulse is the regular rhythm you could clap to. Drum hits can happen between pulses, and the pulse can continue when drums go quiet. This regular candidate assumes a steady tempo; it is not yet the production default.</p>
+{{CARDS}}
+<button id="export">Download feedback</button><p id="status" aria-live="polite">You can also reply in chat. Notes are not saved until downloaded.</p>
+<details><summary>See the waveform and spectrogram evidence</summary><p>Green marks show the proposed pulse; red marks show the cached pulse. Only every second proposed pulse coincides with a prominent snare attack. This supports a timing hypothesis, not a complete drum transcription.</p><img src="snare-closeup.png" alt="Snare waveform and spectrogram overlaid with proposed pulse"><img src="return-timing.png" alt="Component energy and old versus new pulse timing near the return"></details>
+<p><a href="manifest.json">Manifest</a> · <a href="timing.json">Timing measurements</a> · <a href="percussion-candidates.json">Percussion candidates</a></p>
+</main><script>
+const manifestHash='{{MANIFEST_SHA}}', urls=new Map();
+async function source(path){if(location.protocol==='file:')return path;if(!urls.has(path))urls.set(path,fetch(path).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.blob()}).then(URL.createObjectURL));return urls.get(path)}
+function stopOthers(media){document.querySelectorAll('video,audio').forEach(v=>{if(v!==media)v.pause()})}
+document.querySelectorAll('video,audio').forEach(v=>v.addEventListener('play',()=>stopOthers(v)));
+async function change(section,variant,reset=false){
+ const video=section.querySelector('video'),wasPlaying=!video.paused,time=reset?0:video.currentTime;
+ video.pause();section.querySelectorAll('button').forEach(b=>b.disabled=true);video.controls=false;
+ try{
+  video.src=await source(`${section.dataset.id}/${variant}.mp4`);
+  await new Promise((resolve,reject)=>{video.addEventListener('loadedmetadata',resolve,{once:true});video.addEventListener('error',reject,{once:true})});
+  video.currentTime=Math.min(time,video.duration);section.dataset.variant=variant;
+  section.querySelectorAll('[data-variant]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.variant===variant)));
+  section.querySelector('.playing').textContent=variant==='cached'?'Showing: cached pulse':'Showing: regular pulse candidate';
+  if(wasPlaying)await video.play();
+ }catch(error){document.querySelector('#status').textContent='Could not load a clip. Try opening this HTML locally.'}
+ finally{section.querySelectorAll('button').forEach(b=>b.disabled=false);video.controls=true}
+}
+document.querySelectorAll('section').forEach(section=>{
+ section.dataset.variant='cached';change(section,'cached',true);
+ section.querySelectorAll('[data-variant]').forEach(b=>b.onclick=()=>change(section,b.dataset.variant));
+ section.querySelector('.restart').onclick=()=>{const v=section.querySelector('video');v.currentTime=0;v.play()};
+ section.querySelector('.stamp').onclick=()=>section.querySelector('.time').value=(Number(section.dataset.start)+section.querySelector('video').currentTime).toFixed(2);
+ section.querySelector('details').addEventListener('toggle',async event=>{
+  if(!event.target.open)return;
+  for(const audio of section.querySelectorAll('audio'))if(!audio.dataset.loaded){audio.dataset.loaded='true';try{audio.src=await source(audio.getAttribute('src'))}catch{audio.dataset.loaded=''}}
+ });
+});
+document.querySelector('#export').onclick=()=>{
+ const observations=[...document.querySelectorAll('section')].map(s=>({passage_id:s.dataset.id,song_time_s:Number(s.querySelector('.time').value),preference:s.querySelector('.preference').value,variant_viewed:s.dataset.variant,observation:s.querySelector('textarea').value.trim(),status:'user_observation_untriaged'})).filter(o=>o.observation||o.preference!=='unreviewed');
+ if(!observations.length){document.querySelector('#status').textContent='Choose a preference or add a note first.';return}
+ const blob=new Blob([JSON.stringify({schema_version:1,manifest_sha256:manifestHash,created_utc:new Date().toISOString(),observations},null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='songviz-rhythm-feedback.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+</script></html>

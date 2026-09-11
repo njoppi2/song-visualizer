@@ -8,6 +8,7 @@ import scipy.ndimage
 import scipy.stats
 
 from .ingest import _normalize_01
+from .structure_grid import prepare_beat_grid
 
 
 def _smooth_1d(x: np.ndarray, win: int) -> np.ndarray:
@@ -858,19 +859,18 @@ def _beat_sync_features(
     hop_length: int,
     n_frames: int,
     mfcc: np.ndarray,
+    beat_frames_override: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
     """Beat-synchronous chroma + MFCC features with time-delay embedding.
 
     Returns (C_sync_stacked, M_sync_stacked, C_sync_raw, M_sync_raw, beat_times, beat_duration_s).
     Falls back to uniform 2 Hz pseudo-beats if beat_track produces < 8 beats.
     """
-    _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr, hop_length=hop_length)
-    if len(beat_frames) < 8:
-        pseudo_hop = sr // 2
-        beat_frames = np.arange(0, n_frames * hop_length, pseudo_hop) // hop_length
-        beat_frames = beat_frames.astype(int)
-
-    beat_frames = librosa.util.fix_frames(beat_frames, x_min=0, x_max=n_frames - 1)
+    if beat_frames_override is None:
+        grid = prepare_beat_grid(y, sr, hop_length=hop_length, n_frames=n_frames)
+        beat_frames = np.asarray(grid["frame_indices"], dtype=int)
+    else:
+        beat_frames = np.asarray(beat_frames_override, dtype=int)
 
     C = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop_length)
 
@@ -1194,21 +1194,43 @@ def _score_and_filter_boundaries(
 ) -> list[float]:
     """Score boundaries by cross-detector agreement and filter weak singles.
 
-    - Boundaries within *agreement_window_s* of each other (one from SSM, one
-      from energy) are counted as "agreed" and always kept.
+    - A one-to-one SSM/energy pair within *agreement_window_s* is counted as
+      "agreed" and contributes the SSM timestamp only.  SSM represents the
+      acoustic structural change, while an energy valley is a delayed or
+      advanced tension minimum; keeping the SSM time therefore makes one pair
+      represent one transition.
     - SSM-only boundaries are kept only if the novelty curve peak at that
       boundary exceeds *ssm_prominence_thr*.
-    - Energy-only boundaries are always kept (they represent visible waveform
-      changes and are harder to false-trigger).
+    - Energy-only boundaries retain the existing keep policy. An energy change
+      is evidence to review, not proof of a section transition.
+
+    Candidate pairs are greedily selected from smallest time difference to
+    largest, with timestamps breaking ties.  This deterministic one-to-one
+    matching deliberately avoids transitive clustering: an energy boundary
+    cannot make multiple nearby SSM peaks all look agreed.
 
     Returns a sorted list of internal boundary times (excludes 0 and duration_s).
     """
-    ssm_internal = sorted(b for b in bounds_ssm if 0 < b < duration_s)
-    energy_internal = sorted(b for b in bounds_energy if 0 < b < duration_s)
+    # Sanitizing here prevents repeated detector candidates and endpoints from
+    # participating in matching or leaking into the returned internal bounds.
+    ssm_internal = sorted({b for b in bounds_ssm if 0 < b < duration_s})
+    energy_internal = sorted({b for b in bounds_energy if 0 < b < duration_s})
 
-    # Tag each SSM boundary as agreed or solo.
-    def _has_near_partner(t: float, partners: list[float], window: float) -> bool:
-        return any(abs(t - p) <= window for p in partners)
+    # Pair each candidate at most once.  Sorting all eligible edges by distance
+    # gives the closest available counterpart first; the timestamps make an
+    # equal-distance choice reproducible.
+    candidate_pairs = sorted(
+        (abs(ssm_t - energy_t), ssm_t, energy_t)
+        for ssm_t in ssm_internal
+        for energy_t in energy_internal
+        if abs(ssm_t - energy_t) <= agreement_window_s
+    )
+    matched_ssm: set[float] = set()
+    matched_energy: set[float] = set()
+    for _distance, ssm_t, energy_t in candidate_pairs:
+        if ssm_t not in matched_ssm and energy_t not in matched_energy:
+            matched_ssm.add(ssm_t)
+            matched_energy.add(energy_t)
 
     # Build novelty lookup: SSM boundary → peak novelty within ±0.5s
     def _novelty_at(t: float) -> float:
@@ -1224,14 +1246,15 @@ def _score_and_filter_boundaries(
     kept: set[float] = set()
 
     for t in ssm_internal:
-        if _has_near_partner(t, energy_internal, agreement_window_s):
-            kept.add(t)  # agreed — always keep
+        if t in matched_ssm:
+            kept.add(t)  # agreed pair — SSM is the representative timestamp
         elif _novelty_at(t) >= ssm_prominence_thr:
             kept.add(t)  # strong SSM-only boundary
 
     for t in energy_internal:
-        # Always keep energy-only boundaries — they're visible in the waveform.
-        kept.add(t)
+        if t not in matched_energy:
+            # Always keep energy-only boundaries — they're visible in the waveform.
+            kept.add(t)
 
     # --- Intro-end rescue ---
     # Intro→verse boundaries are often feature-subtle: the SSM detects the
@@ -1270,26 +1293,24 @@ def _lag_matrix_novelty(
     High values (bright) = current beat strongly resembles the beat `lag` beats
     ago, which indicates a repeating riff. Low values (dark) = novelty/change.
     Rows run from lag=1 (top, small scale) to lag=lag_max (bottom, large scale).
-    Each row is normalized independently to [0, 1] then interpolated to frame times.
+    Cosines are clipped to [0, 1], never independently stretched by lag/song.
+    Missing history is stored as zero for serialization; consumers must use
+    _lag_history_mask to distinguish unavailable comparisons from dissimilarity.
     """
     if lag_max is None:
         lag_max = _LAG_MAX_BEATS
     F = np.asarray(features, dtype=np.float64)
     n_b = F.shape[1]
-    norms = np.linalg.norm(F, axis=0) + 1e-8
+    norms = np.linalg.norm(F, axis=0)
     result = np.zeros((lag_max, n_b), dtype=np.float64)
 
     for lag in range(1, lag_max + 1):
         for t in range(lag, n_b):
-            result[lag - 1, t] = (
-                np.dot(F[:, t], F[:, t - lag]) / (norms[t] * norms[t - lag])
-            )
-
-    for i in range(lag_max):
-        row = result[i]
-        mn, mx = row.min(), row.max()
-        if mx - mn > 1e-6:
-            result[i] = (row - mn) / (mx - mn)
+            denom = norms[t] * norms[t - lag]
+            if denom > 1e-12:
+                result[lag - 1, t] = np.clip(np.dot(F[:, t], F[:, t - lag]) / denom, 0.0, 1.0)
+            elif norms[t] <= 1e-6 and norms[t - lag] <= 1e-6:
+                result[lag - 1, t] = 1.0  # unchanged empty features, not a new event
 
     out = np.zeros((lag_max, len(frame_times)), dtype=np.float32)
     for i in range(lag_max):
@@ -1297,10 +1318,22 @@ def _lag_matrix_novelty(
     return out
 
 
+def _lag_history_mask(
+    beat_times: np.ndarray, frame_times: np.ndarray, lag_max: int = _LAG_MAX_BEATS,
+) -> np.ndarray:
+    """Which lag comparisons have past context at each output timestamp."""
+    mask = np.zeros((lag_max, len(frame_times)), dtype=bool)
+    for lag in range(1, min(lag_max + 1, len(beat_times))):
+        mask[lag - 1] = frame_times >= beat_times[lag]
+    return mask
+
+
 def _novelty_curves_from_lag(
     L_chroma: np.ndarray,
     L_mfcc: np.ndarray,
     scales: dict[str, int] | None = None,
+    *,
+    history_mask: np.ndarray | None = None,
 ) -> dict[str, np.ndarray]:
     """Derive 1D novelty curves from time-lag similarity matrices.
 
@@ -1309,6 +1342,8 @@ def _novelty_curves_from_lag(
     "How unlike the current beat is from its closest match in the last S beats."
     Riffs that repeat within window S → low novelty. Genuinely new content with
     no past match → high novelty. Decays as the new pattern starts repeating.
+    Missing history is unknown (neutral zero), not novelty. Production callers
+    supply history_mask and serialize validity. No per-song min/max rescaling.
     """
     if scales is None:
         scales = _NOVELTY_SCALES
@@ -1316,10 +1351,13 @@ def _novelty_curves_from_lag(
     out: dict[str, np.ndarray] = {}
     for name, S in scales.items():
         s_clip = min(S, L.shape[0])
-        nov = 1.0 - L[:s_clip].max(axis=0)
-        mn, mx = float(nov.min()), float(nov.max())
-        if mx - mn > 1e-6:
-            nov = (nov - mn) / (mx - mn)
+        if history_mask is None:
+            nov = 1.0 - L[:s_clip].max(axis=0)
+        else:
+            valid = history_mask[:s_clip]
+            best = np.where(valid, L[:s_clip], -np.inf).max(axis=0)
+            nov = np.where(valid.any(axis=0), 1.0 - best, 0.0)
+        nov = np.clip(nov, 0.0, 1.0)
         out[name] = nov.astype(np.float32)
     return out
 
@@ -1410,7 +1448,8 @@ def _stem_novelties(
 
     h = _lag_matrix_novelty(C_sync, _bt, frame_times)
     t = _lag_matrix_novelty(M_sync[1:] if M_sync.shape[0] > 1 else M_sync, _bt, frame_times)
-    curves = _novelty_curves_from_lag(h, t)
+    history_mask = _lag_history_mask(_bt, frame_times)
+    curves = _novelty_curves_from_lag(h, t, history_mask=history_mask)
 
     Q_sync = Q_sync[:, : C_sync.shape[1]]
 
@@ -1474,6 +1513,7 @@ def _stem_novelties(
         "novelty_short": curves["short"].astype(float).tolist(),
         "novelty_medium": curves["medium"].astype(float).tolist(),
         "novelty_long": curves["long"].astype(float).tolist(),
+        "novelty_history_valid": history_mask.any(axis=0).tolist(),
         **{k: v.astype(float).tolist() for k, v in cqt.items()},
         **{k: v.astype(float).tolist() for k, v in phrase.items()},
         **{k: v.astype(float).tolist() for k, v in onset.items()},
@@ -2657,6 +2697,8 @@ def compute_story(
     frame_length: int = 2048,
     other_y: np.ndarray | None = None,
     stems: dict[str, np.ndarray] | None = None,
+    beat_times_s: list[float] | np.ndarray | None = None,
+    beat_grid_source: str | None = None,
 ) -> dict[str, Any]:
     """
     Heuristic "song story" signals:
@@ -2664,7 +2706,8 @@ def compute_story(
     - tension: a smooth energy/brightness curve (0..1), good for buildup/drop dynamics.
     - events: drop_times_s (sharp tension drops) and buildups (rising tension windows).
 
-    This is intentionally lightweight and fully deterministic.
+    An explicit beat_times_s grid bypasses beat tracking. Exact requested times,
+    effective frame-aligned times and fallback provenance are saved in meta.
     """
     if y.ndim != 1:
         raise ValueError(f"Expected mono audio (1D array), got shape={y.shape}")
@@ -2702,7 +2745,12 @@ def compute_story(
     _ssm_ok = False
     C_sync_raw: np.ndarray | None = None
     M_sync_raw: np.ndarray | None = None
-    beat_times: np.ndarray | None = None
+    # Resolve outside the section fallback handler: invalid supplied grids must
+    # fail, not silently turn into a different timing hypothesis.
+    beat_grid = prepare_beat_grid(y, sr, hop_length=hop_length, n_frames=n,
+                                 beat_times_s=beat_times_s, source=beat_grid_source)
+    beat_times: np.ndarray | None = np.asarray(beat_grid["effective_times_s"])
+    section_error: str | None = None
     R_chroma_ssm: np.ndarray | None = None
     R_mfcc_ssm: np.ndarray | None = None
 
@@ -2714,6 +2762,7 @@ def compute_story(
 
         C_sync, M_sync, C_sync_raw, M_sync_raw, beat_times, beat_dur = _beat_sync_features(
             y, sr, hop_length=hop_length, n_frames=n, mfcc=mfcc,
+            beat_frames_override=np.asarray(beat_grid["frame_indices"]),
         )
         n_beats = C_sync.shape[-1]
 
@@ -2802,7 +2851,8 @@ def compute_story(
 
         _ssm_ok = True
 
-    except Exception:
+    except Exception as exc:
+        section_error = f"{type(exc).__name__}: {exc}"
         # Emergency fallback: agglomerative clustering (original approach)
         n_seg_frames = min(mfcc_z.shape[1], len(rms01), len(onset01))
         mfcc_z_seg = mfcc_z[:, :n_seg_frames]
@@ -2849,7 +2899,8 @@ def compute_story(
     t_lag_matrix = _lag_matrix_novelty(
         M_nov_sync[1:] if M_nov_sync.shape[0] > 1 else M_nov_sync, _bt_nov, times_s
     )
-    nov_curves = _novelty_curves_from_lag(h_lag_matrix, t_lag_matrix)
+    novelty_history = _lag_history_mask(_bt_nov, times_s)
+    nov_curves = _novelty_curves_from_lag(h_lag_matrix, t_lag_matrix, history_mask=novelty_history)
 
     if R_chroma_ssm is not None and R_mfcc_ssm is not None and beat_times is not None:
         rep = _rep_strength(R_chroma_ssm, R_mfcc_ssm, beat_times, times_s)
@@ -3057,6 +3108,7 @@ def compute_story(
         },
         "novelties": {
             "times_s": times_s.astype(float).tolist(),
+            "history_valid": novelty_history.any(axis=0).tolist(),
             "novelty_short": nov_curves["short"].astype(float).tolist(),
             "novelty_medium": nov_curves["medium"].astype(float).tolist(),
             "novelty_long": nov_curves["long"].astype(float).tolist(),
@@ -3075,5 +3127,11 @@ def compute_story(
             "duration_s": float(duration_s),
             "sample_rate": int(sr),
             "features": ["mfcc_20", "rms", "onset_strength", "spectral_centroid"],
+            "beat_grid": beat_grid,
+            "section_method": "ssm" if _ssm_ok else "fallback",
+            "section_error": section_error,
+            "boundary_method": "ssm_energy_one_to_one_v2" if _ssm_ok else "agglomerative_fallback",
+            "novelty_method": "lag_cosine_v2_history_masked_no_rescale",
+            "novelty_semantics": "nearest available past beat within 4/16/32 beats; missing history is unknown (zero placeholder), not surprise; clipped cosine, not a probability",
         },
     }

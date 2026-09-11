@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SongViz · exemplos de escuta</title>
+<style>
+:root{color-scheme:dark;--bg:#09111a;--panel:#111e2a;--line:#30485b;--text:#eef5f7;--muted:#aabcc7;--accent:#78d4d0;--focus:#e9c66c;--cursor:#f5f2ae;--warn:#edbd70}*{box-sizing:border-box}html{overflow-x:hidden}body{margin:0;background:radial-gradient(circle at 15% 0,#173142 0,#09111a 45rem);color:var(--text);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:760px;margin:auto;padding:0 16px 56px}.player{position:sticky;top:0;z-index:2;margin:0 -16px 20px;padding:12px 16px 14px;border-bottom:1px solid var(--line);background:#09111af2;backdrop-filter:blur(10px)}.player-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}.player strong{color:var(--accent)}#audio-status{min-height:1.4em;color:var(--muted);font-size:.9rem}audio{display:block;width:100%;margin-top:8px}h1{margin:0;font-size:clamp(1.8rem,7vw,3rem);line-height:1.08}h2{margin:0;font-size:clamp(1.35rem,5vw,1.8rem);line-height:1.2}p{margin:8px 0;color:var(--muted)}.card{margin-top:16px;padding:18px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#132331,#101b26)}.eyebrow{margin:0 0 5px;color:var(--accent);font-weight:650;font-size:.92rem;letter-spacing:.02em}.time{font-variant-numeric:tabular-nums;color:var(--muted)}.timeline{display:block;width:100%;height:auto;margin-top:16px;border:1px solid var(--line);border-radius:9px;background:#08131c;cursor:pointer;touch-action:manipulation}.timeline:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.hint{font-size:.9rem}.controls,.nav{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}button{appearance:none;border:1px solid #527285;border-radius:8px;padding:8px 12px;background:#1a3545;color:var(--text);font:inherit;cursor:pointer}button:hover{border-color:var(--accent)}button.secondary{background:transparent}.nav{justify-content:space-between}.nav button:last-child{margin-left:auto}.counter{align-self:center;color:var(--muted);font-size:.92rem}.feedback{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}.feedback legend{padding:0;color:var(--text);font-weight:650}.feedback-note{font-size:.91rem}.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:11px}.choice{display:flex;gap:8px;align-items:flex-start;padding:9px;border:1px solid #365064;border-radius:8px;color:var(--text);cursor:pointer}.choice:has(input:checked){border-color:var(--accent);background:#15313b}.choice input{margin-top:3px;accent-color:var(--accent)}.clear-choice{margin-top:9px;padding:5px 8px;font-size:.9rem}textarea{display:block;width:100%;min-height:88px;resize:vertical;margin-top:9px;padding:9px;border:1px solid #426073;border-radius:8px;background:#09151e;color:var(--text);font:inherit}details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}summary{color:var(--muted);cursor:pointer}details p{white-space:pre-wrap;overflow-wrap:anywhere}.warning{margin-top:12px;padding:9px 11px;border-left:3px solid var(--warn);background:#312816;color:#f2dbab}.hidden{display:none}.footer{margin-top:17px;color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}@media(max-width:470px){main{padding-left:10px;padding-right:10px}.player{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}.card{padding:14px}.choices{grid-template-columns:1fr}.nav button{flex:1}.nav button:last-child{margin-left:0}}
+</style>
+</head>
+<body>
+<main>
+  <section class="player" aria-label="Áudio original">
+    <div class="player-head"><strong id="song-title">Carregando áudio…</strong><span id="audio-status" role="status" aria-live="polite">Preparando o áudio original…</span><button id="retry-audio" type="button" class="secondary">Tentar áudio novamente</button></div>
+    <audio id="source-audio" controls preload="metadata">Seu navegador não oferece áudio nativo.</audio>
+  </section>
+
+  <header>
+    <h1>Exemplos de escuta</h1>
+    <p>Ouça exemplos de mudanças na música. As explicações são hipóteses baseadas no áudio analisado. Se quiser, diga como percebe a mudança; pode pular qualquer exemplo.</p>
+  </header>
+
+  <section class="card" aria-live="polite">
+    <p id="counter" class="eyebrow">Exemplo 1 de 0</p>
+    <h2 id="example-title">Carregando exemplo…</h2>
+    <p id="example-time" class="time"></p>
+    <svg id="local-timeline" class="timeline" viewBox="0 0 680 92" role="img" tabindex="0" aria-label="Linha do tempo local; clique ou use as setas para mover o áudio"></svg>
+    <p class="hint">Região em foco para escuta: a faixa destacada. Clique na linha do tempo ou use as setas ← e → para mover o áudio em 2 segundos.</p>
+    <div class="controls"><button id="listen-clip" type="button">Ouvir trecho</button><button id="repeat-clip" type="button" class="secondary">Repetir</button></div>
+
+    <div class="feedback">
+      <fieldset>
+        <legend>Como percebes a mudança? <span class="time">(opcional)</span></legend>
+        <p class="feedback-note">Não há resposta certa; podes deixar sem marcar.</p>
+        <div id="choices" class="choices"></div><button id="clear-choice" type="button" class="secondary clear-choice">Limpar escolha</button>
+      </fieldset>
+      <label for="notes">O que tu destacarias visualmente? Algo começa antes ou termina depois? <span class="time">(opcional)</span></label>
+      <textarea id="notes" maxlength="4000" placeholder="Se quiseres, escreve aqui."></textarea>
+    </div>
+
+    <details>
+      <summary>O que os sinais sugerem</summary>
+      <p id="example-explanation"></p>
+    </details>
+    <details>
+      <summary>Por que este trecho?</summary>
+      <p id="example-reason"></p>
+    </details>
+    <div class="nav"><button id="previous" type="button" class="secondary">Anterior</button><span id="draft-warning" class="warning hidden" role="status"></span><button id="next" type="button">Próximo</button></div>
+  </section>
+
+  <div class="controls"><button id="export-feedback" type="button" class="secondary">Baixar respostas em JSON</button></div>
+  <p id="storage-warning" class="warning hidden" role="status"></p>
+  <footer id="integrity" class="footer"></footer>
+</main>
+
+<script id="review-data" type="application/json">{{REVIEW_JSON}}</script>
+<script>
+"use strict";
+const reviewSha = '{{REVIEW_SHA}}';
+const storagePrefix = 'songviz-listening-examples-feedback:v1:';
+const knownChanges = new Set(['subtle','local','broad','none','unsure']);
+const changeLabels = [['subtle','Um detalhe sutil'],['local','Uma mudança localizada'],['broad','Uma mudança ampla'],['none','Não percebo mudança'],['unsure','Não sei']];
+const svgNs = 'http://www.w3.org/2000/svg';
+const audio = document.querySelector('#source-audio');
+const status = document.querySelector('#audio-status');
+const timeline = document.querySelector('#local-timeline');
+let data = {};
+try { data = JSON.parse(document.querySelector('#review-data').textContent); } catch (_) { status.textContent = 'Não foi possível ler os exemplos desta revisão.'; }
+function freeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
+data = freeze(data);
+const strictNumber = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
+const text = value => typeof value === 'string' ? value : '';
+const examples = () => Array.isArray(data.examples) ? data.examples.filter(item => item && typeof item === 'object' && text(item.id)) : [];
+const duration = () => { const embedded = strictNumber(data.duration_s); return embedded !== null && embedded > 0 ? embedded : (strictNumber(audio.duration) || 0); };
+const clamp = value => { const valueNumber = strictNumber(value), length = duration(); return valueNumber === null || length <= 0 ? null : Math.max(0, Math.min(length, valueNumber)); };
+const time = value => { const valueNumber = Math.max(0, strictNumber(value) || 0); return Math.floor(valueNumber / 60) + ':' + String(Math.floor(valueNumber % 60)).padStart(2, '0') + '.' + String(Math.floor((valueNumber % 1) * 10)); };
+const node = tag => document.createElement(tag);
+const svg = tag => document.createElementNS(svgNs, tag);
+const storageKey = storagePrefix + reviewSha;
+let index = 0, activeStart = null, stopAt = null, cursor = null;
+const answers = new Map(examples().map(example => [example.id, {perceived_change:null, notes:''}]));
+function setStatus(message) { status.textContent = message; }
+function showStorageWarning(message) { const host = document.querySelector('#storage-warning'); host.textContent = message; host.classList.remove('hidden'); }
+function sourceUrl() { const url = new URL(text(data.audio_path), location.href); if (text(data.audio_sha256)) url.searchParams.set('v', text(data.audio_sha256)); return url.href; }
+function clearBoundedRange() { activeStart = null; stopAt = null; }
+function inBoundedRange(value) { const point = strictNumber(value); return point !== null && activeStart !== null && stopAt !== null && point >= activeStart - .001 && point <= stopAt + .001; }
+function loadAudio() { clearBoundedRange(); audio.pause(); try { audio.src = sourceUrl(); audio.load(); setStatus('Carregando metadados do áudio original…'); } catch (_) { setStatus('Não foi possível configurar o áudio original. Os exemplos continuam disponíveis.'); } }
+function currentExample() { return examples()[index] || null; }
+function saveDraft() { const payload = exportPayload(); try { localStorage.setItem(storageKey, JSON.stringify(payload)); } catch (_) { showStorageWarning('Não foi possível guardar este rascunho neste navegador. Podes continuar e baixar as respostas em JSON.'); } }
+function restoreDraft() { let raw; try { raw = localStorage.getItem(storageKey); } catch (_) { showStorageWarning('Este navegador não permite guardar rascunhos localmente.'); return; } if (!raw) return; try { const saved = JSON.parse(raw); if (!saved || saved.schema_version !== 1 || saved.review_sha256 !== reviewSha || saved.example_set_id !== text(data.example_set_id) || !Array.isArray(saved.answers)) return; const knownIds = new Set(examples().map(example => example.id)); saved.answers.forEach(answer => { if (!answer || !knownIds.has(answer.example_id)) return; const perceived = answer.perceived_change === null || knownChanges.has(answer.perceived_change) ? answer.perceived_change : null; const notes = typeof answer.notes === 'string' ? answer.notes : ''; answers.set(answer.example_id, {perceived_change:perceived, notes}); }); } catch (_) { showStorageWarning('O rascunho desta revisão não pôde ser restaurado.'); } }
+function exportPayload() { return {schema_version:1, kind:'songviz-listening-examples-feedback', review_sha256:reviewSha, source_audio_sha256:text(data.source_audio_sha256), audio_sha256:text(data.audio_sha256), example_set_id:text(data.example_set_id), answers:examples().map(example => { const answer = answers.get(example.id) || {}; return {example_id:example.id, perceived_change:knownChanges.has(answer.perceived_change) ? answer.perceived_change : null, notes:typeof answer.notes === 'string' ? answer.notes : ''}; }), exported_at:new Date().toISOString()}; }
+function downloadFeedback() { const payload = exportPayload(), blob = new Blob([JSON.stringify(payload, null, 2) + '\n'], {type:'application/json'}), url = URL.createObjectURL(blob), link = node('a'); link.href = url; link.download = 'songviz-listening-examples-feedback.json'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 0); return payload; }
+function saveCurrent() { const example = currentExample(); if (!example) return; const selected = document.querySelector('input[name="perceived-change"]:checked'); answers.set(example.id, {perceived_change:selected && knownChanges.has(selected.value) ? selected.value : null, notes:document.querySelector('#notes').value}); saveDraft(); }
+function playRange(start, end) { const from = clamp(start), to = clamp(end); if (from === null || to === null || to <= from) { setStatus('Este trecho não tem um intervalo de áudio válido.'); return Promise.resolve(false); } activeStart = from; stopAt = to; audio.currentTime = from; const played = audio.play(); if (played && typeof played.then === 'function') return played.then(() => { setStatus('Tocando trecho de ' + time(from) + ' a ' + time(to) + '.'); return true; }).catch(() => { clearBoundedRange(); setStatus('A reprodução não pôde começar. Usa os controles nativos do áudio.'); return false; }); return Promise.resolve(true); }
+function updateCursor() { if (!cursor) return; const example = currentExample(), start = example ? clamp(example.start_s) : null, end = example ? clamp(example.end_s) : null; if (start === null || end === null || end <= start) return; const now = clamp(audio.currentTime); const ratio = now === null ? 0 : Math.max(0, Math.min(1, (now - start) / (end - start))); const x = 44 + ratio * 592; cursor.setAttribute('x1', String(x)); cursor.setAttribute('x2', String(x)); }
+function renderTimeline(example) { timeline.replaceChildren(); const start = clamp(example.start_s), end = clamp(example.end_s), focusStart = clamp(example.focus_start_s), focusEnd = clamp(example.focus_end_s); const valid = start !== null && end !== null && end > start; const baseline = svg('line'); baseline.setAttribute('x1','44'); baseline.setAttribute('x2','636'); baseline.setAttribute('y1','45'); baseline.setAttribute('y2','45'); baseline.setAttribute('stroke','#4d6576'); baseline.setAttribute('stroke-width','8'); baseline.setAttribute('stroke-linecap','round'); timeline.append(baseline); if (!valid) { const message = svg('text'); message.setAttribute('x','44'); message.setAttribute('y','50'); message.setAttribute('fill','#aabcc7'); message.textContent = 'Intervalo indisponível'; timeline.append(message); return; } const map = value => 44 + (value - start) / (end - start) * 592; const focusA = focusStart === null ? start : Math.max(start, Math.min(end, focusStart)), focusB = focusEnd === null ? end : Math.max(start, Math.min(end, focusEnd)); if (focusB > focusA) { const highlight = svg('rect'); highlight.setAttribute('x',String(map(focusA))); highlight.setAttribute('y','31'); highlight.setAttribute('width',String(map(focusB)-map(focusA))); highlight.setAttribute('height','28'); highlight.setAttribute('rx','5'); highlight.setAttribute('fill','#e9c66c'); highlight.setAttribute('opacity','.72'); const title = svg('title'); title.textContent = 'Região em foco para escuta: ' + time(focusA) + '–' + time(focusB); highlight.append(title); timeline.append(highlight); } [start,end].forEach((point, position) => { const mark = svg('line'); mark.setAttribute('x1',String(map(point))); mark.setAttribute('x2',String(map(point))); mark.setAttribute('y1','24'); mark.setAttribute('y2','67'); mark.setAttribute('stroke','#d8e3e8'); mark.setAttribute('stroke-width','1'); timeline.append(mark); const label = svg('text'); label.setAttribute('x',String(map(point))); label.setAttribute('y','82'); label.setAttribute('text-anchor',position ? 'end' : 'start'); label.setAttribute('fill','#aabcc7'); label.setAttribute('font-size','12'); label.textContent=time(point); timeline.append(label); }); cursor = svg('line'); cursor.setAttribute('stroke','#f5f2ae'); cursor.setAttribute('stroke-width','2'); cursor.setAttribute('y1','18'); cursor.setAttribute('y2','70'); timeline.append(cursor); updateCursor(); }
+function renderChoices(answer) { const host = document.querySelector('#choices'); host.replaceChildren(); changeLabels.forEach(([value,label]) => { const choice = node('label'), input = node('input'), labelText = node('span'); choice.className = 'choice'; input.type = 'radio'; input.name = 'perceived-change'; input.value = value; input.checked = answer.perceived_change === value; input.addEventListener('change', saveCurrent); labelText.textContent = label; choice.append(input,labelText); host.append(choice); }); }
+function render() { const example = currentExample(), all = examples(); document.querySelector('#song-title').textContent = text(data.song_title) || 'Faixa sem título'; document.querySelector('#integrity').textContent = 'Revisão: ' + reviewSha + '.'; document.querySelector('#counter').textContent = 'Exemplo ' + (all.length ? index + 1 : 0) + ' de ' + all.length; document.querySelector('#previous').disabled = index <= 0; document.querySelector('#next').disabled = index >= all.length - 1; if (!example) { document.querySelector('#example-title').textContent='Nenhum exemplo disponível'; document.querySelector('#example-time').textContent=''; document.querySelector('#listen-clip').disabled=true; document.querySelector('#repeat-clip').disabled=true; renderTimeline({}); return; } const answer = answers.get(example.id) || {perceived_change:null,notes:''}; document.querySelector('#example-title').textContent = text(example.title) || 'Trecho para escuta'; document.querySelector('#example-time').textContent = time(strictNumber(example.start_s)) + '–' + time(strictNumber(example.end_s)); document.querySelector('#example-explanation').textContent = text(example.explanation); document.querySelector('#example-reason').textContent = text(example.reason); document.querySelector('#notes').value = answer.notes; renderChoices(answer); document.querySelector('#listen-clip').disabled=false; document.querySelector('#repeat-clip').disabled=false; renderTimeline(example); }
+function seekInExample(delta) { const example = currentExample(), start = example && clamp(example.start_s), end = example && clamp(example.end_s); if (start === null || end === null || end <= start) return; const now = clamp(audio.currentTime), target = Math.max(start, Math.min(end, (now === null ? start : now) + delta)); clearBoundedRange(); audio.currentTime = target; setStatus('Posição alterada para ' + time(target) + '.'); }
+document.querySelector('#listen-clip').addEventListener('click', () => { const example = currentExample(); if (example) playRange(example.start_s, example.end_s); });
+document.querySelector('#repeat-clip').addEventListener('click', () => { const example = currentExample(); if (example) playRange(example.start_s, example.end_s); });
+function changeExample(nextIndex) { saveCurrent(); clearBoundedRange(); audio.pause(); document.querySelectorAll('details').forEach(detail => { detail.open=false; }); index=nextIndex; render(); }
+document.querySelector('#previous').addEventListener('click', () => changeExample(Math.max(0,index-1)));
+document.querySelector('#next').addEventListener('click', () => changeExample(Math.min(examples().length-1,index+1)));
+document.querySelector('#notes').addEventListener('input', saveCurrent);
+document.querySelector('#clear-choice').addEventListener('click', () => { const example=currentExample(), previous=example && answers.get(example.id); if (!example) return; answers.set(example.id,{perceived_change:null,notes:previous && typeof previous.notes === 'string' ? previous.notes : document.querySelector('#notes').value}); document.querySelectorAll('input[name="perceived-change"]').forEach(input => { input.checked=false; }); saveDraft(); });
+document.querySelector('#export-feedback').addEventListener('click', downloadFeedback);
+timeline.addEventListener('click', event => { const example = currentExample(), start = example && clamp(example.start_s), end = example && clamp(example.end_s), box = timeline.getBoundingClientRect(); if (start === null || end === null || end <= start || !box.width) return; const localX = (event.clientX-box.left)/box.width*680, ratio = Math.max(0,Math.min(1,(localX-44)/592)); clearBoundedRange(); audio.currentTime=start+(end-start)*ratio; setStatus('Posição alterada para '+time(audio.currentTime)+'.'); });
+timeline.addEventListener('keydown', event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); seekInExample(event.key === 'ArrowLeft' ? -2 : 2); } });
+audio.addEventListener('loadedmetadata', () => { setStatus('Áudio original disponível · duração ' + time(duration()) + '.'); render(); });
+audio.addEventListener('timeupdate', () => { updateCursor(); if (stopAt !== null && (strictNumber(audio.currentTime) || 0) >= stopAt) { audio.currentTime=stopAt; audio.pause(); clearBoundedRange(); setStatus('Trecho concluído.'); } });
+audio.addEventListener('seeking', () => { if (!inBoundedRange(audio.currentTime)) clearBoundedRange(); updateCursor(); });
+audio.addEventListener('ended', clearBoundedRange);
+audio.addEventListener('error', () => setStatus('Não foi possível carregar o áudio original. Tenta novamente ou usa os controles nativos.'));
+document.querySelector('#retry-audio').addEventListener('click', loadAudio);
+restoreDraft();
+window.__songvizListeningExamples = {data, playRange, exportFeedback:downloadFeedback};
+render();
+loadAudio();
+</script>
+</body>
+</html>

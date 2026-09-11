@@ -1,20 +1,72 @@
 # SongViz
 
+**Resuming or starting a new agent? Read [CONTINUE.md](CONTINUE.md) first.**
+It is the single handoff for current progress, known failures, the next experiment,
+delegation policy and artifact locations. [AGENTS.md](AGENTS.md) directs coding
+agents to the same entry point.
+
 **Complement and intensify the experience of listening to a song through visual stimulus.**
 
 The goal is to make you *feel* music more deeply: the build-up should feel more intense, the drop should hit harder, a quiet bridge might go to black so the return of the drums hits you visually too. Every high, every low, every shift in tension — the visuals should amplify what your ears already sense but your eyes don't yet see.
 
 This isn't about decorative waveforms or spectrum analyzers. It's about understanding the *story* of a song — its sections, tension arcs, repetition, dynamics — and translating that understanding into visuals that move with the music in a meaningful way. A kick drum could alternate left and right. A sudden drop in energy could strip all visuals away. Multiple displays could each serve a different function. The creative possibilities are wide, but they all depend on one thing: deeply understanding what's happening in the music.
 
+### Intended end product
+
+SongViz should be an **automatic visual director for a song**. The user runs one
+command with an audio file; the system analyzes the music, creates a saved visual
+direction plan, and renders a video with the original audio. An LLM may help plan
+the direction, but a particular model or provider is not part of the product goal.
+
+The director should use whole-song context to choose what deserves attention at
+each moment: which layers to emphasize or hide, how to treat them, and when to
+change composition, movement, color, or visual density. An instrument is not tied
+to one permanent animation. Repeated musical ideas can reuse recognizable visual
+motifs; an entrance, breakdown, return, or unexpected change can redirect attention
+or transform an established motif. Variation should serve the music, not become
+random effect switching. Showing every detected instrument is not the objective.
+
+Song structure is not limited to one level of discrete sections. Verse/chorus
+labels can anchor identity while smaller and larger, potentially overlapping
+transitions and graded changes guide the visuals within and across those parts.
+Local change, familiarity and visual importance are distinct; every detected
+peak need not become a section boundary or a visual cut.
+
+**Current gap:** the repo has analysis, heuristic story signals, reactive rendering,
+and a first experimental rule-based directing plan for a cached passage. It does
+not yet have the full-song director or LLM planning. Existing production render
+commands are unchanged. Earlier drum/pulse previews are timing and visual-vocabulary
+experiments, not the final product specification. Try the new directing experiment
+using the commands in [Directing prototype](docs/10_directing_prototype.md).
+The proposed architecture and unresolved decisions live in
+[Architecture](docs/02_architecture.md); the next experiment is in the
+[Roadmap](docs/01_roadmap.md).
+
+Current musical-understanding work: the [boundary and recurrence review](docs/13_structure_review.md)
+compares old/new structural logic with original audio and role-independent
+16/32-beat passage pairs. The first user section annotations now feed a
+[dimension-separated development evaluation](docs/16_structural_evaluation.md):
+musical identity, arrangement variation and transition intervals are represented
+separately, with acoustic pattern/level and local/historical context diagnostics.
+This is not yet a reliable automatic identity or transition detector. The first
+[short-scale change/transition experiment](docs/17_local_structure.md) now adds
+inspectable local-change points and bounded energy-dip candidates. It remains
+experimental: important chorus variations and some transitions are still missed.
+
+You can now [define your own sections](docs/14_section_annotation.md) from a blank
+timeline, with free labels and optional independent annotation layers. The first
+export is preserved unchanged; it guides development without being silently
+promoted to high-confidence ground truth.
+
 ### Strategy
 
-To get there, we work bottom-up:
+We develop the analysis and visual experience together:
 
-1. **Simplify the song** — strip away timbral complexity, reduce it to an "8-bit" skeleton of melody contour, rhythm hits, bass movement, and harmonic motion. If you can still recognize the song from this simplified version, the structural core is preserved.
-2. **Understand the structure** — identify sections (intro, build, drop, bridge, chorus, outro), map tension arcs, detect repetition and contrast. This is the "story" of the song.
-3. **Map structure to visuals** — translate structural understanding into creative visual decisions. This layer is where artistic intent lives: *what should a build-up look like? What does silence look like?*
+1. **Establish a trustworthy baseline** — compare short audio/video passages, audit reference annotations, and preserve concrete feedback as regression cases or artistic preferences.
+2. **Direct a passage across a meaningful musical change** — test selective focus, omission, and evolving visual treatments with an inspectable plan, rather than polish a fixed instrument-to-animation mapping.
+3. **Improve the musical understanding that matters** — evaluate timing, activity, repetition, and transitions using audio features, reduced musical events, or both. Add harmony and timbre when a demonstrated visual use case needs them.
 
-We're currently focused on layers 1 and 2. Layer 3 is future work, but everything we build is in service of it.
+The existing pipeline already includes stems, lyrics, story analysis, reduced drum/vocal/bass events, sonification, and rendering. User feedback supports the experimental regular pulse and separate drum indicators on the reviewed excerpts. A small directing-layer prototype is now ready for review before changing production behavior. Reduced representation is a useful hypothesis and diagnostic; full note transcription is not a prerequisite for useful visuals.
 
 ### Pipeline
 
@@ -22,15 +74,36 @@ We're currently focused on layers 1 and 2. Layer 3 is future work, but everythin
 - **Feature extraction** captures per-stem musical content (pitch tracks, drum hits, chroma, energy envelopes)
 - **Reduced representation** converts features into discrete musical events — note onsets, drum hits, pitch contours — stripped of timbre
 - **Story / structural analysis** identifies sections, roles, tension, and repetition patterns
+- **Visual direction (experimental)** chooses focus, omissions, treatments, motifs, and transitions in a saved plan; the first cached-passage policy is rule-based, not a full-song director
 - **Rendering** visualizes the analysis as video — the current primary output, evolving toward the full creative vision above
 
-See `docs/01_roadmap.md` for the phased plan and `docs/06_reduced_representation.md` for the reduced representation design.
+See `docs/01_roadmap.md` for the current milestones and `docs/06_reduced_representation.md` for the historical reduced representation design.
 
-## Start Here (Humans + LLMs)
+## Project navigation
+
+- **Current work, handoff and active team assignments:** [CONTINUE.md](CONTINUE.md).
+  This is the only mutable current-status document.
+- **Rules for coding agents:** [AGENTS.md](AGENTS.md). For two-account work, read
+  the [collaboration protocol](docs/22_collaboration_protocol.md) after the handoff.
+- **Product, quickstart and stable orientation:** this README.
+- **Durable evidence, designs and past experiments:** `docs/`; these documents do
+  not override `CONTINUE.md`'s current queue.
+
+Useful starting references:
+
+- Multiscale change responses and listening-feedback findings: [Change episodes](docs/21_change_episodes.md)
+- Guided audio examples and optional feedback: [Listening examples](docs/19_listening_examples.md)
+- Target architecture, current gaps, and open design questions: `docs/02_architecture.md`
 - Project roadmap and phases: `docs/01_roadmap.md`
 - Current runtime status and priorities: `docs/03_working_state.md`
+- First restart review, reference audit, and preview instructions: `docs/07_restart_review.md`
+- First feedback, timing evidence, and controlled rhythm comparison: `docs/08_rhythm_feedback.md`
+- First artistic opening preview and review instructions: `docs/09_visual_passage.md`
+- Plan-driven transition/return prototype, commands and limits: `docs/10_directing_prototype.md`
+- User section feedback and separated structural evaluation: `docs/15_section_feedback.md`, `docs/16_structural_evaluation.md`
+- Short-scale local changes and transition candidates: `docs/17_local_structure.md`
 - Repo map and command reference: `docs/04_repo_reference.md`
-- Reduced-representation design (next phase): `docs/06_reduced_representation.md`
+- Reduced-representation design (historical): `docs/06_reduced_representation.md`
 - Canonical lyrics implementation path: `docs/05_lyrics_playbook.md`
 - Lyrics research and alternatives (non-default): `docs/research/lyrics_syncing_research.md`
 

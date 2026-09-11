@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "manifest_sha256": "2ec2e4c72b2a4b007b8e315c8024785cf4a682ca679df3f9394a942761558a20",
+  "created_utc": "2026-09-09T21:30:46.658Z",
+  "observations": [
+    {
+      "passage_id": "01-opening",
+      "song_time_s": 0,
+      "observation": "Okay, so here, the beats feel, I think, a little disconnected. It... I don't know. It's not like they are offbeat by the same amount. It seems like they are maybe actually kind of disconnected a little bit. Like, I tried, like, seeing the beats and, you know, like clapping my hands each time that I saw a beat for each one of the beats and, like, while seeing the video. But it didn't sound like a beat, and there are some irregularities there that I don't see why they exist and stuff. And also, like, the drum hits, the lines there of drum hits, it seems very disconnected. I couldn't really recognize what was Going on there. It seemed disconnected.",
+      "status": "user_observation_untriaged"
+    },
+    {
+      "passage_id": "02-transition",
+      "song_time_s": 132.25,
+      "observation": "Well, I just did the same thing that I said about drum hits, applies here. And the beats look like they make more sense now, but now it just seems like they are, like, equally off beat in general. Maybe some intervals are slightly longer than others without any reason, but yeah, the main thing I notice here is that it seems like them all are, like, off beat by the same amount",
+      "status": "user_observation_untriaged"
+    },
+    {
+      "passage_id": "03-return",
+      "song_time_s": 158,
+      "observation": "Here, um, I think, uh, I think that I noticed that, like, I can't really recognize what is going on on the drum hits, like lines that appear. Um, I don't know. I know that, like, the kicks, which are, like the most— the kicks, the kicks and the, let's say, the claps. They are, like the most, let's say, most obvious parts of the drums. Like until, on the beginning of this, there was no, like, kicks and claps. Only, like, other drum sounds, I guess. But yeah, it's weird to me. I don't even actually know what these drum hits is supposed to be showing. Like, it's not really that recognizable to me. And the beats, I noticed that they were weird. Like, one thing that I noticed, especially here, is that it's Slightly faster in the middle. It seems like they start with a rhythm, and then they start getting faster, and then they slow down again",
+      "status": "user_observation_untriaged"
+    }
+  ]
+}

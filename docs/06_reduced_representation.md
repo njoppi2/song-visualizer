@@ -1,5 +1,12 @@
 # Reduced-Representation Pipeline — Planning Document
 
+> Historical design, retained for rationale. As of 2026-09-09, drum/vocal/bass
+> reduction, sonification, and MIDI export already exist. Statements below about
+> missing modules and "next steps" describe the original plan. Follow
+> `01_roadmap.md` for current priorities and `03_working_state.md` for the
+> implementation inventory. Reduced representation is now evaluated alongside
+> audio-feature approaches, not required before work on the visual experience.
+
 ## 1. Current direction
 
 SongViz currently operates on raw waveforms: Demucs separates a song into four stems (vocals, bass, drums, other), and feature extractors produce per-frame signals from those stems — vocal pitch, bass pitch, drum band energy, chroma. These features drive the renderer, but they're still dense time-series tied to the audio sample rate. There is no intermediate representation that captures the *musical content* of a song in a compact, analysis-friendly form.

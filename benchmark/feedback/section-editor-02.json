@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "kind": "songviz-section-annotations",
+  "manifest_sha256": "7f1befc68052be07cca3828f32b1b0df4c616e2128f59cb3fc35adf0433cfe32",
+  "source": {
+    "audio_sha256": "7d800828527fb8812dc6433361d1d72ad1f7cdba368b9c51dce4abc954f7a5c1",
+    "source_audio_sha256": "657af9333edafbb6cf8cc573446650773d1169b0117c784106d1895cf802cb44",
+    "duration_s": 221.17333333333335,
+    "song_title": "Gorillaz - Feel Good Inc (featuring De La Soul)"
+  },
+  "annotations": {
+    "layers": [
+      {
+        "id": "7ca809a4-a7f2-440d-86c4-be844c97eb7b",
+        "name": "Song parts",
+        "segments": [
+          {
+            "id": "3694e4df-dc4f-43a2-b596-d662b6217f97",
+            "start_s": 0,
+            "end_s": 5.35001,
+            "label": "Intro",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "28a3d3b9-29bd-4789-9d3e-223533f5e2f5",
+            "start_s": 5.35001,
+            "end_s": 6.157128,
+            "label": "Transition to initial verse",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "97d261c5-7116-45f4-b903-2f207ef36f9d",
+            "start_s": 6.157128,
+            "end_s": 30.467096,
+            "label": "initial verse / pre-verse",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "63292ebe-cdb9-4b21-a046-85f7fb45cb26",
+            "start_s": 30.467096,
+            "end_s": 33.444519,
+            "label": "breakdown to verse",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "c91dee1d-0748-4b8d-bd97-4044ff8605cb",
+            "start_s": 33.444519,
+            "end_s": 61.368411,
+            "label": "verse 1",
+            "motif": "verse 1",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "ce80b40b-77c0-4fd4-ba22-f3383188455c",
+            "start_s": 61.368411,
+            "end_s": 64.85532,
+            "label": "breakdown to chorus",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "f5e45a0e-177f-416a-a9ea-74ea21d9d0b8",
+            "start_s": 64.85532,
+            "end_s": 78.889763,
+            "label": "low energy chorus",
+            "motif": "chorus",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "fb016e0b-9e08-42ad-9a8c-20d40185ccc5",
+            "start_s": 78.889763,
+            "end_s": 92.815909,
+            "label": "high energy chorus",
+            "motif": "chorus",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "a4c37ad9-1768-4a9f-9bfb-0c4a44b718e2",
+            "start_s": 92.815909,
+            "end_s": 95.398393,
+            "label": "breakdown to verse",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "55684d9c-7b8f-403a-b8b5-23d3762605e4",
+            "start_s": 95.398393,
+            "end_s": 124.295069,
+            "label": "verse 2",
+            "motif": "verse 2",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "d88f9cc3-0347-46e0-a523-5f57c8fa3f2e",
+            "start_s": 124.295069,
+            "end_s": 137.998866,
+            "label": "verse 2 outro",
+            "motif": "verse 2",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "62d19f05-ab2b-4cc4-aeb4-298dc4c0a089",
+            "start_s": 137.998866,
+            "end_s": 144.177619,
+            "label": "intro to bridge",
+            "motif": "bridge",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "953e7ffd-2581-4c8b-8b5e-1b56e535bb92",
+            "start_s": 144.177619,
+            "end_s": 158.590911,
+            "label": "bridge",
+            "motif": "bridge",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "357a5282-54c5-4826-851d-c8e130810de6",
+            "start_s": 158.590911,
+            "end_s": 165.53391,
+            "label": "low energy chorus",
+            "motif": "chorus",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "cc5671de-5e51-41e9-be26-4d905d680ecb",
+            "start_s": 165.53391,
+            "end_s": 187.440852,
+            "label": "high energy chorus",
+            "motif": "chorus",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "1b89efd0-536c-4776-b1ea-4eb12e1537b7",
+            "start_s": 187.440852,
+            "end_s": 189.926103,
+            "label": "breakdown to verse",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "ada7e82c-20a6-43f8-9532-2c107fcbe603",
+            "start_s": 189.926103,
+            "end_s": 203.758902,
+            "label": "verse 2",
+            "motif": "verse 2",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "c5ed5410-75c4-4e56-857b-fe701a11a326",
+            "start_s": 203.758902,
+            "end_s": 217.973095,
+            "label": "verse 2 outro",
+            "motif": "verse 2",
+            "notes": "",
+            "certainty": "unspecified"
+          },
+          {
+            "id": "8542b17a-a7c6-4d48-9070-68eb0878a3d8",
+            "start_s": 217.973095,
+            "end_s": 221.17333333333335,
+            "label": "outro",
+            "motif": "",
+            "notes": "",
+            "certainty": "unspecified"
+          }
+        ]
+      }
+    ],
+    "active_layer_id": "7ca809a4-a7f2-440d-86c4-be844c97eb7b",
+    "selected_segment_id": "8542b17a-a7c6-4d48-9070-68eb0878a3d8",
+    "global_notes": ""
+  },
+  "created_utc": "2026-09-10T18:59:38.798Z"
+}

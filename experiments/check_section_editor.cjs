@@ -1,0 +1,94 @@
+/* SONGVIZ_PLAYWRIGHT_MODULE=/existing/playwright node experiments/check_section_editor.cjs URL */
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const {chromium}=require(process.env.SONGVIZ_PLAYWRIGHT_MODULE||'playwright');
+
+(async()=>{
+  const browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+  try{
+    const context=await browser.newContext({viewport:{width:1280,height:900}});
+    const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+    page.on('dialog',d=>d.accept());
+    const url=process.argv[2];assert(url,'Pass the local editor URL');
+    await page.goto(url);await page.waitForFunction(()=>metadataReady&&audio.readyState>=2);
+    await page.evaluate(()=>{audio.muted=true;});
+    const state=()=>page.evaluate(()=>window.__songvizGetEditorState());
+    const count=async()=>{const s=await state();return s.layers.find(l=>l.id===s.active_layer_id).segments.length;};
+    const edit=async(id,value)=>{await page.locator('#'+id).fill(value);await page.locator('#'+id).press('Tab');};
+    const add=async(t)=>{await page.locator('#boundary-time-manual').fill(String(t));await page.locator('#add-boundary').click();};
+    async function download(){const pending=page.waitForEvent('download');await page.locator('#export').click();const d=await pending;assert.equal(d.suggestedFilename(),'songviz-sections.json');return JSON.parse(fs.readFileSync(await d.path(),'utf8'));}
+    assert.equal(await count(),1);assert.equal((await state()).layers[0].segments[0].label,'');
+    await edit('label','Intro');await edit('notes','Opening atmosphere');
+    await page.locator('#certainty').selectOption('uncertain');
+    await add(30);assert.equal(await count(),2);assert.equal(await page.locator('#label').inputValue(),'');
+    await edit('label','Verse');await edit('motif','A');await edit('notes','First voice');
+    await add(60);await edit('label','Verse');await edit('motif','A');await edit('notes','Returning voice');
+    await page.locator('#boundary-time').fill('55');await page.locator('#move-boundary').click();
+    assert.equal((await state()).layers[0].segments[2].start_s,55);
+    const beforeBad=await state();await page.locator('#boundary-time').fill('999');await page.locator('#move-boundary').click();
+    assert.deepEqual(await state(),beforeBad);
+    await page.locator('#delete-boundary').click();assert.equal(await count(),2);
+    assert.match((await state()).layers[0].segments[1].notes,/First voice/);
+    assert.match((await state()).layers[0].segments[1].notes,/Returning voice/);
+    await page.locator('#undo').click();assert.equal(await count(),3);
+    await page.locator('#redo').click();assert.equal(await count(),2);
+    await page.locator('#undo').click();assert.equal(await count(),3);
+    await page.locator('#new-layer-name').fill('Details');await page.locator('#add-layer').click();
+    assert.equal((await state()).layers.length,2);assert.equal(await count(),1);
+    await add(45);assert.equal(await count(),2);await edit('label','Texture change');
+    // Cross-layer boundaries are independent, not forcibly nested/snapped.
+    assert.equal((await state()).layers[1].segments[1].start_s,45);
+    assert.deepEqual((await state()).layers[0].segments.map(s=>s.start_s),[0,30,55]);
+    await page.evaluate(()=>seekTo(70));await page.waitForFunction(()=>!audio.seeking);
+    await page.locator('#notes').focus();await page.keyboard.press('b');assert.equal(await count(),2);
+    await page.locator('#notes').blur();await page.locator('#play-selected').focus();await page.keyboard.press('b');assert.equal(await count(),3);
+    await page.locator('#undo').click();assert.equal(await count(),2);
+    await edit('global-notes','Broad parts and smaller changes are different levels.');
+    const saved=await state();await page.reload();await page.waitForFunction(()=>metadataReady);
+    assert.deepEqual(await state(),saved,'Draft did not survive reload');
+    const payload=await download();assert.equal(payload.kind,'songviz-section-annotations');
+    assert.deepEqual(payload.annotations,saved);
+    const manifest=await(await page.request.get(new URL('manifest.json',url).href)).body();
+    assert.equal(payload.manifest_sha256,require('node:crypto').createHash('sha256').update(manifest).digest('hex'));
+    const foreign=structuredClone(payload);foreign.source.audio_sha256='f'.repeat(64);
+    await page.locator('#import-file').setInputFiles({name:'foreign.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(foreign))});
+    await page.waitForFunction(()=>document.querySelector('#import-status').textContent.includes('different song'));
+    assert.deepEqual(await state(),saved,'Wrong-song import replaced the draft');
+    const imported=structuredClone(payload);imported.annotations.global_notes='Imported round trip';
+    await page.locator('#import-file').setInputFiles({name:'sections.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))});
+    await page.waitForFunction(()=>document.querySelector('#global-notes').value==='Imported round trip');
+    assert.deepEqual(await state(),imported.annotations);
+    // Native playback and short bounded stop use the actual served audio.
+    await page.locator('#play-selected').click();await page.waitForFunction(()=>!audio.paused&&!audio.seeking);
+    assert.equal(await page.evaluate(()=>Math.abs(audio.currentTime-selectedSegment().start_s)<1),true);
+    await page.evaluate(()=>playRange(30,30.4));await page.waitForFunction(()=>audio.paused&&audio.currentTime>=30.4,{},{timeout:5000});
+    const beforeFailure=await state();await page.route(/\/original\.wav(?:\?.*)?$/,r=>r.abort());
+    await page.evaluate(()=>loadAudio(true));await page.locator('#retry-audio').waitFor({state:'visible'});
+    assert.deepEqual(await state(),beforeFailure);await page.unroute(/\/original\.wav(?:\?.*)?$/);
+    await page.locator('#retry-audio').click();await page.waitForFunction(()=>metadataReady);
+    assert.deepEqual(await state(),beforeFailure);
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile overflow');
+    assert.deepEqual(errors,[]);
+    await context.close();
+    const noStorage=await browser.newContext();const blocked=await noStorage.newPage();
+    await blocked.addInitScript(()=>{Storage.prototype.setItem=function(){throw new Error('Storage disabled');};});
+    await blocked.goto(url);await blocked.locator('#label').fill('Still editable');await blocked.locator('#label').press('Tab');
+    assert.match(await blocked.locator('#storage-status').innerText(),/could not|unavailable|download/i);
+    assert.equal(await blocked.locator('#export').isEnabled(),true);
+    await noStorage.close();
+    const recovery=await browser.newContext();const corrupt=await recovery.newPage();
+    await corrupt.goto(url);await corrupt.evaluate(()=>localStorage.setItem(draftKey(),'{unreadable draft'));
+    await corrupt.reload();await corrupt.locator('#recover-draft').waitFor({state:'visible'});
+    await corrupt.locator('#label').fill('New attempt');await corrupt.locator('#label').press('Tab');
+    assert.equal(await corrupt.evaluate(()=>localStorage.getItem(draftKey())),'{unreadable draft','Editing silently overwrote unrecoverable draft');
+    const recoverEvent=corrupt.waitForEvent('download');await corrupt.locator('#recover-draft').click();
+    assert.equal(fs.readFileSync(await(await recoverEvent).path(),'utf8'),'{unreadable draft');
+    await recovery.close();
+    const invalidContext=await browser.newContext();const invalid=await invalidContext.newPage();
+    await invalid.route(url,async route=>{const response=await route.fetch();const body=(await response.text()).replace(/(<script id="editor-data" type="application\/json">)[\s\S]*?(<\/script>)/,'$1{}$2');await route.fulfill({response,body});});
+    await invalid.goto(url);assert.equal(await invalid.locator('#export').isEnabled(),false);
+    await invalidContext.close();
+    console.log('PASS: blank start, split/move/merge, text retention, undo/redo, independent layers, shortcut safety, draft reload/recovery, export/hash, validated import, native seek/stop/retry, mobile, blocked storage, invalid data.');
+  }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});

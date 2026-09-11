@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "manifest_sha256": "2f9aae4e87c179bfeca0994056fb64e1f9a590a74d43587e128a62f31de0dfe8",
+  "created_utc": "2026-09-09T22:11:58.572Z",
+  "observations": [
+    {
+      "passage_id": "01-opening",
+      "song_time_s": 0,
+      "preference": "unreviewed",
+      "variant_viewed": "regular",
+      "observation": "So, like the pulse is really, like, I guess it's the same one that I saw earlier, right? I can't really follow up with it. I don't really know what it's showing. The kick, snare, and hi-hat seem like they really show what's going on, and the one which I believe would be the easiest to clap along with would be the snare, I guess. The regular pulse now feels like it is following the song beats very well.",
+      "status": "user_observation_untriaged"
+    },
+    {
+      "passage_id": "02-transition",
+      "song_time_s": 130,
+      "preference": "unreviewed",
+      "variant_viewed": "regular",
+      "observation": "same as previous answer, The regular pulse now feels like it is following the song beats very well.",
+      "status": "user_observation_untriaged"
+    },
+    {
+      "passage_id": "03-return",
+      "song_time_s": 158,
+      "preference": "unreviewed",
+      "variant_viewed": "regular",
+      "observation": "same as previous answers",
+      "status": "user_observation_untriaged"
+    }
+  ]
+}

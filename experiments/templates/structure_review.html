@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SongViz · Structure review</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1118;--panel:#121d27;--panel-2:#172532;--line:#304452;--text:#e9f0f2;--muted:#aabac2;--accent:#78d6e8;--accent-2:#f2bd6b;--danger:#ff9b91;--good:#a8e3ba}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% 0,#172c39 0,#0b1118 52%);color:var(--text);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:1080px;margin:auto;padding:34px 18px 76px}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.05;letter-spacing:-.045em;margin:0 0 8px}h2{font-size:1.45rem;margin:0 0 12px}h3{font-size:1.1rem;margin:0 0 10px}h4{font-size:.9rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:20px 0 8px}p{color:var(--muted);margin:8px 0}.lede{font-size:1.07rem;max-width:780px}.notice{border-left:3px solid var(--accent-2);padding:10px 14px;margin:22px 0;background:#1b2630}.save-warning{color:#ffe0a6}.card,.panel{border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,var(--panel-2),var(--panel));padding:18px;margin:24px 0}.panel>h2{margin-top:0}
+button,input,select,textarea{font:inherit;color:var(--text);background:#0d1821;border:1px solid #526a76;border-radius:7px;padding:9px 11px}button{cursor:pointer;background:#1b3540}button:hover:not(:disabled),button:focus-visible{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:1px}button:disabled,input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.5}button.secondary{background:transparent}button.danger{color:#ffd2cc;border-color:#8e5753;background:transparent}.button-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.button-row button{margin:0}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#audio-wrap{position:sticky;top:0;z-index:3;margin:0 -18px 24px;padding:13px 18px 15px;background:rgba(11,17,24,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}audio{display:block;width:100%;height:42px;margin:10px 0}#audio[hidden]{display:none}.audio-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.audio-line strong{color:var(--accent)}#audio-state{min-height:1.5em;color:var(--muted);margin:0}#retry-audio{display:none}.clock{display:flex;align-items:center;gap:12px}.clock output{font-variant-numeric:tabular-nums;min-width:130px;color:var(--accent-2)}#global-seek{flex:1;min-width:150px;padding:0;background:transparent;border:0;accent-color:var(--accent)}
+.timeline-pair{display:grid;gap:12px;margin-top:18px}.timeline-row{display:grid;grid-template-columns:105px 1fr;gap:12px;align-items:center}.timeline-label{font-weight:600;color:var(--muted)}.timeline{height:58px;position:relative;border:1px solid var(--line);border-radius:8px;background:#0b151d;overflow:hidden}.timeline::after{content:"";position:absolute;left:var(--playhead,0%);top:0;bottom:0;width:2px;background:var(--accent-2);box-shadow:0 0 8px var(--accent-2);pointer-events:none;z-index:2}.timeline-segment{position:absolute;top:6px;bottom:6px;min-width:3px;padding:4px 7px;overflow:hidden;text-align:left;white-space:nowrap;text-overflow:ellipsis;background:#265467;border-color:#4d9eb0;color:#effcff;font-size:.83rem;border-radius:5px;z-index:1}.timeline-row.candidate .timeline-segment{background:#5b4930;border-color:#c9964e}.timeline-segment[aria-current=true]{box-shadow:0 0 0 2px #fff}.timeline-empty{color:var(--muted);padding:16px 10px;font-size:.9rem}.legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;margin-top:13px}.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;background:#265467;margin-right:5px}.swatch.candidate{background:#5b4930}.swatch.playhead{background:var(--accent-2);border-radius:0}
+.question-card{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:11px;background:#101b24}.question-card header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}.question-card header small{color:var(--accent-2)}.evidence{font-size:.94rem;color:var(--muted);white-space:pre-wrap}.question-card fieldset{border:0;padding:0;margin:15px 0 0}.question-card label,.global-note label{display:block;margin:10px 0 5px;color:#d9e5e7;font-weight:600}.question-card select{width:100%;max-width:330px}.question-card textarea,.global-note textarea{display:block;width:100%;min-height:84px;resize:vertical}.time-field{max-width:250px}.time-field input{width:100%}.error{color:var(--danger);font-size:.9rem;min-height:1.3em;margin:4px 0}.context-label{color:var(--muted);font-size:.92rem;margin:12px 0 4px}.repeat-metrics{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:.93rem}.repeat-metrics strong{color:var(--text)}
+.marker-form{display:grid;grid-template-columns:minmax(130px,220px) auto auto;gap:9px;align-items:end}.marker-form label{margin:0}.marker-form input{width:100%}.marked-list{list-style:none;padding:0;margin:15px 0 0}.marked-item{display:grid;grid-template-columns:125px 1fr auto;gap:9px;align-items:start;border-top:1px solid var(--line);padding:12px 0}.marked-item input{width:100%}.marked-item textarea{width:100%;min-height:58px;resize:vertical}.marked-item label{color:var(--muted);font-size:.86rem}.empty-list{color:var(--muted);font-style:italic}.global-note textarea{min-height:110px}.export-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.status{min-height:1.5em;color:var(--good)}a{color:var(--accent)}footer{margin-top:26px;color:var(--muted);font-size:.92rem}.links{display:flex;gap:10px;flex-wrap:wrap}
+@media(max-width:650px){main{padding-left:12px;padding-right:12px}#audio-wrap{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.timeline-row{grid-template-columns:1fr;gap:4px}.timeline{height:52px}.marker-form{grid-template-columns:1fr 1fr}.marker-form button:last-child{grid-column:1 / -1}.marked-item{grid-template-columns:1fr auto}.marked-item textarea{grid-column:1 / -1}.marked-item .delete-mark{grid-column:2;grid-row:1}.clock{align-items:stretch;flex-direction:column;gap:3px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<div id="audio-wrap">
+  <div class="audio-line"><strong id="song-heading">Structure review</strong><span id="audio-state" role="status" aria-live="polite">Loading original.wav metadata…</span><button type="button" id="retry-audio">Retry audio</button></div>
+  <audio id="audio" controls preload="metadata" hidden>Your browser does not support the audio element.</audio>
+  <div class="clock"><output id="song-clock" aria-label="Current song time">0:00.00 / —</output><label class="sr-only" for="global-seek">Seek through the original song</label><input id="global-seek" type="range" min="0" max="1" value="0" step="0.01" disabled></div>
+</div>
+
+<header>
+  <h1 id="page-title">Structure and repetition review</h1>
+  <p class="lede">Listen to the original song while checking section boundaries and repeated passages. The timelines are clickable; every question is independent and remains editable while you seek.</p>
+  <p class="notice save-warning">Notes and answers live only in this page until you download the feedback file. Download again after your final edits.</p>
+</header>
+
+<section class="panel" aria-labelledby="timeline-heading">
+  <h2 id="timeline-heading">Paired section timelines</h2>
+  <p>Click any section to seek the original audio. The vertical line is the current song playhead.</p>
+  <div id="timelines" class="timeline-pair"></div>
+  <div class="legend"><span><i class="swatch"></i>Baseline</span><span><i class="swatch candidate"></i>Candidate</span><span><i class="swatch playhead"></i>Playhead</span></div>
+</section>
+
+<section id="review-notes-panel" class="panel" aria-labelledby="review-notes-heading" hidden>
+  <h2 id="review-notes-heading">Review notes</h2>
+  <ul id="review-notes"></ul>
+</section>
+
+<section class="panel" aria-labelledby="boundary-heading">
+  <h2 id="boundary-heading">Boundary questions</h2>
+  <p>Use a context button to hear the proposed boundary. Corrected times are optional and must fall inside the original song.</p>
+  <div id="boundary-questions"></div>
+</section>
+
+<section class="panel" aria-labelledby="repeat-heading">
+  <h2 id="repeat-heading">Repetition questions</h2>
+  <p>Play A or B from the same original audio. Each button stops at the end of its bounded passage. Your listening judgment is independent of the optional acoustic evidence.</p>
+  <div id="repeat-questions"></div>
+</section>
+
+<section class="panel" aria-labelledby="marked-heading">
+  <h2 id="marked-heading">Missing boundaries and free observations</h2>
+  <p>Mark the current song time while listening, or enter a timestamp directly. Add a note when you know what should be checked.</p>
+  <div class="marker-form">
+    <label for="marker-time">Original song time (seconds)<input id="marker-time" type="number" step="0.01" min="0" placeholder="e.g. 42.50" aria-describedby="marker-error"></label>
+    <button type="button" id="mark-current" disabled>Mark current time</button>
+    <button type="button" id="add-mark" class="secondary">Add timestamp</button>
+  </div>
+  <p id="marker-error" class="error" role="alert"></p>
+  <ol id="marked-list" class="marked-list"><li class="empty-list" id="marked-empty">No free observations marked yet.</li></ol>
+</section>
+
+<section class="panel global-note" aria-labelledby="global-heading">
+  <h2 id="global-heading">Global notes</h2>
+  <label for="global-notes">Anything useful about the song or this review</label>
+  <textarea id="global-notes" placeholder="Optional overall observation…"></textarea>
+  <div class="export-row"><button type="button" id="export">Download feedback JSON</button><p id="export-status" class="status" role="status" aria-live="polite">All cards start as Unreviewed. You can download an empty review and add to it later.</p></div>
+</section>
+
+<footer>
+  <div class="links"><a href="sections-comparison.png">Sections comparison plot</a><a href="novelty-comparison.png">Novelty comparison plot</a><a href="evidence.png">Full-song evidence plot (optional)</a><a href="manifest.json">Manifest</a><a href="review.json">Review data</a></div>
+</footer>
+</main>
+
+<script id="review-data" type="application/json">{{REVIEW_JSON}}</script>
+<script>
+"use strict";
+
+const manifestHash = '{{MANIFEST_SHA}}';
+const audio = document.querySelector('#audio');
+audio.controls = false;
+const audioState = document.querySelector('#audio-state');
+const retryAudio = document.querySelector('#retry-audio');
+const clock = document.querySelector('#song-clock');
+const globalSeek = document.querySelector('#global-seek');
+const timelines = document.querySelector('#timelines');
+const durationFromReview = (() => {
+  try {
+    const raw = JSON.parse(document.querySelector('#review-data').textContent);
+    return Number.isFinite(Number(raw.duration_s)) && Number(raw.duration_s) > 0 ? Number(raw.duration_s) : 0;
+  } catch (error) { return 0; }
+})();
+let review;
+try {
+  review = JSON.parse(document.querySelector('#review-data').textContent);
+} catch (error) {
+  review = {schema_version:1,song_title:'Structure review',duration_s:durationFromReview,sections:{baseline:[],candidate:[]},boundary_questions:[],repeat_questions:[],waveform:[],notes:[]};
+  audioState.textContent = 'The embedded review data could not be read.';
+}
+
+const state = {
+  metadataReady:false,
+  duration:durationFromReview,
+  stopAt:null,
+  programmaticSeekTarget:null,
+  audioAttempt:0,
+  boundaryAnswers:[],
+  repeatAnswers:[],
+  marked:[],
+  timelineButtons:[]
+};
+let loadingAudio=false;
+
+function configuredAudioPath(){
+  const fallback='original.wav';
+  const candidate=typeof review.audio_path==='string'?review.audio_path.trim():'';
+  if(!candidate)return fallback;
+  try{
+    const resolved=new URL(candidate,document.baseURI);
+    if(location.protocol==='file:'){
+      if(resolved.protocol!=='file:')return fallback;
+    }else if(resolved.origin!==location.origin)return fallback;
+    return resolved.href;
+  }catch(error){return fallback}
+}
+const reviewAudioPath=configuredAudioPath();
+function nativeAudioUrl(){
+  const url=new URL(reviewAudioPath,document.baseURI);
+  // The manifest hash is stable for one build. A retry gets a deterministic
+  // suffix so the browser makes a fresh native media request without first
+  // downloading the full WAV into a Blob.
+  url.search='';url.hash='';url.searchParams.set('v',manifestHash);
+  if(state.audioAttempt>0)url.searchParams.set('attempt',String(state.audioAttempt));
+  return url.href;
+}
+function audioSourceLabel(){
+  try{return new URL(reviewAudioPath,document.baseURI).pathname||reviewAudioPath}
+  catch(error){return reviewAudioPath}
+}
+
+function finiteNumber(value){
+  if(value===null||value===undefined||(typeof value==='string'&&!value.trim()))return null;
+  const number=Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+function clampTime(value){
+  const time=finiteNumber(value);
+  if(time===null)return null;
+  const duration=state.duration>0?state.duration:durationFromReview;
+  return time>=0 && time<duration ? time : null;
+}
+function clampSeekTime(value){
+  const time=finiteNumber(value);
+  if(time===null)return null;
+  const duration=state.duration>0?state.duration:durationFromReview;
+  return time>=0 && time<=duration ? time : null;
+}
+function formatTime(value){
+  const time=Math.max(0,Number(value)||0);
+  const minutes=Math.floor(time/60), seconds=(time-minutes*60).toFixed(2).padStart(5,'0');
+  return minutes+':'+seconds;
+}
+function safeRange(start,end){
+  const duration=state.duration>0?state.duration:durationFromReview;
+  const a=finiteNumber(start), b=finiteNumber(end);
+  if(a===null||b===null||duration<=0)return null;
+  const boundedStart=Math.max(0,Math.min(a,duration));
+  const boundedEnd=Math.max(0,Math.min(b,duration));
+  return {start:boundedStart,end:Math.max(boundedStart,boundedEnd)};
+}
+function text(value){return value===null||value===undefined?'':String(value)}
+function list(value){return Array.isArray(value)?value:[]}
+
+function setStatus(message){audioState.textContent=message}
+function setClock(){
+  const now=Number.isFinite(audio.currentTime)?audio.currentTime:0;
+  const duration=state.duration>0?state.duration:finiteNumber(audio.duration);
+  clock.textContent=formatTime(now)+' / '+(duration&&duration>0?formatTime(duration):'—');
+  if(duration&&duration>0){globalSeek.max=String(duration);globalSeek.value=String(Math.min(now,duration));}
+  const ratio=duration&&duration>0?Math.max(0,Math.min(100,now/duration*100)):0;
+  state.timelineButtons.forEach(item=>item.timeline.style.setProperty('--playhead',ratio+'%'));
+}
+function cancelBoundedPlayback(){state.stopAt=null}
+function seekTo(value){
+  const time=clampSeekTime(value);
+  if(time===null){setStatus('That timestamp is outside the original song.');return false}
+  state.programmaticSeekTarget=null;
+  cancelBoundedPlayback();
+  audio.currentTime=time;
+  setClock();
+  return true;
+}
+async function playSegment(start,end){
+  const range=safeRange(start,end);
+  if(!state.metadataReady||!range){setStatus('Audio metadata is still loading; playback controls will be available when it is ready.');return}
+  audio.pause();
+  state.programmaticSeekTarget=range.start;
+  const target=clampSeekTime(range.start);
+  if(target===null)return;
+  audio.currentTime=target;
+  state.stopAt=range.end;
+  setClock();
+  try{await audio.play();setStatus('Playing '+formatTime(range.start)+'–'+formatTime(range.end)+'.')}
+  catch(error){state.stopAt=null;setStatus('Playback could not start. Use the native audio controls or retry audio.')}
+}
+function stopPlayback(){state.stopAt=null;state.programmaticSeekTarget=null;audio.pause();setStatus('Playback stopped.')}
+function makeButton(label,handler,disabled){
+  const button=document.createElement('button');button.type='button';button.textContent=label;button.disabled=disabled===true;button.addEventListener('click',handler);return button;
+}
+function appendLabeledTime(parent,label,value){
+  const span=document.createElement('span');span.textContent=label+' '+formatTime(value);parent.appendChild(span);return span;
+}
+
+function renderTimelines(){
+  timelines.replaceChildren();state.timelineButtons=[];
+  const sections=review.sections&&typeof review.sections==='object'?review.sections:{};
+  [['baseline','Baseline'],['candidate','Candidate']].forEach(([role,label])=>{
+    const row=document.createElement('div');row.className='timeline-row '+role;
+    const rowLabel=document.createElement('div');rowLabel.className='timeline-label';rowLabel.textContent=label;row.appendChild(rowLabel);
+    const timeline=document.createElement('div');timeline.className='timeline';timeline.setAttribute('role','group');timeline.setAttribute('aria-label',label+' section timeline');
+    const entries=list(sections[role]);
+    if(!entries.length){const empty=document.createElement('span');empty.className='timeline-empty';empty.textContent='No sections supplied.';timeline.appendChild(empty)}
+    entries.forEach((section,index)=>{
+      const range=safeRange(section&&section.start_s,section&&section.end_s);
+      if(!range)return;
+      const button=document.createElement('button');button.type='button';button.className='timeline-segment';
+      button.textContent=text(section.label)||('Section '+(index+1));
+      button.title=label+' '+(text(section.label)||('section '+(index+1)))+' · '+formatTime(range.start)+'–'+formatTime(range.end);
+      button.setAttribute('aria-label',label+' '+(text(section.label)||('section '+(index+1)))+' from '+formatTime(range.start)+' to '+formatTime(range.end));
+      button.style.left=(range.start/(state.duration||1)*100)+'%';button.style.width=Math.max(.6,(range.end-range.start)/(state.duration||1)*100)+'%';button.disabled=!state.metadataReady;
+      button.addEventListener('click',()=>playSegment(range.start,range.end));
+      timeline.appendChild(button);
+    });
+    row.appendChild(timeline);timelines.appendChild(row);state.timelineButtons.push({timeline,role});
+  });
+  setClock();
+}
+
+function createContextControls(rangeA,rangeB){
+  const controls=document.createElement('div');controls.className='button-row';
+  controls.appendChild(makeButton('Play context',()=>playSegment(rangeA.start,rangeB.end),!state.metadataReady));
+  controls.appendChild(makeButton('Seek start',()=>seekTo(rangeA.start),!state.metadataReady));
+  controls.appendChild(makeButton('Stop',stopPlayback,!state.metadataReady));
+  controls.appendChild(makeButton('Seek end',()=>seekTo(rangeB.end),!state.metadataReady));
+  return controls;
+}
+function createAnswerSelect(id,options){
+  const label=document.createElement('label');label.textContent='Answer';
+  const select=document.createElement('select');select.name=id+'-answer';select.setAttribute('aria-label','Answer');
+  options.forEach(option=>{const item=document.createElement('option');item.value=option.value;item.textContent=option.label;select.appendChild(item)});
+  label.appendChild(select);return {label,select};
+}
+function createNotesField(id){
+  const label=document.createElement('label');label.setAttribute('for',id+'-notes');label.textContent='Notes';
+  const area=document.createElement('textarea');area.id=id+'-notes';area.placeholder='Optional concrete listening note…';label.appendChild(area);return {label,area};
+}
+function addTimeField(parent,id,labelText){
+  const label=document.createElement('label');label.className='time-field';label.setAttribute('for',id);label.textContent=labelText;
+  const input=document.createElement('input');input.id=id;input.type='number';input.step='0.01';input.min='0';input.placeholder='Optional';input.setAttribute('aria-describedby',id+'-error');
+  const error=document.createElement('p');error.id=id+'-error';error.className='error';error.setAttribute('role','alert');label.appendChild(input);label.appendChild(error);parent.appendChild(label);return {input,error};
+}
+function validateTimeInput(input,error,optional){
+  if(!input.value.trim()&&optional){error.textContent='';return null}
+  const parsed=clampTime(input.value);
+  if(parsed===null){error.textContent='Enter a number from 0 up to (but not including) '+formatTime(state.duration||durationFromReview)+'.';return null}
+  error.textContent='';return parsed;
+}
+function renderBoundaryQuestions(){
+  const target=document.querySelector('#boundary-questions');target.replaceChildren();state.boundaryAnswers=[];
+  list(review.boundary_questions).forEach((question,index)=>{
+    const id='boundary-'+index;const article=document.createElement('article');article.className='question-card';
+    const header=document.createElement('header');const title=document.createElement('h3');title.textContent='Boundary question '+(index+1);const questionId=document.createElement('small');questionId.textContent='ID: '+text(question&&question.id);header.append(title,questionId);article.appendChild(header);
+    const prompt=document.createElement('p');prompt.textContent=text(question&&question.prompt);article.appendChild(prompt);
+    const proposedTime=finiteNumber(question&&question.time_s);const proposed=document.createElement('p');proposed.className='context-label';proposed.textContent=proposedTime===null?'Proposed boundary time: not supplied':'Proposed boundary time: '+formatTime(proposedTime);article.appendChild(proposed);
+    const evidence=document.createElement('p');evidence.className='evidence';evidence.textContent='Evidence: '+text(question&&question.evidence);article.appendChild(evidence);
+    const range=safeRange(question&&question.start_s,question&&question.end_s);
+    if(range){const context=document.createElement('div');context.className='context-label';context.textContent='Context '+formatTime(range.start)+'–'+formatTime(range.end);article.appendChild(context);article.appendChild(createContextControls(range,range))}
+    const fieldset=document.createElement('fieldset');const answers=createAnswerSelect(id,[{value:'unreviewed',label:'Unreviewed'},{value:'boundary',label:'It is a boundary'},{value:'within_section',label:'Within a section'},{value:'unsure',label:'Unsure'}]);fieldset.appendChild(answers.label);
+    const corrected=addTimeField(fieldset,id+'-corrected','Corrected time (seconds)');const notes=createNotesField(id);fieldset.appendChild(notes.label);article.appendChild(fieldset);target.appendChild(article);
+    state.boundaryAnswers.push({id:text(question&&question.id),time_s:proposedTime,start_s:finiteNumber(question&&question.start_s),end_s:finiteNumber(question&&question.end_s),select:answers.select,correctedInput:corrected.input,correctedError:corrected.error,notes:notes.area});
+    corrected.input.addEventListener('input',()=>validateTimeInput(corrected.input,corrected.error,true));
+  });
+  if(!state.boundaryAnswers.length){const empty=document.createElement('p');empty.className='empty-list';empty.textContent='No boundary questions supplied.';target.appendChild(empty)}
+}
+function renderRepeatQuestions(){
+  const target=document.querySelector('#repeat-questions');target.replaceChildren();state.repeatAnswers=[];
+  list(review.repeat_questions).forEach((question,index)=>{
+    const id='repeat-'+index;const article=document.createElement('article');article.className='question-card';
+    const header=document.createElement('header');const title=document.createElement('h3');title.textContent='Repetition question '+(index+1);const questionId=document.createElement('small');questionId.textContent='ID: '+text(question&&question.id);header.append(title,questionId);article.appendChild(header);
+    const prompt=document.createElement('p');prompt.textContent=text(question&&question.prompt);article.appendChild(prompt);
+    const a=safeRange(question&&question.a_start_s,question&&question.a_end_s),b=safeRange(question&&question.b_start_s,question&&question.b_end_s);
+    const controls=document.createElement('div');controls.className='button-row';
+    controls.appendChild(makeButton('Play A',()=>a&&playSegment(a.start,a.end),!state.metadataReady||!a));
+    controls.appendChild(makeButton('Play B',()=>b&&playSegment(b.start,b.end),!state.metadataReady||!b));
+    controls.appendChild(makeButton('Stop',stopPlayback,!state.metadataReady));
+    article.appendChild(controls);
+    const evidenceDetails=document.createElement('details');const evidenceSummary=document.createElement('summary');evidenceSummary.textContent='Show optional acoustic evidence (not confidence or probability)';evidenceDetails.appendChild(evidenceSummary);
+    const evidence=document.createElement('p');evidence.className='evidence';evidence.textContent='Evidence: '+text(question&&question.evidence);evidenceDetails.appendChild(evidence);
+    const metrics=document.createElement('div');metrics.className='repeat-metrics';
+    if(a)appendLabeledTime(metrics,'A',a.start);if(a)appendLabeledTime(metrics,'–',a.end);if(b)appendLabeledTime(metrics,'B',b.start);if(b)appendLabeledTime(metrics,'–',b.end);
+    const scale=document.createElement('span');scale.textContent='Scale beats: '+text(question&&question.scale_beats);metrics.appendChild(scale);const similarity=document.createElement('span');similarity.textContent='Acoustic similarity score: '+text(question&&question.similarity)+' (not confidence or probability)';metrics.appendChild(similarity);evidenceDetails.appendChild(metrics);article.appendChild(evidenceDetails);
+    const fieldset=document.createElement('fieldset');const answers=createAnswerSelect(id,[{value:'unreviewed',label:'Unreviewed'},{value:'same',label:'Same'},{value:'variation',label:'Variation'},{value:'different',label:'Different'},{value:'unsure',label:'Unsure'}]);fieldset.appendChild(answers.label);const notes=createNotesField(id);fieldset.appendChild(notes.label);article.appendChild(fieldset);target.appendChild(article);
+    state.repeatAnswers.push({id:text(question&&question.id),a_start_s:finiteNumber(question&&question.a_start_s),a_end_s:finiteNumber(question&&question.a_end_s),b_start_s:finiteNumber(question&&question.b_start_s),b_end_s:finiteNumber(question&&question.b_end_s),select:answers.select,notes:notes.area});
+  });
+  if(!state.repeatAnswers.length){const empty=document.createElement('p');empty.className='empty-list';empty.textContent='No repetition questions supplied.';target.appendChild(empty)}
+}
+
+function renderMarked(){
+  const listElement=document.querySelector('#marked-list');listElement.replaceChildren();
+  if(!state.marked.length){const empty=document.createElement('li');empty.className='empty-list';empty.textContent='No free observations marked yet.';listElement.appendChild(empty);return}
+  state.marked.forEach((item,index)=>{
+    const row=document.createElement('li');row.className='marked-item';
+    const timeLabel=document.createElement('label');timeLabel.textContent='Time (seconds)';const timeInput=document.createElement('input');timeInput.type='number';timeInput.min='0';timeInput.step='0.01';timeInput.value=item.time_s===null?'':String(item.time_s);timeInput.setAttribute('aria-label','Marked observation time '+(index+1));timeLabel.appendChild(timeInput);
+    const noteLabel=document.createElement('label');noteLabel.textContent='Observation';const note=document.createElement('textarea');note.placeholder='What should be checked here?';note.value=item.notes;note.setAttribute('aria-label','Marked observation note '+(index+1));noteLabel.appendChild(note);
+    const remove=makeButton('Delete',()=>{state.marked.splice(index,1);renderMarked()},false);remove.className='danger delete-mark';remove.setAttribute('aria-label','Delete marked observation '+(index+1));
+    const error=document.createElement('p');error.className='error';error.setAttribute('role','alert');row.append(timeLabel,noteLabel,remove,error);listElement.appendChild(row);
+    timeInput.addEventListener('input',()=>{const value=validateTimeInput(timeInput,error,false);item.time_s=value});note.addEventListener('input',()=>{item.notes=note.value});
+  });
+}
+function addMarked(time){
+  const valid=clampTime(time);const error=document.querySelector('#marker-error');
+  if(valid===null){error.textContent='Enter a number from 0 up to (but not including) '+formatTime(state.duration||durationFromReview)+'.';return false}
+  error.textContent='';state.marked.push({time_s:Number(valid.toFixed(2)),notes:''});document.querySelector('#marker-time').value='';renderMarked();return true;
+}
+
+function setPlaybackControlsEnabled(enabled){
+  document.querySelectorAll('.question-card button').forEach(button=>{button.disabled=!enabled||button.dataset.alwaysDisabled==='true'});
+  state.timelineButtons.forEach(item=>item.timeline.querySelectorAll('button').forEach(button=>{button.disabled=!enabled}));
+  document.querySelector('#mark-current').disabled=!enabled;
+}
+function audioErrorDetail(){
+  const code=audio.error&&Number(audio.error.code);
+  const names={1:'MEDIA_ERR_ABORTED',2:'MEDIA_ERR_NETWORK',3:'MEDIA_ERR_DECODE',4:'MEDIA_ERR_SRC_NOT_SUPPORTED'};
+  const suppliedMessage=audio.error&&typeof audio.error.message==='string'&&audio.error.message.trim()?': '+audio.error.message.trim():'';
+  const diagnostic='MediaError '+(names[code]||'UNKNOWN')+' ('+(Number.isFinite(code)?code:'no code')+')'+suppliedMessage+'. Source: '+audioSourceLabel()+'.';
+  if(code===1)return 'Audio loading was aborted. Retry to make a new media request. '+diagnostic;
+  if(code===2)return 'The browser could not load the audio. Check that the source path exists and the server supports byte-range requests. '+diagnostic;
+  if(code===3)return 'The audio could not be decoded. Check that the WAV is complete and supported by this browser. '+diagnostic;
+  if(code===4)return 'The audio source is unavailable or its format is unsupported. Check the source path and browser format support. '+diagnostic;
+  return 'The audio failed to load. Check the source path and server response, then retry. '+diagnostic;
+}
+function showAudioError(){
+  state.metadataReady=false;state.programmaticSeekTarget=null;state.stopAt=null;audio.controls=false;globalSeek.disabled=true;setPlaybackControlsEnabled(false);retryAudio.style.display='inline-block';setStatus(audioErrorDetail()+' Notes and answers remain editable.');
+}
+function maybeReady(){
+  const actual=finiteNumber(audio.duration);let seekableEnd=0;try{if(audio.seekable&&audio.seekable.length)seekableEnd=audio.seekable.end(audio.seekable.length-1)}catch(error){seekableEnd=0}
+  const hasSeekable=seekableEnd>0;
+  if(!(actual&&actual>0&&hasSeekable)){state.metadataReady=false;audio.controls=false;globalSeek.disabled=true;setPlaybackControlsEnabled(false);setStatus('Audio metadata loaded; waiting for a seekable audio range…');return}
+  if(state.metadataReady)return;
+  state.duration=actual;state.metadataReady=true;audio.controls=true;globalSeek.disabled=false;globalSeek.max=String(state.duration||1);document.querySelector('#mark-current').disabled=false;setPlaybackControlsEnabled(true);setStatus('Audio ready. Notes remain editable while paused.');renderTimelines();setClock();
+}
+function loadMetadata(isRetry=false){
+  if(loadingAudio)return;
+  if(isRetry)state.audioAttempt+=1;
+  loadingAudio=true;state.metadataReady=false;state.programmaticSeekTarget=null;state.stopAt=null;audio.pause();audio.controls=false;globalSeek.disabled=true;setPlaybackControlsEnabled(false);retryAudio.style.display='none';audio.hidden=false;setStatus('Loading '+audioSourceLabel()+'…');
+  // Native media loading preserves browser streaming and seeking, including
+  // Range requests. Do not fetch the entire WAV into a Blob before assigning it.
+  audio.src=nativeAudioUrl();audio.load();loadingAudio=false;
+}
+audio.addEventListener('loadedmetadata',maybeReady);audio.addEventListener('canplay',maybeReady);audio.addEventListener('progress',maybeReady);
+audio.addEventListener('error',showAudioError);
+audio.addEventListener('timeupdate',()=>{if(state.stopAt!==null&&audio.currentTime>=state.stopAt){state.stopAt=null;audio.pause();setStatus('Context playback stopped at '+formatTime(audio.currentTime)+'.')}setClock()});
+audio.addEventListener('seeking',()=>{
+  const target=state.programmaticSeekTarget;
+  if(target!==null&&Math.abs((Number(audio.currentTime)||0)-target)<0.05)return;
+  state.programmaticSeekTarget=null;
+  cancelBoundedPlayback();
+});
+audio.addEventListener('seeked',()=>{
+  const target=state.programmaticSeekTarget;
+  if(target!==null&&Math.abs((Number(audio.currentTime)||0)-target)<0.05)state.programmaticSeekTarget=null;
+});
+audio.addEventListener('pause',setClock);audio.addEventListener('play',()=>{document.querySelectorAll('audio').forEach(other=>{if(other!==audio)other.pause()})});
+retryAudio.addEventListener('click',()=>loadMetadata(true));
+globalSeek.addEventListener('input',()=>{if(state.metadataReady)seekTo(globalSeek.value)});
+document.querySelector('#mark-current').addEventListener('click',()=>{if(state.metadataReady)addMarked(audio.currentTime)});
+document.querySelector('#add-mark').addEventListener('click',()=>addMarked(document.querySelector('#marker-time').value));
+document.querySelector('#marker-time').addEventListener('input',()=>{const error=document.querySelector('#marker-error');if(!document.querySelector('#marker-time').value.trim()){error.textContent='';return}validateTimeInput(document.querySelector('#marker-time'),error,false)});
+
+function renderReviewNotes(){
+  const panel=document.querySelector('#review-notes-panel');const target=document.querySelector('#review-notes');target.replaceChildren();const notes=list(review.notes).filter(note=>note!==null&&note!==undefined);
+  panel.hidden=!notes.length;
+  notes.forEach(note=>{const item=document.createElement('li');item.textContent=text(note);target.appendChild(item)});
+}
+
+document.querySelector('#export').addEventListener('click',()=>{
+  for(const item of state.boundaryAnswers){const corrected=validateTimeInput(item.correctedInput,item.correctedError,true);if(item.correctedInput.value.trim()&&corrected===null){item.correctedInput.focus();document.querySelector('#export-status').textContent='Fix the highlighted corrected timestamp before downloading.';return}}
+  for(const item of state.marked){if(item.time_s===null){document.querySelector('#export-status').textContent='Fix or delete a marked observation with an invalid timestamp before downloading.';return}}
+  const payload={
+    schema_version:1,
+    manifest_sha256:manifestHash,
+    created_utc:new Date().toISOString(),
+    song_title:text(review.song_title),
+    original_song:{audio_path:'original.wav',duration_s:state.duration||durationFromReview,current_time_s:Number.isFinite(audio.currentTime)?audio.currentTime:0},
+    boundary_answers:state.boundaryAnswers.map(item=>({id:item.id,time_s:item.time_s,start_s:item.start_s,end_s:item.end_s,answer:item.select.value,corrected_time_s:item.correctedInput.value.trim()?Number(item.correctedInput.value):null,notes:item.notes.value})),
+    repeat_answers:state.repeatAnswers.map(item=>({id:item.id,a_start_s:item.a_start_s,a_end_s:item.a_end_s,b_start_s:item.b_start_s,b_end_s:item.b_end_s,answer:item.select.value,notes:item.notes.value})),
+    marked_observations:state.marked.map(item=>({time_s:item.time_s,notes:item.notes})),
+    global_notes:document.querySelector('#global-notes').value
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='songviz-structure-feedback.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.querySelector('#export-status').textContent='Feedback download requested. Keep the downloaded JSON with the manifest.';
+});
+
+document.querySelector('#song-heading').textContent=text(review.song_title)||'Structure review';
+renderTimelines();renderReviewNotes();renderBoundaryQuestions();renderRepeatQuestions();renderMarked();setPlaybackControlsEnabled(false);setClock();loadMetadata();
+</script>
+</body>
+</html>

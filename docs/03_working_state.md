@@ -1,15 +1,35 @@
-# Working State (Source of Truth)
+# Working State — implementation inventory and history
 
-Use this file for the current runtime state and near-term priorities.
-For the phased roadmap, see `docs/01_roadmap.md`.
+**Start/resume at [CONTINUE.md](../CONTINUE.md).** It is the canonical current
+checkpoint and next-task entry point. This file retains the detailed inventory
+and prior results; use [the roadmap](01_roadmap.md) for milestones.
 
-**Where we are**: Phases 0–3 are complete (core pipeline, stems, lyrics, story). Phase 4 (reduced representation) is the current focus — see `docs/06_reduced_representation.md` for the detailed design.
+**September checkpoint:** the [four-policy comparison](18_local_structure_comparison.md)
+is complete, with 16/39/69/79 change proposals and no production promotion.
+The [guided listening feedback](20_listening_feedback.md) informs the
+[multiscale response experiment](21_change_episodes.md). Use CONTINUE.md for
+current verification, artifacts and the next bounded task.
+
+**Earlier directing milestone:** the analysis/render foundation is implemented.
+A rule-based saved plan/render/replay exists for a 48-second cached passage, not
+a full-song or LLM director. Its musical emphasis still needs user review;
+Milestone 2 remains open. See [10_directing_prototype.md](10_directing_prototype.md).
+
+The implementation inventory and results below retain earlier development notes;
+they are not a fresh runtime or perceptual certification. Historical phase numbers
+do not define the current queue. In this restart review, the existing test suite
+reported 329 passed and 1 skipped. A subsequent isolated full-song structural
+regeneration is documented in `12_structure_grid.md`; listening quality has not
+been revalidated. A reference derived from the algorithm being evaluated is
+diagnostic evidence, not independent ground truth.
 
 ## Start here
+
 - Project roadmap and phases: `docs/01_roadmap.md`
+- Target architecture, implemented boundary, and open decisions: `docs/02_architecture.md`
 - Runtime status and commands: this file
 - Repo and module map: `docs/04_repo_reference.md`
-- Reduced-representation design (current phase): `docs/06_reduced_representation.md`
+- Reduced-representation design (historical): `docs/06_reduced_representation.md`
 - Canonical lyrics implementation path: `docs/05_lyrics_playbook.md`
 - Lyrics research notes (non-default): `docs/research/lyrics_syncing_research.md`
 
@@ -140,12 +160,145 @@ For the phased roadmap, see `docs/01_roadmap.md`.
 - **Not yet done**: pYIN pitch summary, `lyrics-aligner` fallback (wav2vec2).
 
 ## Current priorities
+
+- **Local-change/transition candidates implemented experimentally:**
+  `docs/17_local_structure.md`; review at `outputs/reviews/local-structure-02/index.html`
+  (port 8770). Fixed 2/4/8-beat contrasts produce 16 local changes; a separate
+  dip-and-recovery hypothesis produces two intervals. Neither forms a new
+  partition or supplies identity labels. Useful additional cuts coexist with
+  missed chorus energy variations and partial/missing transition intervals;
+  no production promotion. Next: separate channel/sustained-activity proposals,
+  retaining this run as a control and all misses/burden as development evidence.
+- **Separate structural evaluation implemented:** `docs/16_structural_evaluation.md`;
+  ready report at `outputs/reviews/structure-evaluation-03/report.md`. Exact user
+  spans/positive motif groups are separate from fingerprint-bound analyst
+  variation/transition tags. Recurrence now exposes pattern and arrangement
+  evidence plus local versus historical context, retaining all 12,898 legacy
+  pair scores. Identity windows can cross adjacent same-motif variations without
+  merging annotations; short-span/variation support gaps are explicit. The first
+  shorter-scale proposal experiment is described above; automatic identity
+  clustering and general transition recognition remain open. No production
+  segmentation/render behavior or raw feedback was changed by this step.
+- **User sections received and validated:** `benchmark/feedback/section-editor-02.json`;
+  interpretation and exact provenance in `docs/15_section_feedback.md`. The user
+  supplied 19 labeled spans with explicit chorus/verse-2 returns and intentional
+  short transitions. Main mismatch: the detector misses internal changes and
+  conflates arrangement/roles with musical identity. The separate representation
+  and development evaluation are implemented as described above;
+  do not merely tune toward a target count of 19. Raw feedback is preserved,
+  not silently promoted to high-confidence benchmark ground truth.
+- **User-defined sections remain the preferred source of guidance:** the free-form editor
+  in `docs/14_section_annotation.md` starts without predicted boundaries and
+  is ready at `outputs/reviews/section-editor-02/index.html` (port 8770). It
+  supports independent named layers for broad parts and finer changes. Prefer
+  the user's own labels/notes over forcing their interpretation into our detector's
+  questions. The earlier A/B review remains optional evidence, not the required
+  annotation workflow. Initial examples and an explicit, revisable analyst mapping
+  are now available; formal hierarchy remains open.
+- **Boundary/recurrence review implemented:** `docs/13_structure_review.md`.
+  Open `outputs/reviews/structure-review-03/index.html` (port 8770, served from
+  `outputs/reviews` using `python -m songviz.review_server`). Version 03 repairs
+  playback with native ranged audio; questions, predictions and audio are
+  unchanged from 02. The previous package remains preserved.
+  Fresh story analysis now fuses agreeing SSM/energy candidates one-to-one and
+  masks missing novelty history without per-lag/per-song rescaling. The isolated
+  review compares previous and candidate logic on the same reviewed grid, with
+  role-independent 16/32-beat passage pairs. Six versus seven sections is a
+  controlled behavior change, not musical validation. The user later supplied
+  free-form section feedback (docs 15–17); the earlier proposed-question review
+  remains optional, not a blocker requiring another annotation round.
+- **Structural beat-grid step completed:** audit in `docs/11_beat_grid_audit.md`,
+  implementation and results in `docs/12_structure_grid.md`. `compute_story` now
+  accepts an explicit shared grid and persists exact/effective timing hashes and
+  fallback provenance. `outputs/reviews/structure-grid-01/` compares two fresh
+  full-song runs under the same code with cached versus reviewed timing; all
+  four stem diagnostics are present and original caches are unchanged. Eight
+  versus seven sections is not evidence of improved musical correctness. Next,
+  use the new audio-linked review for section boundaries and repeated passages before further tuning segmentation,
+  recurrence or novelty. The historical story's internal grid remains unknown.
+- **Current review:** `outputs/reviews/directed-review-01/index.html` (port 8768),
+  Feel Good Inc 130–178s. An automatic rule policy chooses snare → other stem →
+  vocals, with selective visibility and reusable treatments. Same evidence/audio
+  drives the fixed comparison. The source-derived plan boundaries are not verified
+  musical sections. Review focus/omissions, especially whether vocals should be
+  foregrounded earlier within the sparse span, before expanding the policy.
+- `songviz/direction.py` provides the version-1 contract and policy;
+  `songviz/directed_render.py` executes it. The experiment command is
+  `experiments/build_directed_review.py`, with saved-package `--replay` and an
+  optional separate edited `--plan`. Existing production commands are unchanged.
+  127 focused tests pass; exact audio equivalence, browser feedback/switching and
+  byte-identical video replay were checked. Terra wrote the renderer/tests; Luna
+  wrote the page/builder tests; the lead handled planning/evidence/integration.
+- Full-song directing, model-backed planning, provider/budget settings, richer
+  styles and phrase-level surprise decisions remain open. No runtime LLM calls,
+  uploads, separation or beat refitting were introduced by this experiment.
+- First artistic preview is ready at `outputs/reviews/visual-passage-01/index.html`
+  (22s opening; local server port 8767). It uses the exact reviewed pulse and drum
+  events, with original audio, and does not change production behavior. Terra
+  implemented the visualizer/tests/page; the lead integrated, refined and verified
+  the package. 98 focused tests pass; browser switching/export/retry and media
+  integrity checks passed. See `docs/09_visual_passage.md`. The user likes the
+  available musical information but clarified that the final video must direct
+  attention and vary its visual language. This is not blanket artistic approval.
+  Keep the preview as a vocabulary study; polishing it is no longer the next gate.
+- Milestone 1 technical artifacts are prepared in `outputs/reviews/restart-02/`:
+  three source-audio previews, optional stem/event audition, input snapshots,
+  provenance manifest, and a feedback export page. See `docs/07_restart_review.md`
+  for the reference audit and reproduction commands. User feedback is received
+  verbatim in `benchmark/feedback/restart-02.json`; its manifest hash was verified.
+- First response to that feedback: `outputs/reviews/rhythm-review-01/index.html`
+  compares cached vs regular pulse with identical original audio and percussion.
+  Waveform/spectrogram evidence is included. Experimental sidecars `beat_grid.py`
+  and `percussion.py` do not alter the production tracker or cached reduced events.
+  Current focused verification: 91 tests passed, all six videos checked for 60 FPS,
+  expected duration, identical A/B audio, and exact source PCM cuts. Browser checks
+  covered seeking, same-position switching, playback continuation, stem loading,
+  and manifest-linked feedback export. Subsequent written user feedback supports
+  regular-pulse alignment and recognizable percussion, with snare easiest to clap
+  to. See `benchmark/feedback/rhythm-review-01.json`; dropdowns remained unreviewed,
+  so this is not three explicit A/B votes. The opening's ambiguous pulse remark
+  referred to the cached version, as confirmed in chat and preserved in
+  `benchmark/feedback/rhythm-review-01-clarification.md`. Artistic approval and
+  cross-song generalization remain pending.
+- Batch section evaluation is now connected, with malformed-input reporting,
+  explicitly diagnostic reference groups, and version-aware section comparisons.
+  This evaluates historical cached output; it does not certify current extraction.
+- The first cached batch evaluated all five benchmark songs without run errors;
+  results and input snapshots are in `outputs/reviews/restart-02/evaluation/`.
+  Targeted verification: 74 benchmark/evaluation tests plus 5 review/render tests
+  passed. Browser playback, seeking, and feedback export were checked.
+- Prioritize analysis failures that block the directed passage; exhaustive
+  transcription or harmony remains unnecessary unless that example needs it.
+- Record timestamped feedback so the user does not have to reconstruct old bugs.
+
+### Restart inventory (2026-09-09, preliminary)
+
+A read-only Luna worker found 11 source songs and reusable outputs for several
+tracks. A first candidate is Gorillaz / Feel Good Inc. The lead confirmed these
+local artifacts exist under `outputs/Gorillaz - Feel Good Inc (featuring De La Soul)/`:
+
+- `analysis/reduced.wav` (filesystem date: April 12)
+- `overview_video.mp4` (filesystem date: April 29)
+- `analysis/story.json` (filesystem date: April 30)
+
+Cached section boundaries near 137.86s and 165.67s suggest passages to inspect.
+These are candidate review locations, not listening-verified transitions. The
+different file dates do not establish matching provenance; confirm timeline and
+generation settings before presenting them as a synchronized baseline. The first
+review now renders directly from the cached JSON with sample-aligned source audio,
+rather than reusing these older audio/video renders. `restart-01` is the initial
+technical draft; `restart-02` is the selected review package.
+
+## Historical progress and priorities (April 2026)
+
+These dated measurements describe earlier runs, not verified current quality.
+
 - **Milestone 2: Extraction quality** (substantially improved 2026-04-12):
   - Drums activity F1: ✓ 1.00 on Feel Good Inc (beat-level template extraction)
   - Bass pitch range: ✓ 100% in range (was 83.5% below range with basic-pitch)
   - Bass in-scale: ✓ 100% on Feel Good Inc (was 38.8% with basic-pitch)
   - Bass pitch-class root match: ✗ root still not detected correctly (F# dominates instead of Eb)
-  - **Next milestone**: M3 Harmony + Arrangement (chord detection may enable bass pitch correction)
+  - **Former next milestone**: M3 Harmony + Arrangement (superseded by the September roadmap)
 - **Reduced representation** (Phase 4 — operational):
   - `songviz/reduction.py`: all three layers — drums (template → DrumSep onset → heuristic fallback), vocals (basic-pitch + pYIN + octave correction), bass (torchcrepe → basic-pitch → pYIN + octave correction + energy gating)
   - Output: `analysis/reduced.json` — unified file with `schema_version` and `"drums"`, `"vocals"`, `"bass"` keys

@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SongViz · Direction study</title>
+<style>
+:root{color-scheme:dark;--ink:#09111a;--panel:#101d28;--line:#29404e;--text:#e8eff0;--muted:#a9bac0;--cyan:#66d9e8;--warm:#ff9a68;--gold:#efc35c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 20%,#152735 0,var(--ink) 62%);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+main{max-width:940px;margin:auto;padding:42px 20px 72px}h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.04;margin:0 0 8px;letter-spacing:-.04em}h1+p{margin-top:0;color:var(--cyan)}p{color:var(--muted)}
+.card{margin-top:32px;padding:18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#122330,#0c1720)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}button,select,input,textarea{font:inherit;border-radius:8px;border:1px solid #466170;background:#162b37;color:var(--text);padding:9px 12px}button{cursor:pointer}button[aria-pressed=true]{border-color:var(--warm);background:#3a2521;color:#ffd4bd}button:disabled,select:disabled,input:disabled,textarea:disabled{cursor:not-allowed;opacity:.52}
+video{display:block;width:100%;aspect-ratio:16/9;background:#050a0e;border-radius:10px}.state{min-height:1.5em;margin:10px 0 0}.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:15px 0 0;color:var(--muted);font-size:.92rem}.key{display:inline-flex;gap:7px;align-items:center}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}.warm{background:var(--warm)}.cyan{background:var(--cyan)}.gold{background:var(--gold)}.pale{background:#b6cbca}
+fieldset{border:0;padding:0;margin:25px 0 0}label{display:block;margin:14px 0 6px}select,input{width:100%}.moment{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.moment label{margin:0}.moment button{white-space:nowrap}textarea{width:100%;min-height:118px;resize:vertical}
+table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;vertical-align:top;padding:10px 8px;border-top:1px solid var(--line)}th{color:var(--cyan);font-weight:600}td:first-child{white-space:nowrap;color:var(--gold)}footer{margin-top:26px;color:var(--muted);font-size:.9rem}a{color:var(--cyan)}small{color:var(--muted)}
+@media(max-width:620px){.moment{grid-template-columns:1fr}.moment button{width:100%}th,td{padding-left:4px;padding-right:4px;font-size:.93rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>A change of focus / Direction study</h1>
+<p>Song time {{START_S}}–{{END_S}} seconds · musical direction study</p>
+<p>This is a rule-based, evidence-driven prototype—not an LLM and not full-song understanding. It uses energy-driven vocal and other motifs, not note transcription. You judge what attention changes and whether it matches the music.</p>
+
+<section class="card" aria-label="Direction study review">
+  <div class="controls" id="switcher">
+    <button type="button" data-view="directed" aria-pressed="true" disabled>Directed sequence</button>
+    <button type="button" data-view="fixed" aria-pressed="false" disabled>Always-on comparison</button>
+    <button type="button" id="restart" disabled>Restart</button>
+  </div>
+  <video id="passage" controls preload="metadata" poster="poster.png"></video>
+  <p class="state" id="state" aria-live="polite">Loading directed sequence…</p>
+  <p><small>Both versions use the same original audio, timing, and visual treatments. They differ only in plan: the directed sequence changes focus over the passage; the comparison keeps its treatment always on, except nonsounding hits have no response.</small></p>
+  <p class="legend">The main focus occupies the center; supporting layers are smaller. The palette and visible layers can change with the plan. The blue texture represents the separated “other” stem, not a confidently identified instrument.</p>
+
+  <details><summary>Inspect the direction plan and its reasons</summary>
+  <table>
+    <thead><tr><th>Song time</th><th>Focus</th><th>Why</th></tr></thead>
+    <tbody>{{PLAN_ROWS}}</tbody>
+  </table>
+  <img src="evidence.png" alt="Stem energy, prominent percussion events and the resulting focus spans" style="width:100%;height:auto">
+  </details>
+
+  <fieldset id="feedback" disabled>
+    <h2>One feedback note</h2>
+    <label for="preference">Which view better directs attention?</label>
+    <select id="preference">
+      <option value="unreviewed">Unreviewed</option>
+      <option value="directed">Directed</option>
+      <option value="fixed">Always-on comparison</option>
+      <option value="neither">Neither</option>
+      <option value="unsure">Unsure</option>
+    </select>
+    <div class="moment">
+      <label for="moment">Original song time (seconds)<input id="moment" type="number" step="0.01" min="{{START_S}}" max="{{END_S}}" value="{{START_S}}"></label>
+      <button type="button" id="mark">Mark current song time</button>
+    </div>
+    <label for="observation">Does the change of focus follow the song? What should be emphasized or left out?</label>
+    <textarea id="observation" placeholder="Write one concrete listening observation."></textarea>
+    <button type="button" id="export">Download feedback</button>
+  </fieldset>
+</section>
+<footer>Notes are not persisted until you download them. <a href="plan.json">Plan</a> · <a href="manifest.json">Manifest</a></footer>
+</main>
+<script>
+const manifestHash='{{MANIFEST_SHA}}';
+const startSeconds=Number('{{START_S}}');
+const endSeconds=Number('{{END_S}}');
+const video=document.querySelector('#passage');
+const state=document.querySelector('#state');
+const feedback=document.querySelector('#feedback');
+const switcher=document.querySelector('#switcher');
+const restart=document.querySelector('#restart');
+const buttons=[...switcher.querySelectorAll('[data-view]')];
+const blobUrls=new Map();
+let currentView='directed';
+let initialReady=false;
+let loading=false;
+
+function setControls(disabled){
+  buttons.forEach(button=>button.disabled=disabled);
+  restart.disabled=disabled||!initialReady;
+}
+
+async function source(path){
+  if(location.protocol==='file:')return path;
+  let request=blobUrls.get(path);
+  if(!request){
+    request=fetch(path).then(response=>{
+      if(!response.ok)throw Error(`HTTP ${response.status}`);
+      return response.blob();
+    }).then(blob=>URL.createObjectURL(blob));
+    blobUrls.set(path,request);
+  }
+  try{return await request}catch(error){
+    if(blobUrls.get(path)===request)blobUrls.delete(path);
+    throw error;
+  }
+}
+
+function waitForMetadata(){
+  return new Promise((resolve,reject)=>{
+    const clear=()=>{
+      video.removeEventListener('loadedmetadata',ready);
+      video.removeEventListener('error',failed);
+    };
+    const ready=()=>{clear();resolve()};
+    const failed=()=>{clear();reject(Error('video failed to load'))};
+    video.addEventListener('loadedmetadata',ready);
+    video.addEventListener('error',failed);
+  });
+}
+
+function viewName(view){return view==='directed'?'Directed sequence':'Always-on comparison'}
+
+async function loadView(view){
+  if(loading)return;
+  loading=true;
+  const asset=view==='directed'?'directed.mp4':'fixed.mp4';
+  const priorSrc=video.currentSrc||video.src;
+  const priorTime=Number.isFinite(video.currentTime)?video.currentTime:0;
+  const wasPlaying=!video.paused;
+  const priorView=currentView;
+  video.pause();
+  setControls(true);
+  feedback.disabled=true;
+  video.controls=false;
+  state.textContent=`Loading ${viewName(view)}…`;
+  try{
+    const src=await source(asset);
+    video.src=src;
+    video.load();
+    await waitForMetadata();
+    video.currentTime=Math.min(priorTime,video.duration);
+    currentView=view;
+    buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
+    state.textContent=`Showing ${viewName(view)}.`;
+    initialReady=true;
+    if(wasPlaying)await video.play();
+  }catch(error){
+    if(location.protocol!=='file:')blobUrls.delete(asset);
+    let restored=false;
+    if(priorSrc&&initialReady){
+      try{
+        if(priorSrc!==video.currentSrc||video.error){
+          video.src=priorSrc;
+          video.load();
+          await waitForMetadata();
+        }
+        video.currentTime=Math.min(priorTime,video.duration);
+        currentView=priorView;
+        buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===priorView)));
+        restored=true;
+        if(wasPlaying)await video.play();
+      }catch(_){restored=false}
+    }
+    if(!restored)initialReady=false;
+    state.textContent=restored?`Could not load that clip. Restored ${viewName(currentView)}. Retry when ready.`:'Could not load this clip. Check the assets beside this page, then retry a version.';
+  }finally{
+    loading=false;
+    setControls(false);
+    video.controls=true;
+    feedback.disabled=!initialReady;
+  }
+}
+
+buttons.forEach(button=>button.addEventListener('click',()=>loadView(button.dataset.view)));
+restart.addEventListener('click',()=>{video.currentTime=0;video.play().catch(()=>{})});
+document.querySelector('#mark').addEventListener('click',()=>{
+  const songTime=Math.max(startSeconds,Math.min(endSeconds,startSeconds+(video.currentTime||0)));
+  document.querySelector('#moment').value=songTime.toFixed(2);
+});
+document.querySelector('#export').addEventListener('click',()=>{
+  const preference=document.querySelector('#preference').value;
+  const observation=document.querySelector('#observation').value.trim();
+  if(preference==='unreviewed'&&!observation){state.textContent='Choose a preference or add an observation before downloading feedback.';return}
+  const moment=document.querySelector('#moment');
+  const entered=Number(moment.value);
+  if(!Number.isFinite(entered)||entered<startSeconds||entered>endSeconds){
+    state.textContent=`Song time must be between ${startSeconds} and ${endSeconds} seconds.`;return;
+  }
+  const payload={schema_version:1,manifest_sha256:manifestHash,created_utc:new Date().toISOString(),observations:[{passage_id:'transition-return',song_time_s:Number(entered.toFixed(2)),preference,variant_viewed:currentView,observation,status:'user_observation_untriaged'}]};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='songviz-direction-feedback.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  state.textContent='Feedback downloaded. Notes remain local unless you share that file.';
+});
+window.addEventListener('beforeunload',()=>blobUrls.forEach(value=>Promise.resolve(value).then(url=>URL.revokeObjectURL(url))));
+loadView('directed');
+</script>
+</body>
+</html>

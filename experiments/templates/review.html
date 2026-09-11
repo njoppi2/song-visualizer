@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SongViz · First listening review</title>
+<style>
+body{margin:0;background:#101820;color:#e2ecf1;font:16px/1.5 system-ui,sans-serif}
+main{max-width:780px;margin:auto;padding:32px 20px 80px}h1{font-size:30px;margin:0 0 12px}
+h2{font-size:21px;margin-top:0}p{color:#b8c9d4}section{border:1px solid #34434f;border-radius:12px;padding:20px;margin:24px 0;background:#16232d}
+video{width:100%;max-height:540px;background:#000}audio{display:block;width:100%;margin:8px 0 18px}
+label{display:block}summary{cursor:pointer;color:#81c5f4}details{margin:16px 0}
+button{background:#79c6ef;color:#0a202d;border:0;border-radius:6px;padding:10px 14px;font:inherit;cursor:pointer}
+input,textarea{background:#0e1820;border:1px solid #57707e;border-radius:6px;color:#fff;padding:10px;font:inherit}
+input{width:110px;margin:8px}textarea{display:block;width:100%;box-sizing:border-box;min-height:90px;margin-top:12px}
+a{color:#81c5f4}.note{border-left:3px solid #81c5f4;padding-left:15px}footer{margin-top:28px}
+</style>
+<main>
+<h1>SongViz · First listening review</h1>
+<p>Three short passages from <em>Feel Good Inc</em> · 60 seconds total.</p>
+<p class="note">Start with the videos. Tell me what feels late, missing, too busy, or disconnected from the music.
+You do not need to diagnose the code. The lower panel is optional technical context.</p>
+<p>The soundtrack is the original song. Visuals use the current mix renderer with historical cached analysis.
+The displayed roles are the system's guesses. This is our starting point, not an improved version.</p>
+{{CARDS}}
+<footer><button id="export">Download feedback</button><p id="status" aria-live="polite">Notes stay in this page until you download them. Reloading will clear them.
+You can also reply in chat with a clip number and what you noticed.</p>
+<a href="manifest.json">Provenance manifest</a> · <a href="README.md">Review notes</a></footer>
+</main>
+<script>
+const manifestHash = '{{MANIFEST_SHA}}';
+document.querySelectorAll('video,audio').forEach(media => {
+  media.addEventListener('play', () => document.querySelectorAll('video,audio').forEach(other => {
+    if(other !== media) other.pause();
+  }));
+});
+// Simple local HTTP servers may not support byte ranges. Buffer these short
+// clips as blobs so seeking and timestamped feedback still work correctly.
+// file:// playback already supports seeking and does not permit fetch here.
+async function makeSeekable(media) {
+  if (!/^https?:$/.test(location.protocol) || media.dataset.buffering) return;
+  media.dataset.buffering = 'true';
+  media.controls = false;
+  try {
+    const response = await fetch(media.getAttribute('src'));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    media.src = URL.createObjectURL(await response.blob());
+  } catch (error) {
+    document.querySelector('#status').textContent = 'Could not buffer a clip. Open the review HTML locally if seeking does not work.';
+  } finally { media.controls = true; }
+}
+document.querySelectorAll('video').forEach(makeSeekable);
+document.querySelectorAll('details').forEach(details => details.addEventListener('toggle', () => {
+  if (details.open) details.querySelectorAll('audio').forEach(makeSeekable);
+}));
+document.querySelectorAll('.stamp').forEach(button => button.onclick = () => {
+  const section = button.closest('section');
+  section.querySelector('.time').value = (Number(section.dataset.start) + section.querySelector('video').currentTime).toFixed(2);
+});
+document.querySelector('#export').onclick = () => {
+  const feedback = {schema_version:1, manifest_sha256:manifestHash, created_utc:new Date().toISOString(),
+    observations:[...document.querySelectorAll('section')].map(section => ({
+      passage_id:section.dataset.id, song_time_s:Number(section.querySelector('.time').value),
+      observation:section.querySelector('textarea').value.trim(), status:'user_observation_untriaged'
+    })).filter(row => row.observation)};
+  if(!feedback.observations.length){document.querySelector('#status').textContent='Add an observation first, or reply in chat.';return;}
+  const url = URL.createObjectURL(new Blob([JSON.stringify(feedback,null,2)+'\n'],{type:'application/json'}));
+  const link = document.createElement('a'); link.href=url;link.download='songviz-feedback.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  document.querySelector('#status').textContent='Feedback download requested. Send the file back, or paste the observations in chat.';
+};
+</script>
+</html>

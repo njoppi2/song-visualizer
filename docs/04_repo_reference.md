@@ -11,7 +11,7 @@ SongViz aims to understand and visualize what is happening in a song over time �
 2. `docs/01_roadmap.md` (phased plan)
 3. `docs/03_working_state.md` (what is implemented now)
 4. `docs/04_repo_reference.md` (this file — repo map)
-5. `docs/06_reduced_representation.md` (current phase design)
+5. `docs/06_reduced_representation.md` (historical reduction design)
 6. `docs/05_lyrics_playbook.md` (if working on lyrics)
 7. `docs/research/lyrics_syncing_research.md` (background only)
 
@@ -73,7 +73,7 @@ The package also exposes the console entry: `python -m songviz <subcommand>`. `p
 - `docs/02_architecture.md` → pipeline shape, key concepts, CLI/design notes.
 - `docs/03_working_state.md` → implementation status (updated constantly).
 - `docs/05_lyrics_playbook.md` → canonical lyrics implementation and output contract.
-- `docs/06_reduced_representation.md` → design for the current phase: converting features into discrete musical events.
+- `docs/06_reduced_representation.md` → historical design for converting features into discrete musical events; current priorities are in the roadmap.
 - `experiments/README.md` → separation backend experiments and decisions (DrumSep integration rationale).
 - `docs/research/voice-notes-research.md` → pitch extraction tool survey (pYIN, Basic Pitch, CREPE).
 - `docs/research/song-story-research.md` → structural segmentation tool survey (SSM, MSAF, novelty detection).

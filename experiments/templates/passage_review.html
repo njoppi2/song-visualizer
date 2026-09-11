@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SongViz · Backbeat opening study</title>
+<style>
+:root{color-scheme:dark;--ink:#09111a;--panel:#101d28;--line:#29404e;--text:#e8eff0;--muted:#a9bac0;--cyan:#66d9e8;--warm:#ff9a68;--gold:#efc35c}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 20%,#152735 0,var(--ink) 62%);color:var(--text);font:16px/1.5 system-ui,sans-serif}main{max-width:900px;margin:auto;padding:42px 20px 72px}h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.04;margin:0 0 8px;letter-spacing:-.04em}h1+p{margin-top:0;color:var(--cyan)}p{color:var(--muted)}.card{margin-top:32px;padding:18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#122330,#0c1720)}.controls{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}button,select,input,textarea{font:inherit;border-radius:8px;border:1px solid #466170;background:#162b37;color:var(--text);padding:9px 12px}button{cursor:pointer}button[aria-pressed=true]{border-color:var(--warm);background:#3a2521;color:#ffd4bd}button:disabled,select:disabled,input:disabled,textarea:disabled{cursor:not-allowed;opacity:.52}video{display:block;width:100%;aspect-ratio:16/9;background:#050a0e;border-radius:10px}.state{min-height:1.5em;margin:10px 0 0}.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:15px 0 0;color:var(--muted);font-size:.92rem}.key{display:inline-flex;gap:7px;align-items:center}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}.warm{background:var(--warm)}.cyan{background:var(--cyan)}.gold{background:var(--gold)}.pale{background:#b6cbca}fieldset{border:0;padding:0;margin:25px 0 0}label{display:block;margin:14px 0 6px}select,input{width:100%}.moment{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.moment label{margin:0}.moment button{white-space:nowrap}textarea{width:100%;min-height:118px;resize:vertical}footer{margin-top:26px;color:var(--muted);font-size:.9rem}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style><main>
+<h1>Backbeat / Opening study</h1><p>0–22 seconds · one visual passage</p>
+<p>This is the same original audio throughout. The small, accepted pulse is present as a quiet centre breath; the visual actions are independent detected drum attacks, not a replacement rhythm.</p>
+<section class="card" aria-label="Opening passage review"><div class="controls" id="switcher"><button type="button" data-view="visual" aria-pressed="true" disabled>Visual passage</button><button type="button" data-view="reference" aria-pressed="false" disabled>Timing reference</button><button type="button" id="restart" disabled>Restart</button></div>
+<video id="passage" controls preload="metadata" poster="poster.png"></video><p class="state" id="state" aria-live="polite">Loading opening passage…</p>
+<div class="legend" aria-label="Movement colour legend"><span class="key"><i class="dot warm"></i>Warm: snare / clap</span><span class="key"><i class="dot cyan"></i>Cyan: kick</span><span class="key"><i class="dot gold"></i>Gold: hi-hat</span><span class="key"><i class="dot pale"></i>Pale: accepted pulse</span></div>
+<fieldset id="feedback" disabled><label for="response">Response</label><select id="response"><option value="unreviewed">Unreviewed</option><option value="helps">Helps</option><option value="neutral">Neutral</option><option value="distracting">Distracting</option></select><div class="moment"><label for="moment">Song time (seconds)<input id="moment" type="number" step="0.01" min="0" max="22" value="0.00"></label><button type="button" id="mark">Mark moment</button></div><label for="observation">Does this strengthen the groove or distract? Which movement feels wrong?</label><textarea id="observation" placeholder="Leave a brief observation."></textarea><button type="button" id="export">Download feedback</button></fieldset></section>
+<footer>Notes are not saved anywhere until you download them. <a href="manifest.json">Manifest</a></footer>
+</main><script>
+const manifestHash='{{MANIFEST_SHA}}';
+const video=document.querySelector('#passage'),state=document.querySelector('#state'),feedback=document.querySelector('#feedback'),switcher=document.querySelector('#switcher'),restart=document.querySelector('#restart');
+const buttons=[...switcher.querySelectorAll('[data-view]')],blobUrls=new Map();let currentView='visual',initialReady=false,loading=false;
+function setControls(disabled){buttons.forEach(button=>button.disabled=disabled);restart.disabled=disabled;}
+async function source(path){if(location.protocol==='file:')return path;let request=blobUrls.get(path);if(!request){request=fetch(path).then(response=>{if(!response.ok)throw Error(`HTTP ${response.status}`);return response.blob()}).then(blob=>URL.createObjectURL(blob));blobUrls.set(path,request)}try{return await request}catch(error){if(blobUrls.get(path)===request)blobUrls.delete(path);throw error}}
+function waitForMetadata(){return new Promise((resolve,reject)=>{const clear=()=>{video.removeEventListener('loadedmetadata',ready);video.removeEventListener('error',failed)},ready=()=>{clear();resolve()},failed=()=>{clear();reject(Error('video failed to load'))};video.addEventListener('loadedmetadata',ready);video.addEventListener('error',failed)})}
+function viewName(view){return view==='visual'?'visual passage':'timing reference'}
+async function loadView(view){
+ if(loading)return;
+ loading=true;
+ const asset=view==='visual'?'visual.mp4':'reference.mp4',priorSrc=video.currentSrc||video.src,priorTime=video.currentTime||0,wasPlaying=!video.paused,priorView=currentView;
+ video.pause();setControls(true);feedback.disabled=true;video.controls=false;state.textContent='Loading passage…';
+ try{
+  const src=await source(asset);video.src=src;video.load();await waitForMetadata();
+  video.currentTime=Math.min(priorTime,video.duration);currentView=view;
+  buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
+  state.textContent=`Showing ${viewName(view)}.`;initialReady=true;
+  if(wasPlaying)await video.play();
+ }catch(error){
+  let restored=false;if(location.protocol!=='file:')blobUrls.delete(asset);
+  if(priorSrc&&initialReady){try{
+   if(priorSrc!==video.currentSrc||video.error){video.src=priorSrc;video.load();await waitForMetadata()}
+   video.currentTime=priorTime;currentView=priorView;
+   buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===priorView)));
+   restored=true;if(wasPlaying)await video.play();
+  }catch(_){restored=false}}
+  if(!restored)initialReady=false;
+  state.textContent=restored?`Could not load that clip. Restored ${viewName(currentView)}. You can retry.`:'Could not load this clip. Check the assets beside this page, then retry a version button.';
+ }finally{loading=false;setControls(false);restart.disabled=!initialReady;video.controls=true;feedback.disabled=!initialReady}
+}
+buttons.forEach(button=>button.addEventListener('click',()=>loadView(button.dataset.view)));restart.addEventListener('click',()=>{video.currentTime=0;video.play().catch(()=>{})});document.querySelector('#mark').addEventListener('click',()=>{document.querySelector('#moment').value=Math.min(22,video.currentTime||0).toFixed(2)});
+document.querySelector('#export').addEventListener('click',()=>{const response=document.querySelector('#response').value,observation=document.querySelector('#observation').value.trim();if(response==='unreviewed'&&!observation){state.textContent='Choose a response or add an observation before downloading feedback.';return}const moment=document.querySelector('#moment'),entered=Number(moment.value),songTime=Math.max(0,Math.min(22,Number.isFinite(entered)?entered:0));moment.value=songTime.toFixed(2);const payload={schema_version:1,manifest_sha256:manifestHash,created_utc:new Date().toISOString(),observations:[{passage_id:'01-opening',song_time_s:songTime,variant_viewed:currentView,response,observation,status:'user_observation_untriaged'}]};const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'})),link=document.createElement('a');link.href=url;link.download='songviz-passage-feedback.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);state.textContent='Feedback downloaded. Notes remain local unless you share that file.'});
+window.addEventListener('beforeunload',()=>blobUrls.forEach(value=>Promise.resolve(value).then(URL.revokeObjectURL)));loadView('visual');
+</script></html>

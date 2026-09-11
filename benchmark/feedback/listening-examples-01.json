@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "songviz-listening-examples-feedback",
+  "review_sha256": "2cdd54d4ca38c3d1af58f0d69e3b8767944a67a5f1d22afadd676e1754093c98",
+  "source_audio_sha256": "657af9333edafbb6cf8cc573446650773d1169b0117c784106d1895cf802cb44",
+  "audio_sha256": "7d800828527fb8812dc6433361d1d72ad1f7cdba368b9c51dce4abc954f7a5c1",
+  "example_set_id": "listening-examples-01",
+  "answers": [
+    {
+      "example_id": "drum-entry",
+      "perceived_change": "local",
+      "notes": "From what I could understand, what I did was, it was kind of like in a verse, but with not all instruments, and then it continued the verse after this transition with the drums, like the kick and the snare at least, and maybe bass as well (not sure though). So it added those instruments. So before it was kind of like a, I don't know, a pre-full version of the verse, and then after that it was the full version of the verse."
+    },
+    {
+      "example_id": "within-passage",
+      "perceived_change": "none",
+      "notes": "I couldn't really recognize any difference, honestly. I can see that this is before the actual, like, um, the actual, like, sang verse. This is kind of like the initial part of the verse. Like, I don't know, kind of like a... I don't know if it's a buildup, but it's before the actual, like, verse. But I think this might be included on the verse, but it's kind of like a pre-verse where there's no, like, voice. But yeah, I couldn't really notice any change there, honestly."
+    },
+    {
+      "example_id": "verse-ending",
+      "perceived_change": "subtle",
+      "notes": "Yeah, here I would say it's, um, like, when hearing that part, you can see that it was, like, more of a spoken verse before, and then it becomes, you can see it's kind of like the outro of the verse. There is still some voice, but it's not really the guy singing. It's just, like, a laugh, which occurs on the final part of the verse, so you can see that, like, it is ending. So there is some— this is the sort of change. Maybe it's a little bit more than just a subtle change, but yeah, that's the kind of thing that exists there. You can see it's fading into, like, the outro of the verse. But like, of course, I don't know if I can see that it's going to the outro because I've heard the song a couple times and I know that that's the last part of the verse. The second verse at least. But yeah, but I can see a change in the pattern, like, of the verse at least.  Because, like, um, at least one thing which is more objective, which I can say is that since it's not the guy singing anymore, there's no, like, more, like, melody coming out of the voice. It's just a laugh. So, like, there's no melody there. So it's as if you remove a lot of, like, the importance of the voice. So it kind of, like, it's softly, it's kind of, like, softly removing the voice, kind of."
+    },
+    {
+      "example_id": "transition-extent",
+      "perceived_change": "broad",
+      "notes": "This is very noticeable. You can see, you can see that there was the verse before, and then this is clearly a breakdown where, like, it fades. I don't know the exact term. Like, it really, like, removes the energy and it comes to a stop, the song. And it's clearly a transition into something else. Like it's a transition to, like, the chorus phase."
+    }
+  ],
+  "exported_at": "2026-09-11T14:12:17.276Z"
+}

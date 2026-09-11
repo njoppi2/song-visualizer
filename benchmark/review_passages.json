@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "purpose": "Initial historical-cache review; these are inspection windows, not ground-truth labels or holdouts.",
+  "passages": [
+    {
+      "id": "01-opening",
+      "song": "Gorillaz - Feel Good Inc (featuring De La Soul).flac",
+      "start_s": 0,
+      "end_s": 22,
+      "title": "Opening / first entries",
+      "question": "Do the visual pulses follow what you hear? Point out any instrument entry or change the visuals miss."
+    },
+    {
+      "id": "02-transition",
+      "song": "Gorillaz - Feel Good Inc (featuring De La Soul).flac",
+      "start_s": 130,
+      "end_s": 148,
+      "title": "Change around 2:18",
+      "question": "Does the visual intensity fit the change in the music, or should it become quieter, busier, or different?"
+    },
+    {
+      "id": "03-return",
+      "song": "Gorillaz - Feel Good Inc (featuring De La Soul).flac",
+      "start_s": 158,
+      "end_s": 178,
+      "title": "Change around 2:46",
+      "question": "Does the visual transition land at the right moment? What would make this passage feel more connected to the music?"
+    }
+  ]
+}

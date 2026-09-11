@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "feedback_sha256": "dd100b34d43ece3dbe500b297f0fb4320db71e3eebb9dc705959145e54aa8b2f",
+  "segments": {
+    "28a3d3b9-29bd-4789-9d3e-223533f5e2f5": {"transition": true, "rationale": "Analyst interpretation of the user's explicit Transition to initial verse label; interval retained exactly."},
+    "63292ebe-cdb9-4b21-a046-85f7fb45cb26": {"transition": true, "rationale": "Analyst interpretation of breakdown to verse as a transition interval."},
+    "ce80b40b-77c0-4fd4-ba22-f3383188455c": {"transition": true, "rationale": "Analyst interpretation of breakdown to chorus as a transition interval."},
+    "f5e45a0e-177f-416a-a9ea-74ea21d9d0b8": {"variation": "low energy", "rationale": "User label explicitly distinguishes low energy within the shared chorus motif."},
+    "fb016e0b-9e08-42ad-9a8c-20d40185ccc5": {"variation": "high energy", "rationale": "User label explicitly distinguishes high energy within the shared chorus motif."},
+    "a4c37ad9-1768-4a9f-9bfb-0c4a44b718e2": {"transition": true, "rationale": "Analyst interpretation of breakdown to verse as a transition interval."},
+    "55684d9c-7b8f-403a-b8b5-23d3762605e4": {"variation": "main", "rationale": "Analyst contrast between verse 2 and the explicitly named verse 2 outro; not a universal section taxonomy."},
+    "d88f9cc3-0347-46e0-a523-5f57c8fa3f2e": {"variation": "outro", "rationale": "User assigned verse 2 outro to the verse 2 motif, not to the song-level outro."},
+    "62d19f05-ab2b-4cc4-aeb4-298dc4c0a089": {"variation": "introduction", "rationale": "User groups intro to bridge with bridge. Whether it is also a transition remains unknown."},
+    "953e7ffd-2581-4c8b-8b5e-1b56e535bb92": {"variation": "main", "rationale": "Analyst contrast with the explicitly named bridge introduction in the same motif."},
+    "357a5282-54c5-4826-851d-c8e130810de6": {"variation": "low energy", "rationale": "User label explicitly distinguishes low energy within the returning chorus motif."},
+    "cc5671de-5e51-41e9-be26-4d905d680ecb": {"variation": "high energy", "rationale": "User label explicitly distinguishes high energy within the returning chorus motif."},
+    "1b89efd0-536c-4776-b1ea-4eb12e1537b7": {"transition": true, "rationale": "Analyst interpretation of breakdown to verse as a transition interval."},
+    "ada7e82c-20a6-43f8-9532-2c107fcbe603": {"variation": "main", "rationale": "Analyst contrast between returning verse 2 and its explicitly named outro."},
+    "c5ed5410-75c4-4e56-857b-fe701a11a326": {"variation": "outro", "rationale": "User assigned returning verse 2 outro to the verse 2 motif, not to the song-level outro."}
+  }
+}

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SongViz · revisão local</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1017;--panel:#131d28;--line:#344657;--text:#eef4f7;--muted:#a8b7c1;--human:#5dc8dc;--legacy:#9eabc2;--candidate:#f4b85c;--transition:#db7c8c;--cursor:#f8e28a}*{box-sizing:border-box}html{overflow-x:hidden}body{margin:0;background:linear-gradient(145deg,#12202c,#0b1017 55%);color:var(--text);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1180px;margin:auto;padding:20px 16px 64px}h1{font-size:clamp(1.7rem,5vw,3rem);line-height:1.1;margin:0}h2{font-size:1.25rem;margin:0 0 8px}h3{font-size:1rem;margin:0 0 7px}p{color:var(--muted);margin:7px 0}.sticky-player{position:sticky;top:0;z-index:5;margin:0 -16px 20px;padding:12px 16px 14px;background:rgba(11,16,23,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}.player-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.player-top strong{color:var(--human)}#audio-status{min-height:1.5em;color:var(--muted);font-size:.93rem}audio{display:block;width:100%;margin-top:8px}.card{border:1px solid var(--line);border-radius:12px;background:rgba(19,29,40,.92);padding:16px;margin:17px 0}.notice{border-left:3px solid var(--candidate);padding-left:11px}.subtle{font-size:.92rem}.legend{display:flex;flex-wrap:wrap;gap:8px 16px;color:var(--muted);font-size:.9rem}.key{display:inline-block;width:12px;height:12px;margin-right:5px;border-radius:2px;vertical-align:-1px}.key.human{background:var(--human)}.key.legacy{background:var(--legacy)}.key.candidate{background:var(--candidate)}.key.transition{background:var(--transition)}.key.cursor{width:2px;border-radius:0;background:var(--cursor)}#structure-timeline{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#0a131c;cursor:pointer;touch-action:manipulation}button{font:inherit;color:var(--text);background:#1c3444;border:1px solid #4e6c7e;border-radius:7px;padding:7px 10px;cursor:pointer}button:hover,button:focus-visible{border-color:var(--human);outline:2px solid rgba(93,200,220,.35);outline-offset:1px}button:disabled{opacity:.55;cursor:not-allowed}.table-wrap{width:100%;min-width:0;max-width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:8px}table{width:100%;border-collapse:collapse;min-width:620px}th,td{padding:9px 10px;text-align:left;vertical-align:top;border-bottom:1px solid #293b49}th{color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;background:#101a24}tr:last-child td{border-bottom:0}code{font:inherit;color:#d2e4ea}.empty{color:var(--muted);font-style:italic}.curves{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.curve-box{border:1px solid var(--line);border-radius:8px;padding:10px;background:#0d1720}.curve-box h3{color:var(--muted)}.curve{display:block;width:100%;height:auto}.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.split>div{min-width:0}.raw-label{color:var(--human)}.analyst-label{color:var(--candidate)}details{margin-top:7px}summary{cursor:pointer;color:var(--muted)}pre{max-width:100%;overflow:auto;white-space:pre-wrap;word-break:break-word;padding:9px;background:#091118;border:1px solid #263947;border-radius:6px;color:#cbd9df;font-size:.82rem}ul{padding-left:20px}footer{color:var(--muted);font-size:.85rem;margin-top:24px;overflow-wrap:anywhere}@media(max-width:620px){main{padding-left:10px;padding-right:10px}.sticky-player{margin-left:-10px;margin-right:-10px;padding-left:10px;padding-right:10px}.split{grid-template-columns:1fr}.card{padding:12px}}
+</style>
+</head>
+<body>
+<main>
+  <section class="sticky-player" aria-label="Reprodutor do áudio original">
+    <div class="player-top"><strong id="song-title">Carregando revisão…</strong><span id="audio-status" role="status" aria-live="polite">Preparando metadados do áudio original…</span><button id="retry-audio" type="button">Tentar áudio novamente</button></div>
+    <audio id="source-audio" controls preload="metadata">Seu navegador não suporta o elemento de áudio.</audio>
+  </section>
+
+  <header>
+    <h1>Revisão de estrutura local</h1>
+    <p id="summary">Carregando os dados de revisão.</p>
+  </header>
+
+  <section class="card" aria-labelledby="timeline-heading">
+    <h2 id="timeline-heading">Estrutura no tempo</h2>
+    <p class="subtle">Clique na linha do tempo para ouvir aquele ponto. As faixas de referência humana permanecem separadas; linhas e faixas amarelas/rosas são candidatas do detector, não seções novas aceitas.</p>
+    <svg id="structure-timeline" viewBox="0 0 1000 120" role="img" aria-label="Linha do tempo da estrutura musical" tabindex="0"></svg>
+    <div class="legend"><span><i class="key human"></i>Anotações humanas</span><span><i class="key legacy"></i>Seções antigas</span><span><i class="key candidate"></i>Mudança local candidata</span><span><i class="key transition"></i>Transição candidata</span><span><i class="key cursor"></i>Posição de reprodução</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="curve-heading">
+    <h2 id="curve-heading">Curvas combinadas de mudança</h2>
+    <p class="subtle">Cada mini-gráfico mostra a escala disponível (2, 4 ou 8 batidas) e sua linha de limiar. Valores ausentes não são interpolados.</p>
+    <div id="curve-list" class="curves"></div>
+  </section>
+
+  <section class="card" aria-labelledby="changes-heading">
+    <h2 id="changes-heading">Mudanças locais candidatas</h2>
+    <p class="notice">Estas são candidatas do detector para escuta; não são novas seções aceitas.</p>
+    <div id="candidate-changes" class="table-wrap"></div>
+  </section>
+
+  <section class="card" aria-labelledby="transitions-heading">
+    <h2 id="transitions-heading">Transições candidatas do detector</h2>
+    <p class="analyst-label subtle">Hipóteses automáticas, mantidas separadas dos rótulos e intervalos de referência humana abaixo.</p>
+    <div id="candidate-transitions" class="table-wrap"></div>
+  </section>
+
+  <section class="card" id="transition-comparison" aria-labelledby="comparison-heading">
+    <h2 id="comparison-heading">Comparação de transições</h2>
+    <div class="split"><div><h3 class="raw-label">Rótulos e intervalos de referência humana</h3><p class="subtle">A tabela mantém cada rótulo e intervalo fornecido por pessoas. A tag de transição é uma interpretação do analista sobre esses intervalos.</p></div><div><h3 class="analyst-label">Propostas do detector</h3><p class="subtle">A sobreposição é apenas contexto de revisão; não decide aceitação nem produz uma métrica agregada.</p></div></div>
+    <div id="reference-overlaps" class="table-wrap"></div>
+  </section>
+
+  <section class="card" aria-labelledby="notes-heading">
+    <h2 id="notes-heading">Limitações e notas</h2>
+    <ul id="notes-list"></ul>
+  </section>
+  <footer id="manifest-note"></footer>
+</main>
+
+<script id="review-data" type="application/json">{{REVIEW_JSON}}</script>
+<script>
+"use strict";
+const manifestHash = '{{MANIFEST_SHA}}';
+const svgNs = 'http://www.w3.org/2000/svg';
+const audio = document.querySelector('#source-audio');
+const retry = document.querySelector('#retry-audio');
+const status = document.querySelector('#audio-status');
+const songTitle = document.querySelector('#song-title');
+const timeline = document.querySelector('#structure-timeline');
+let data;
+try { data = JSON.parse(document.querySelector('#review-data').textContent); } catch (_) { data = {}; }
+function freezeData(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freezeData); Object.freeze(value); } return value; }
+data = freezeData(data);
+const list = value => Array.isArray(value) ? value : [];
+const object = value => value && typeof value === 'object' ? value : {};
+const num = value => { if (value === null || value === undefined || value === '') return null; const n = Number(value); return Number.isFinite(n) ? n : null; };
+const string = value => value === null || value === undefined ? '' : String(value);
+const knownDuration = () => { const embedded = num(data.duration_s); return embedded && embedded > 0 ? embedded : (num(audio.duration) || 0); };
+const clamp = value => { const duration = knownDuration(); const time = num(value); return time === null || duration <= 0 ? null : Math.max(0, Math.min(duration, time)); };
+const formatTime = value => { const seconds = Math.max(0, num(value) || 0); return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0') + '.' + String(Math.floor((seconds % 1) * 10)); };
+const elem = (tag, className) => { const node = document.createElement(tag); if (className) node.className = className; return node; };
+const svgElem = tag => document.createElementNS(svgNs, tag);
+let stopAt = null;
+let cursor = null;
+
+function audioUrl() {
+  const url = new URL(data.audio_path, location.href);
+  url.searchParams.set('v', String(data.audio_sha256));
+  return url.href;
+}
+function setStatus(message) { status.textContent = message; }
+function loadAudio() {
+  stopAt = null;
+  audio.pause();
+  try { audio.src = audioUrl(); audio.load(); setStatus('Carregando metadados do áudio original…'); }
+  catch (_) { setStatus('Não foi possível configurar o áudio original. Confira o caminho relativo e tente novamente.'); }
+}
+function playRange(start, end) {
+  const duration = knownDuration();
+  const from = clamp(start), to = clamp(end);
+  if (from === null || to === null || duration <= 0) { setStatus('Os metadados do áudio ainda não estão disponíveis.'); return Promise.resolve(false); }
+  const boundedEnd = Math.max(from, to);
+  stopAt = boundedEnd;
+  audio.currentTime = from;
+  const result = audio.play();
+  if (result && typeof result.catch === 'function') {
+    return result.then(() => { setStatus('Tocando áudio original em ' + formatTime(from) + '–' + formatTime(boundedEnd) + '.'); return true; }).catch(() => { stopAt = null; setStatus('A reprodução não pôde começar. Use os controles nativos ou tente novamente.'); return false; });
+  }
+  return Promise.resolve(true);
+}
+window.__songvizLocalReview = {data, playRange};
+function listenButton(label, start, end) {
+  const button = elem('button'); button.type = 'button'; button.textContent = label;
+  button.dataset.start = String(start); button.dataset.end = String(end);
+  button.addEventListener('click', () => { playRange(num(button.dataset.start), num(button.dataset.end)); });
+  return button;
+}
+function appendCell(row, value) { const cell = elem('td'); cell.textContent = string(value); row.appendChild(cell); return cell; }
+function emptyTable(host, message) { const p = elem('p', 'empty'); p.textContent = message; host.replaceChildren(p); }
+function createTable(host, headers, rows) {
+  if (!rows.length) { emptyTable(host, 'Nenhum dado fornecido para esta revisão.'); return; }
+  const table = elem('table'), head = elem('thead'), hr = elem('tr'), body = elem('tbody');
+  headers.forEach(label => { const th = elem('th'); th.scope = 'col'; th.textContent = label; hr.appendChild(th); });
+  head.appendChild(hr); table.append(head, body); rows.forEach(row => body.appendChild(row)); host.replaceChildren(table);
+}
+function channelOf(change) {
+  const channels = [];
+  const pattern = num(change.pattern_change), arrangement = num(change.arrangement_change);
+  if (pattern !== null) channels.push('padrão ' + pattern.toFixed(3));
+  if (arrangement !== null) channels.push('arranjo ' + arrangement.toFixed(3));
+  if (Array.isArray(change.supporting_scales_beats) && change.supporting_scales_beats.length) channels.push('escala ' + change.supporting_scales_beats.map(string).join('/'));
+  if (typeof change.channel === 'string' && change.channel) channels.push(change.channel);
+  if (Array.isArray(change.channels)) change.channels.forEach(value => channels.push(string(value)));
+  return channels.filter(Boolean).join(', ') || 'não informado';
+}
+function addEvidence(cell, value) { const details = elem('details'), summary = elem('summary'), pre = elem('pre'); summary.textContent = 'Ver evidência JSON'; pre.textContent = JSON.stringify(value, null, 2); details.append(summary, pre); cell.appendChild(details); }
+function renderChanges() {
+  const changes = list(object(data.predictions).changes);
+  const rows = changes.map((change, index) => { const row = elem('tr'), time = clamp(change.time_s); appendCell(row, string(change.id) || ('mudança-' + (index + 1))); appendCell(row, formatTime(time)); appendCell(row, num(change.strength) === null ? '—' : num(change.strength).toFixed(3)); appendCell(row, channelOf(object(change))); const listen = elem('td'); const center = time === null ? 0 : time; listen.appendChild(listenButton('Ouvir ±3 s', Math.max(0.01, center - 3), Math.min(knownDuration(), center + 3))); row.appendChild(listen); const evidence = elem('td'); addEvidence(evidence, change); row.appendChild(evidence); return row; });
+  createTable(document.querySelector('#candidate-changes'), ['Candidata', 'Tempo', 'Força', 'Canal', 'Áudio', 'Evidência'], rows);
+}
+function renderTransitions() {
+  const transitions = list(object(data.predictions).transitions);
+  const rows = transitions.map((transition, index) => { const row = elem('tr'), start = clamp(transition.start_s), end = clamp(transition.end_s); appendCell(row, string(transition.id) || ('transição-' + (index + 1))); appendCell(row, formatTime(start) + '–' + formatTime(end)); appendCell(row, string(transition.kind) || 'não informado'); appendCell(row, num(transition.strength) === null ? '—' : num(transition.strength).toFixed(3)); const listen = elem('td'); listen.appendChild(listenButton('Ouvir ±3 s', Math.max(0.01, (start || 0) - 3), Math.min(knownDuration(), (end || start || 0) + 3))); row.appendChild(listen); const evidence = elem('td'); addEvidence(evidence, transition); row.appendChild(evidence); return row; });
+  createTable(document.querySelector('#candidate-transitions'), ['Candidata', 'Intervalo', 'Tipo', 'Força', 'Áudio', 'Evidência'], rows);
+}
+function overlapRows() {
+  const reference = object(data.reference), refLayers = list(reference.layers), evaluation = object(data.evaluation);
+  const layerById = new Map(refLayers.map(layer => [string(layer.id), layer]));
+  const output = [], seen = new Set();
+  list(evaluation.layers).forEach(layerEval => {
+    const layer = layerById.get(string(layerEval.layer_id || layerEval.id)) || {};
+    list(layerEval.transition_rows).forEach(item => {
+      const key = string(layerEval.layer_id || layerEval.id) + ':' + string(item.span_id || item.id); seen.add(key);
+      output.push({layer:string(layer.name || layerEval.layer_name || layerEval.layer_id || 'camada humana'), label:string(item.label || item.span_id || 'transição'), start:item.start_s, end:item.end_s, best:object(item.predicted_best_overlap)});
+    });
+  });
+  refLayers.forEach(layer => list(layer.spans).filter(span => span.transition === true || string(span.kind).toLowerCase() === 'transition').forEach(span => {
+    const key = string(layer.id) + ':' + string(span.id); if (seen.has(key)) return;
+    output.push({layer:string(layer.name || layer.id || 'camada humana'), label:string(span.label || span.id || 'transição'), start:span.start_s, end:span.end_s, best:{}});
+  }));
+  return output;
+}
+function renderOverlaps() {
+  const rows = overlapRows().map(item => { const row = elem('tr'); appendCell(row, item.layer); appendCell(row, item.label); appendCell(row, formatTime(item.start) + '–' + formatTime(item.end)); const best = item.best; const hasBest = string(best.id) || (num(best.start_s) !== null && num(best.end_s) !== null); appendCell(row, hasBest ? (string(best.id || 'candidata') + ' · ' + formatTime(best.start_s) + '–' + formatTime(best.end_s) + (num(best.iou) === null ? '' : ' · IoU ' + num(best.iou).toFixed(3))) : 'nenhuma / sem sobreposição'); return row; });
+  createTable(document.querySelector('#reference-overlaps'), ['Camada humana', 'Rótulo', 'Intervalo anotado', 'Melhor candidata por sobreposição'], rows);
+}
+function renderCurves() {
+  const host = document.querySelector('#curve-list'); host.replaceChildren();
+  const curves = list(object(data.predictions).curves).filter(curve => [2, 4, 8].includes(num(curve.scale_beats)));
+  if (!curves.length) { const p = elem('p', 'empty'); p.textContent = 'Não há curvas nas escalas 2, 4 ou 8 batidas.'; host.appendChild(p); return; }
+  curves.forEach(curve => {
+    const box = elem('div', 'curve-box'), heading = elem('h3'), chart = svgElem('svg'); heading.textContent = string(curve.scale_beats) + ' batidas'; chart.classList.add('curve'); chart.setAttribute('viewBox', '0 0 300 92'); chart.setAttribute('role', 'img'); chart.setAttribute('aria-label', 'Curva combinada de mudança em ' + string(curve.scale_beats) + ' batidas');
+    const values = list(curve.combined_change).map(num), finite = values.filter(value => value !== null), minimum = Math.min(0, ...finite), maximum = Math.max(1, ...finite), range = maximum - minimum || 1;
+    const line = svgElem('line'); line.setAttribute('x1', '0'); line.setAttribute('x2', '300'); const threshold = num(curve.threshold); const y = threshold === null ? 90 : 88 - ((threshold - minimum) / range * 78); line.setAttribute('y1', String(y)); line.setAttribute('y2', String(y)); line.setAttribute('stroke', '#f4b85c'); line.setAttribute('stroke-dasharray', '4 4'); chart.appendChild(line);
+    let points = []; const paths = []; values.forEach((value, index) => { if (value === null) { if (points.length) paths.push(points); points = []; return; } points.push((values.length < 2 ? 0 : index / (values.length - 1) * 300).toFixed(2) + ',' + (88 - ((value - minimum) / range * 78)).toFixed(2)); }); if (points.length) paths.push(points); paths.forEach(pointsList => { const path = svgElem('polyline'); path.setAttribute('points', pointsList.join(' ')); path.setAttribute('fill', 'none'); path.setAttribute('stroke', '#5dc8dc'); path.setAttribute('stroke-width', '2'); chart.appendChild(path); });
+    const label = svgElem('text'); label.setAttribute('x', '4'); label.setAttribute('y', '12'); label.setAttribute('fill', '#a8b7c1'); label.setAttribute('font-size', '10'); label.textContent = threshold === null ? 'sem limiar' : 'limiar ' + threshold.toFixed(3); chart.appendChild(label); box.append(heading, chart); host.appendChild(box);
+  });
+}
+function renderTimeline() {
+  const referenceLayers = list(object(data.reference).layers), legacy = list(data.legacy_sections), predictions = object(data.predictions), changes = list(predictions.changes), transitions = list(predictions.transitions);
+  const rows = referenceLayers.map(layer => ({kind:'human', name:'Humana · ' + string(layer.name || layer.id || 'sem nome'), items:list(layer.spans)})); rows.push({kind:'legacy', name:'Seções antigas', items:legacy}); rows.push({kind:'candidate', name:'Detector · candidatas', items:[]});
+  const height = 30 + rows.length * 42 + 24, left = 178, width = 802, duration = knownDuration() || 1;
+  timeline.setAttribute('viewBox', '0 0 1000 ' + height); timeline.replaceChildren();
+  const waveform = list(data.waveform); if (waveform.length) { const max = Math.max(...waveform.map(point => Math.abs(num(point.value) || 0)), 1); const polyline = svgElem('polyline'); polyline.setAttribute('fill', 'none'); polyline.setAttribute('stroke', '#4b6573'); polyline.setAttribute('stroke-width', '1'); polyline.setAttribute('opacity', '.45'); polyline.setAttribute('points', waveform.map(point => (left + Math.max(0, Math.min(1, (num(point.time_s) || 0) / duration)) * width).toFixed(1) + ',' + (20 + 9 - ((num(point.value) || 0) / max * 16)).toFixed(1)).join(' ')); timeline.appendChild(polyline); }
+  rows.forEach((row, index) => { const y = 30 + index * 42, motifColors = ['#237a8d','#6d5cae','#a66b35','#3f8c62','#a34e72','#527fa9'], motifIndex = new Map(); const label = svgElem('text'); label.setAttribute('x', '8'); label.setAttribute('y', String(y + 19)); label.setAttribute('fill', row.kind === 'human' ? '#5dc8dc' : row.kind === 'legacy' ? '#b9c5dc' : '#f4b85c'); label.setAttribute('font-size', '13'); label.textContent = row.name; timeline.appendChild(label); const rule = svgElem('line'); rule.setAttribute('x1', String(left)); rule.setAttribute('x2', String(left + width)); rule.setAttribute('y1', String(y + 33)); rule.setAttribute('y2', String(y + 33)); rule.setAttribute('stroke', '#344657'); timeline.appendChild(rule);
+    if (row.kind !== 'candidate') row.items.forEach((item, itemIndex) => { const start = clamp(item.start_s), end = clamp(item.end_s); if (start === null || end === null || end < start) return; const x = left + start / duration * width, segmentWidth = Math.max(2, (end - start) / duration * width), fullLabel = string(item.label || item.name || item.id || ''); const identity = string(item.identity_id); if (identity && !motifIndex.has(identity)) motifIndex.set(identity, motifIndex.size % motifColors.length); const fill = row.kind === 'human' ? (identity ? motifColors[motifIndex.get(identity)] : '#596775') : '#536276'; const rect = svgElem('rect'); rect.setAttribute('x', String(x)); rect.setAttribute('y', String(y + 4)); rect.setAttribute('width', String(segmentWidth)); rect.setAttribute('height', '22'); rect.setAttribute('rx', '3'); rect.setAttribute('fill', fill); rect.setAttribute('opacity', '.9'); const title = svgElem('title'); title.textContent = fullLabel + ' · ' + formatTime(start) + '–' + formatTime(end); rect.appendChild(title); timeline.appendChild(rect); const clipId = 'segment-' + index + '-' + itemIndex, clip = svgElem('clipPath'), clipRect = svgElem('rect'); clip.setAttribute('id', clipId); clipRect.setAttribute('x', String(x + 3)); clipRect.setAttribute('y', String(y + 4)); clipRect.setAttribute('width', String(Math.max(0, segmentWidth - 6))); clipRect.setAttribute('height', '22'); clip.appendChild(clipRect); timeline.appendChild(clip); const maxChars = Math.max(0, Math.floor((segmentWidth - 7) / 6)); const shownLabel = fullLabel.length > maxChars ? (maxChars > 1 ? fullLabel.slice(0, maxChars - 1) + '…' : '') : fullLabel; const textNode = svgElem('text'); textNode.setAttribute('x', String(x + 4)); textNode.setAttribute('y', String(y + 19)); textNode.setAttribute('fill', '#f2f7f9'); textNode.setAttribute('font-size', '10'); textNode.setAttribute('clip-path', 'url(#' + clipId + ')'); textNode.textContent = shownLabel; timeline.appendChild(textNode); });
+    if (row.kind === 'candidate') { transitions.forEach(item => { const start = clamp(item.start_s), end = clamp(item.end_s); if (start === null || end === null) return; const band = svgElem('rect'); band.setAttribute('x', String(left + start / duration * width)); band.setAttribute('y', String(y + 4)); band.setAttribute('width', String(Math.max(2, (end - start) / duration * width))); band.setAttribute('height', '22'); band.setAttribute('fill', '#db7c8c'); band.setAttribute('opacity', '.6'); const title = svgElem('title'); title.textContent = 'Transição candidata · ' + formatTime(start) + '–' + formatTime(end); band.appendChild(title); timeline.appendChild(band); }); changes.forEach(item => { const time = clamp(item.time_s); if (time === null) return; const line = svgElem('line'); line.setAttribute('x1', String(left + time / duration * width)); line.setAttribute('x2', String(left + time / duration * width)); line.setAttribute('y1', String(y + 2)); line.setAttribute('y2', String(y + 30)); line.setAttribute('stroke', '#f4b85c'); line.setAttribute('stroke-width', '2'); const title = svgElem('title'); title.textContent = 'Mudança local candidata · ' + formatTime(time); line.appendChild(title); timeline.appendChild(line); }); }
+  });
+  cursor = svgElem('line'); cursor.setAttribute('stroke', '#f8e28a'); cursor.setAttribute('stroke-width', '2'); cursor.setAttribute('y1', '22'); cursor.setAttribute('y2', String(height - 12)); timeline.appendChild(cursor); updateCursor();
+  const seekFromEvent = event => { const box = timeline.getBoundingClientRect(), svgX = (event.clientX - box.left) / box.width * 1000, ratio = Math.max(0, Math.min(1, (svgX - left) / width)); const target = clamp(ratio * knownDuration()); if (target !== null) { stopAt = null; audio.currentTime = target; setStatus('Posição alterada para ' + formatTime(target) + '.'); } };
+  timeline.onclick = seekFromEvent; timeline.onkeydown = event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); const target = clamp((num(audio.currentTime) || 0) + (event.key === 'ArrowLeft' ? -5 : 5)); if (target !== null) { stopAt = null; audio.currentTime = target; } } };
+}
+function updateCursor() { if (!cursor) return; const duration = knownDuration() || 1, time = Math.max(0, Math.min(duration, num(audio.currentTime) || 0)); const x = 178 + time / duration * 802; cursor.setAttribute('x1', String(x)); cursor.setAttribute('x2', String(x)); }
+function noteList(value) { return Array.isArray(value) ? value : (typeof value === 'string' && value ? [value] : []); }
+function renderNotes() { const host = document.querySelector('#notes-list'); host.replaceChildren(); const notes = [...noteList(object(data.predictions).limitations), ...noteList(object(data.evaluation).limitations), ...noteList(data.notes)]; if (!notes.length) notes.push('Nenhuma limitação ou nota foi fornecida.'); notes.forEach(note => { const item = elem('li'); item.textContent = string(note); host.appendChild(item); }); }
+function renderSummary() { const title = string(data.song_title) || 'Faixa sem título'; songTitle.textContent = title; const layers = list(object(data.reference).layers).length, changes = list(object(data.predictions).changes).length, transitions = list(object(data.predictions).transitions).length; document.querySelector('#summary').textContent = title + ' · ' + formatTime(knownDuration()) + ' · ' + layers + ' camada(s) humana(s), ' + changes + ' mudança(s) candidata(s) e ' + transitions + ' transição(ões) candidata(s) do detector.'; document.querySelector('#manifest-note').textContent = 'Manifesto da geração: ' + manifestHash + '.'; }
+function render() { renderSummary(); renderTimeline(); renderCurves(); renderChanges(); renderTransitions(); renderOverlaps(); renderNotes(); }
+audio.addEventListener('loadedmetadata', () => { setStatus('Metadados carregados · duração ' + formatTime(knownDuration()) + '.'); renderSummary(); renderTimeline(); });
+audio.addEventListener('error', () => { const detail = audio.error && audio.error.message ? ' ' + audio.error.message : ''; setStatus('Não foi possível carregar o áudio original.' + detail + ' A interface foi preservada; tente novamente.'); });
+audio.addEventListener('timeupdate', () => { updateCursor(); if (stopAt !== null && (num(audio.currentTime) || 0) >= stopAt) { audio.currentTime = stopAt; audio.pause(); stopAt = null; setStatus('Trecho concluído.'); } });
+audio.addEventListener('ended', () => { stopAt = null; updateCursor(); });
+retry.addEventListener('click', loadAudio);
+render(); loadAudio();
+</script>
+</body>
+</html>
