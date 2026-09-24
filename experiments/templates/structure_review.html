@@ -10,7 +10,7 @@
 main{max-width:1080px;margin:auto;padding:34px 18px 76px}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.05;letter-spacing:-.045em;margin:0 0 8px}h2{font-size:1.45rem;margin:0 0 12px}h3{font-size:1.1rem;margin:0 0 10px}h4{font-size:.9rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:20px 0 8px}p{color:var(--muted);margin:8px 0}.lede{font-size:1.07rem;max-width:780px}.notice{border-left:3px solid var(--accent-2);padding:10px 14px;margin:22px 0;background:#1b2630}.save-warning{color:#ffe0a6}.card,.panel{border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,var(--panel-2),var(--panel));padding:18px;margin:24px 0}.panel>h2{margin-top:0}
 button,input,select,textarea{font:inherit;color:var(--text);background:#0d1821;border:1px solid #526a76;border-radius:7px;padding:9px 11px}button{cursor:pointer;background:#1b3540}button:hover:not(:disabled),button:focus-visible{border-color:var(--accent);outline:2px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:1px}button:disabled,input:disabled,select:disabled,textarea:disabled{cursor:not-allowed;opacity:.5}button.secondary{background:transparent}button.danger{color:#ffd2cc;border-color:#8e5753;background:transparent}.button-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.button-row button{margin:0}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 #audio-wrap{position:sticky;top:0;z-index:3;margin:0 -18px 24px;padding:13px 18px 15px;background:rgba(11,17,24,.95);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}audio{display:block;width:100%;height:42px;margin:10px 0}#audio[hidden]{display:none}.audio-line{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.audio-line strong{color:var(--accent)}#audio-state{min-height:1.5em;color:var(--muted);margin:0}#retry-audio{display:none}.clock{display:flex;align-items:center;gap:12px}.clock output{font-variant-numeric:tabular-nums;min-width:130px;color:var(--accent-2)}#global-seek{flex:1;min-width:150px;padding:0;background:transparent;border:0;accent-color:var(--accent)}
-.timeline-pair{display:grid;gap:12px;margin-top:18px}.timeline-row{display:grid;grid-template-columns:105px 1fr;gap:12px;align-items:center}.timeline-label{font-weight:600;color:var(--muted)}.timeline{height:58px;position:relative;border:1px solid var(--line);border-radius:8px;background:#0b151d;overflow:hidden}.timeline::after{content:"";position:absolute;left:var(--playhead,0%);top:0;bottom:0;width:2px;background:var(--accent-2);box-shadow:0 0 8px var(--accent-2);pointer-events:none;z-index:2}.timeline-segment{position:absolute;top:6px;bottom:6px;min-width:3px;padding:4px 7px;overflow:hidden;text-align:left;white-space:nowrap;text-overflow:ellipsis;background:#265467;border-color:#4d9eb0;color:#effcff;font-size:.83rem;border-radius:5px;z-index:1}.timeline-row.candidate .timeline-segment{background:#5b4930;border-color:#c9964e}.timeline-segment[aria-current=true]{box-shadow:0 0 0 2px #fff}.timeline-empty{color:var(--muted);padding:16px 10px;font-size:.9rem}.legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;margin-top:13px}.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;background:#265467;margin-right:5px}.swatch.candidate{background:#5b4930}.swatch.playhead{background:var(--accent-2);border-radius:0}
+.timeline-pair{display:grid;gap:12px;margin-top:18px}.timeline-row{display:grid;grid-template-columns:125px 1fr;gap:12px;align-items:center}.timeline-label{font-weight:600;color:var(--muted)}.timeline{height:58px;position:relative;border:1px solid var(--line);border-radius:8px;background:#0b151d;overflow:hidden}.timeline::after,.review-window-track::after{content:"";position:absolute;left:var(--playhead,0%);top:0;bottom:0;width:2px;background:var(--accent-2);box-shadow:0 0 8px var(--accent-2);pointer-events:none;z-index:2}.timeline-segment{position:absolute;top:6px;bottom:6px;min-width:3px;padding:4px 7px;overflow:hidden;text-align:left;white-space:nowrap;text-overflow:ellipsis;background:#265467;border-color:#4d9eb0;color:#effcff;font-size:.83rem;border-radius:5px;z-index:1}.timeline-row.human .timeline-segment{background:#47386d;border-color:#a58ce2}.timeline-row.candidate .timeline-segment{background:#5b4930;border-color:#c9964e}.timeline-segment[aria-current=true]{box-shadow:0 0 0 2px #fff}.timeline-empty{color:var(--muted);padding:16px 10px;font-size:.9rem}.review-window-track{height:58px;position:relative;border:1px dashed #52636d;border-radius:8px;overflow:hidden;background:repeating-linear-gradient(-45deg,#111a21 0,#111a21 8px,#15212a 8px,#15212a 16px)}.review-window{position:absolute;top:8px;bottom:8px;min-width:3px;padding:4px 7px;overflow:hidden;text-align:left;white-space:nowrap;text-overflow:ellipsis;border:0;border-radius:18px;font-size:.83rem;z-index:1}.review-window-change{background:linear-gradient(90deg,transparent 0,#164e5a 14px,#164e5a calc(100% - 14px),transparent 100%);color:#e8fbff}.review-window-none{background:linear-gradient(90deg,transparent 0,#4b3a62 14px,#4b3a62 calc(100% - 14px),transparent 100%);color:#fbf3ff}.lane-caveat{font-size:.9rem;margin:7px 0 0}.legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:.9rem;margin-top:13px}.swatch{display:inline-block;width:11px;height:11px;border-radius:3px;background:#265467;margin-right:5px}.swatch.human{background:#47386d}.swatch.candidate{background:#5b4930}.swatch.window-change{background:#164e5a}.swatch.window-none{background:#4b3a62}.swatch.window-unreviewed{background:repeating-linear-gradient(-45deg,#111a21 0,#111a21 2px,#52636d 2px,#52636d 4px);border:1px dashed #80919a}.swatch.playhead{background:var(--accent-2);border-radius:0}.human-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px;margin:14px 0 0;padding:0;list-style:none}.human-details li,.raw-feedback-card{border:1px solid #5c4c8a;border-radius:9px;padding:10px;background:#17152a}.human-details strong{display:block}.human-details small{display:block;color:var(--muted);margin-top:3px}.raw-feedback-card{margin:12px 0;border-color:#41616f;background:#10212a}.raw-feedback-card header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.raw-feedback-card .raw-note{white-space:pre-wrap;color:#dce8ed}.diagnostic-card{border-color:#865f35;background:#231b13}
 .question-card{margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:11px;background:#101b24}.question-card header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}.question-card header small{color:var(--accent-2)}.evidence{font-size:.94rem;color:var(--muted);white-space:pre-wrap}.question-card fieldset{border:0;padding:0;margin:15px 0 0}.question-card label,.global-note label{display:block;margin:10px 0 5px;color:#d9e5e7;font-weight:600}.question-card select{width:100%;max-width:330px}.question-card textarea,.global-note textarea{display:block;width:100%;min-height:84px;resize:vertical}.time-field{max-width:250px}.time-field input{width:100%}.error{color:var(--danger);font-size:.9rem;min-height:1.3em;margin:4px 0}.context-label{color:var(--muted);font-size:.92rem;margin:12px 0 4px}.repeat-metrics{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--muted);font-size:.93rem}.repeat-metrics strong{color:var(--text)}
 .marker-form{display:grid;grid-template-columns:minmax(130px,220px) auto auto;gap:9px;align-items:end}.marker-form label{margin:0}.marker-form input{width:100%}.marked-list{list-style:none;padding:0;margin:15px 0 0}.marked-item{display:grid;grid-template-columns:125px 1fr auto;gap:9px;align-items:start;border-top:1px solid var(--line);padding:12px 0}.marked-item input{width:100%}.marked-item textarea{width:100%;min-height:58px;resize:vertical}.marked-item label{color:var(--muted);font-size:.86rem}.empty-list{color:var(--muted);font-style:italic}.global-note textarea{min-height:110px}.export-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.status{min-height:1.5em;color:var(--good)}a{color:var(--accent)}footer{margin-top:26px;color:var(--muted);font-size:.92rem}.links{display:flex;gap:10px;flex-wrap:wrap}
 @media(max-width:650px){main{padding-left:12px;padding-right:12px}#audio-wrap{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.timeline-row{grid-template-columns:1fr;gap:4px}.timeline{height:52px}.marker-form{grid-template-columns:1fr 1fr}.marker-form button:last-child{grid-column:1 / -1}.marked-item{grid-template-columns:1fr auto}.marked-item textarea{grid-column:1 / -1}.marked-item .delete-mark{grid-column:2;grid-row:1}.clock{align-items:stretch;flex-direction:column;gap:3px}}
@@ -27,15 +27,34 @@ button,input,select,textarea{font:inherit;color:var(--text);background:#0d1821;b
 
 <header>
   <h1 id="page-title">Structure and repetition review</h1>
-  <p class="lede">Listen to the original song while checking section boundaries and repeated passages. The timelines are clickable; every question is independent and remains editable while you seek.</p>
+  <p class="lede">Listen to the original song while checking authored user marks alongside the two heuristic timelines. The timelines are clickable; every question is independent and remains editable while you seek.</p>
   <p class="notice save-warning">Notes and answers live only in this page until you download the feedback file. Download again after your final edits.</p>
 </header>
 
 <section class="panel" aria-labelledby="timeline-heading">
-  <h2 id="timeline-heading">Paired section timelines</h2>
-  <p>Click any section to seek the original audio. The vertical line is the current song playhead.</p>
+  <h2 id="timeline-heading">Source-matched section timelines</h2>
+  <p>Click any section to seek the original audio. Human annotations are user marks with certainty unspecified. Baseline and candidate are heuristic; the candidate remains unvalidated. The vertical line is the current song playhead.</p>
   <div id="timelines" class="timeline-pair"></div>
-  <div class="legend"><span><i class="swatch"></i>Baseline</span><span><i class="swatch candidate"></i>Candidate</span><span><i class="swatch playhead"></i>Playhead</span></div>
+  <div id="listening-window-row" class="timeline-row" hidden>
+    <div class="timeline-label">Listener review windows</div>
+    <div id="listening-window-lane" class="review-window-track" role="group" aria-label="Listener review windows on the original song timeline"></div>
+  </div>
+  <p id="listening-window-caveat" class="lane-caveat" hidden>These are listener review windows, not event boundaries or durations. Remaining song time is not reviewed by these prompts.</p>
+  <div class="legend"><span id="human-legend"><i class="swatch human"></i>Human user marks</span><span><i class="swatch"></i>Baseline heuristic</span><span><i class="swatch candidate"></i>Candidate heuristic / unvalidated</span><span><i class="swatch playhead"></i>Playhead</span></div>
+  <div id="listening-window-legend" class="legend" hidden><span><i class="swatch window-change"></i>Listener marked a change</span><span><i class="swatch window-none"></i>Listener marked none (control)</span><span><i class="swatch window-unreviewed"></i>Not reviewed by these prompts</span></div>
+  <ul id="human-details" class="human-details" aria-label="Human annotation details"></ul>
+</section>
+
+<section id="raw-listening-panel" class="panel" aria-labelledby="raw-listening-heading" hidden>
+  <h2 id="raw-listening-heading">Raw listening feedback</h2>
+  <p>These four cards preserve the supplied listener judgments and note text. They are separate from the heuristic timelines and any acoustic material.</p>
+  <div id="raw-listening-feedback"></div>
+</section>
+
+<section id="boundary-diagnostic-panel" class="panel" aria-labelledby="boundary-diagnostic-heading" hidden>
+  <h2 id="boundary-diagnostic-heading">Human/candidate boundary timing diagnostic</h2>
+  <p id="boundary-diagnostic-note"></p>
+  <div id="boundary-diagnostic"></div>
 </section>
 
 <section id="review-notes-panel" class="panel" aria-labelledby="review-notes-heading" hidden>
@@ -101,7 +120,7 @@ let review;
 try {
   review = JSON.parse(document.querySelector('#review-data').textContent);
 } catch (error) {
-  review = {schema_version:1,song_title:'Structure review',duration_s:durationFromReview,sections:{baseline:[],candidate:[]},boundary_questions:[],repeat_questions:[],waveform:[],notes:[]};
+  review = {schema_version:1,song_title:'Structure review',duration_s:durationFromReview,sections:{human:[],baseline:[],candidate:[]},boundary_questions:[],repeat_questions:[],waveform:[],notes:[]};
   audioState.textContent = 'The embedded review data could not be read.';
 }
 
@@ -221,7 +240,9 @@ function appendLabeledTime(parent,label,value){
 function renderTimelines(){
   timelines.replaceChildren();state.timelineButtons=[];
   const sections=review.sections&&typeof review.sections==='object'?review.sections:{};
-  [['baseline','Baseline'],['candidate','Candidate']].forEach(([role,label])=>{
+  const hasHuman=list(sections.human).length>0;
+  document.querySelector('#human-legend').hidden=!hasHuman;
+  (hasHuman?[['human','Human user marks'],['baseline','Baseline heuristic'],['candidate','Candidate heuristic / unvalidated']]:[['baseline','Baseline'],['candidate','Candidate']]).forEach(([role,label])=>{
     const row=document.createElement('div');row.className='timeline-row '+role;
     const rowLabel=document.createElement('div');rowLabel.className='timeline-label';rowLabel.textContent=label;row.appendChild(rowLabel);
     const timeline=document.createElement('div');timeline.className='timeline';timeline.setAttribute('role','group');timeline.setAttribute('aria-label',label+' section timeline');
@@ -231,9 +252,12 @@ function renderTimelines(){
       const range=safeRange(section&&section.start_s,section&&section.end_s);
       if(!range)return;
       const button=document.createElement('button');button.type='button';button.className='timeline-segment';
-      button.textContent=text(section.label)||('Section '+(index+1));
-      button.title=label+' '+(text(section.label)||('section '+(index+1)))+' · '+formatTime(range.start)+'–'+formatTime(range.end);
-      button.setAttribute('aria-label',label+' '+(text(section.label)||('section '+(index+1)))+' from '+formatTime(range.start)+' to '+formatTime(range.end));
+      const sectionLabel=text(section.label)||('Section '+(index+1));
+      const motif=role==='human' ? (section.motif ? ' · motif '+text(section.motif)+' ('+text(section.motif_id)+')' : ' · motif unknown') : '';
+      const certainty=role==='human' ? ' · certainty '+text(section.certainty||'unspecified') : '';
+      button.textContent=sectionLabel;
+      button.title=label+' '+sectionLabel+' · '+formatTime(range.start)+'–'+formatTime(range.end)+motif+certainty;
+      button.setAttribute('aria-label',label+' '+sectionLabel+' from '+formatTime(range.start)+' to '+formatTime(range.end)+motif+certainty);
       button.style.left=(range.start/(state.duration||1)*100)+'%';button.style.width=Math.max(.6,(range.end-range.start)/(state.duration||1)*100)+'%';button.disabled=!state.metadataReady;
       button.addEventListener('click',()=>playSegment(range.start,range.end));
       timeline.appendChild(button);
@@ -241,6 +265,68 @@ function renderTimelines(){
     row.appendChild(timeline);timelines.appendChild(row);state.timelineButtons.push({timeline,role});
   });
   setClock();
+}
+
+function renderHumanDetails(){
+  const target=document.querySelector('#human-details');target.replaceChildren();
+  const human=review.sections&&typeof review.sections==='object'?list(review.sections.human):[];
+  target.hidden=!human.length;
+  human.forEach((section,index)=>{
+    const range=safeRange(section&&section.start_s,section&&section.end_s);if(!range)return;
+    const item=document.createElement('li');const label=document.createElement('strong');label.textContent=text(section.label)||('Human mark '+(index+1));
+    const time=document.createElement('small');time.textContent='Exact source range '+formatTime(range.start)+'–'+formatTime(range.end);
+    const motif=document.createElement('small');motif.textContent=section.motif ? 'Motif ID '+text(section.motif_id)+' · user mark '+text(section.motif) : 'Motif: unknown';
+    const certainty=document.createElement('small');certainty.textContent='Certainty '+text(section.certainty||'unspecified');
+    const listen=makeButton('Listen',()=>playSegment(range.start,range.end),!state.metadataReady);listen.className='secondary';
+    item.append(label,time,motif,certainty,listen);target.appendChild(item);
+  });
+}
+
+function renderListeningWindowLane(){
+  const row=document.querySelector('#listening-window-row'),lane=document.querySelector('#listening-window-lane'),caveat=document.querySelector('#listening-window-caveat'),legend=document.querySelector('#listening-window-legend');
+  lane.replaceChildren();
+  const windows=list(review.listening_window_lane);
+  const valid=windows.filter(window=>safeRange(window&&window.start_s,window&&window.end_s));
+  row.hidden=!valid.length;caveat.hidden=!valid.length;legend.hidden=!valid.length;
+  if(!valid.length)return;
+  valid.forEach((window,index)=>{
+    const range=safeRange(window.start_s,window.end_s);const isNone=window.listener_state==='none_control';
+    const button=document.createElement('button');button.type='button';button.className='review-window '+(isNone?'review-window-none':'review-window-change');
+    button.textContent=(isNone?'None control: ':'Change heard: ')+text(window.perceived_change);
+    button.title='Listener review window '+text(window.id)+' · exact source range '+formatTime(range.start)+'–'+formatTime(range.end)+' · perceived change '+text(window.perceived_change)+'. This is not an event boundary or duration.';
+    button.setAttribute('aria-label','Listener review window '+(index+1)+' '+text(window.id)+' from '+formatTime(range.start)+' to '+formatTime(range.end)+', perceived change '+text(window.perceived_change)+'.');
+    button.style.left=(range.start/(state.duration||1)*100)+'%';button.style.width=Math.max(.6,(range.end-range.start)/(state.duration||1)*100)+'%';button.disabled=!state.metadataReady;
+    button.addEventListener('click',()=>playSegment(range.start,range.end));lane.appendChild(button);
+  });
+  state.timelineButtons.push({timeline:lane,role:'listening-windows'});setClock();
+}
+
+function renderRawListeningFeedback(){
+  const panel=document.querySelector('#raw-listening-panel'),target=document.querySelector('#raw-listening-feedback');target.replaceChildren();
+  const cards=list(review.listening_feedback);panel.hidden=!cards.length;
+  cards.forEach((card,index)=>{
+    const range=safeRange(card&&card.start_s,card&&card.end_s);if(!range)return;
+    const article=document.createElement('article');article.className='raw-feedback-card';
+    const header=document.createElement('header');const title=document.createElement('h3');title.textContent='Listening feedback '+(index+1)+' · '+text(card.title||card.id);const id=document.createElement('small');id.textContent='ID: '+text(card.id);header.append(title,id);article.appendChild(header);
+    const bounds=document.createElement('p');bounds.className='context-label';bounds.textContent='Exact source-time range '+formatTime(range.start)+'–'+formatTime(range.end);article.appendChild(bounds);
+    const perceived=document.createElement('p');perceived.textContent='Perceived change: '+text(card.perceived_change);article.appendChild(perceived);
+    const certainty=document.createElement('p');certainty.className='context-label';certainty.textContent='Certainty: not recorded in the listening export.';article.appendChild(certainty);
+    const note=document.createElement('p');note.className='raw-note';note.textContent='Raw note: '+text(card.notes);article.appendChild(note);
+    article.appendChild(createContextControls(range,range));target.appendChild(article);
+  });
+}
+
+function signedOffset(value){const number=Number(value);return (number>=0?'+':'')+number.toFixed(3)+' s'}
+function renderBoundaryDiagnostic(){
+  const panel=document.querySelector('#boundary-diagnostic-panel'),target=document.querySelector('#boundary-diagnostic'),diagnostic=review.boundary_diagnostic;
+  target.replaceChildren();panel.hidden=!diagnostic||typeof diagnostic!=='object';if(panel.hidden)return;
+  document.querySelector('#boundary-diagnostic-note').textContent='Threshold: more than '+text(diagnostic.threshold_s)+' seconds. '+text(diagnostic.meaning);
+  list(diagnostic.disagreements).forEach((record,index)=>{
+    const range=safeRange(record&&record.context_start_s,record&&record.context_end_s);if(!range)return;
+    const article=document.createElement('article');article.className='question-card diagnostic-card';const heading=document.createElement('h3');heading.textContent='Timing record '+(index+1);article.appendChild(heading);
+    const values=document.createElement('p');values.className='evidence';values.textContent='Human boundary '+formatTime(record.human_boundary_s)+'; nearest candidate boundary '+formatTime(record.candidate_boundary_s)+'; candidate minus human '+signedOffset(record.candidate_minus_human_s)+'.';article.appendChild(values);
+    const context=document.createElement('p');context.className='context-label';context.textContent='Listen to source context '+formatTime(range.start)+'–'+formatTime(range.end);article.appendChild(context);article.appendChild(createContextControls(range,range));target.appendChild(article);
+  });
 }
 
 function createContextControls(rangeA,rangeB){
@@ -331,7 +417,7 @@ function addMarked(time){
 }
 
 function setPlaybackControlsEnabled(enabled){
-  document.querySelectorAll('.question-card button').forEach(button=>{button.disabled=!enabled||button.dataset.alwaysDisabled==='true'});
+  document.querySelectorAll('.question-card button,.raw-feedback-card button,.human-details button,.review-window-track button').forEach(button=>{button.disabled=!enabled||button.dataset.alwaysDisabled==='true'});
   state.timelineButtons.forEach(item=>item.timeline.querySelectorAll('button').forEach(button=>{button.disabled=!enabled}));
   document.querySelector('#mark-current').disabled=!enabled;
 }
@@ -408,7 +494,7 @@ document.querySelector('#export').addEventListener('click',()=>{
 });
 
 document.querySelector('#song-heading').textContent=text(review.song_title)||'Structure review';
-renderTimelines();renderReviewNotes();renderBoundaryQuestions();renderRepeatQuestions();renderMarked();setPlaybackControlsEnabled(false);setClock();loadMetadata();
+renderTimelines();renderHumanDetails();renderListeningWindowLane();renderRawListeningFeedback();renderBoundaryDiagnostic();renderReviewNotes();renderBoundaryQuestions();renderRepeatQuestions();renderMarked();setPlaybackControlsEnabled(false);setClock();loadMetadata();
 </script>
 </body>
 </html>

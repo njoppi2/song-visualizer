@@ -1,0 +1,6 @@
+{
+  "workbench.editorAssociations": {
+    "*.wav": "vscode.audioPreview",
+    "*.mp4": "unmuteVideo.viewer"
+  }
+}

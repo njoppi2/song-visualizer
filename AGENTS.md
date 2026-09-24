@@ -13,6 +13,13 @@ team's owned paths or the current checkpoint unless you are the named integratio
 owner. A counterpart may be offline: leave a compact durable request and tell the
 human exactly which team to run, rather than blocking on an assumed live channel.
 
+Before beginning any team-scoped work, ask the human: **"What team am I?"**
+Do not infer the agent's team from its account, prior chat, or the assignment
+table. Wait for the human to identify the team, then follow that team's current
+ownership and write scope in `CONTINUE.md`. Reading the entry documents and
+performing read-only orientation is allowed before this answer; editing,
+delegating, testing, or otherwise advancing a team task is not.
+
 For implementation tasks, the user's preferred workflow is a lead handling
 experimental design and final review, delegating bounded implementation/tests to
 Terra agents when available. Delegation is explicitly requested for that work.

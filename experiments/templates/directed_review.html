@@ -6,6 +6,7 @@
 <title>SongViz · Direction study</title>
 <style>
 :root{color-scheme:dark;--ink:#09111a;--panel:#101d28;--line:#29404e;--text:#e8eff0;--muted:#a9bac0;--cyan:#66d9e8;--warm:#ff9a68;--gold:#efc35c}
+[hidden]{display:none!important}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 20%,#152735 0,var(--ink) 62%);color:var(--text);font:16px/1.5 system-ui,sans-serif}
 main{max-width:940px;margin:auto;padding:42px 20px 72px}h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.04;margin:0 0 8px;letter-spacing:-.04em}h1+p{margin-top:0;color:var(--cyan)}p{color:var(--muted)}
 .card{margin-top:32px;padding:18px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#122330,#0c1720)}
@@ -13,42 +14,49 @@ main{max-width:940px;margin:auto;padding:42px 20px 72px}h1{font-size:clamp(2rem,
 video{display:block;width:100%;aspect-ratio:16/9;background:#050a0e;border-radius:10px}.state{min-height:1.5em;margin:10px 0 0}.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:15px 0 0;color:var(--muted);font-size:.92rem}.key{display:inline-flex;gap:7px;align-items:center}.dot{width:10px;height:10px;border-radius:50%;display:inline-block}.warm{background:var(--warm)}.cyan{background:var(--cyan)}.gold{background:var(--gold)}.pale{background:#b6cbca}
 fieldset{border:0;padding:0;margin:25px 0 0}label{display:block;margin:14px 0 6px}select,input{width:100%}.moment{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.moment label{margin:0}.moment button{white-space:nowrap}textarea{width:100%;min-height:118px;resize:vertical}
 table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;vertical-align:top;padding:10px 8px;border-top:1px solid var(--line)}th{color:var(--cyan);font-weight:600}td:first-child{white-space:nowrap;color:var(--gold)}footer{margin-top:26px;color:var(--muted);font-size:.9rem}a{color:var(--cyan)}small{color:var(--muted)}
-@media(max-width:620px){.moment{grid-template-columns:1fr}.moment button{width:100%}th,td{padding-left:4px;padding-right:4px;font-size:.93rem}}
+@media(max-width:620px){.moment{grid-template-columns:1fr}.moment button{width:100%}th,td{padding-left:4px;padding-right:4px;font-size:.93rem;overflow-wrap:anywhere}td:first-child{white-space:normal}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
 <main>
-<h1>A change of focus / Direction study</h1>
+<h1 id="heading">A change of focus / Direction study</h1>
 <p>Song time {{START_S}}–{{END_S}} seconds · musical direction study</p>
-<p>This is a rule-based, evidence-driven prototype—not an LLM and not full-song understanding. It uses energy-driven vocal and other motifs, not note transcription. You judge what attention changes and whether it matches the music.</p>
+<p id="intro">A small study in how the visual attention can move with this passage. It is still a draft: your listening is the decision.</p>
 
 <section class="card" aria-label="Direction study review">
   <div class="controls" id="switcher">
-    <button type="button" data-view="directed" aria-pressed="true" disabled>Directed sequence</button>
-    <button type="button" data-view="fixed" aria-pressed="false" disabled>Always-on comparison</button>
+    <button type="button" data-view="gradual" aria-pressed="true" disabled>Gradual attention</button>
+    <button type="button" data-view="directed" aria-pressed="false" disabled>Earlier direction</button>
+    <button type="button" data-view="fixed" aria-pressed="false" disabled>Steady comparison</button>
     <button type="button" id="restart" disabled>Restart</button>
   </div>
+  <div class="controls" id="moments" hidden>
+    <button type="button" data-song-time="160" disabled>Voice grows · 2:40</button>
+    <button type="button" data-song-time="168" disabled>Voice + drums · 2:48</button>
+  </div>
   <video id="passage" controls preload="metadata" poster="poster.png"></video>
-  <p class="state" id="state" aria-live="polite">Loading directed sequence…</p>
-  <p><small>Both versions use the same original audio, timing, and visual treatments. They differ only in plan: the directed sequence changes focus over the passage; the comparison keeps its treatment always on, except nonsounding hits have no response.</small></p>
-  <p class="legend">The main focus occupies the center; supporting layers are smaller. The palette and visible layers can change with the plan. The blue texture represents the separated “other” stem, not a confidently identified instrument.</p>
+  <p class="state" id="state" aria-live="polite">Loading…</p>
+  <p><small id="comparison-note">Each view uses the same moment in the same recording. Only the visual attention differs.</small></p>
+  <p class="legend">The central shape is the current focus; supporting shapes stay smaller. The blue texture may contain a mix of sounds.</p>
 
-  <details><summary>Inspect the direction plan and its reasons</summary>
+  <details><summary>See how this draft was made</summary>
+  <p><small>The saved timing and activity signals come from the earlier rhythm review. They help shape this visual draft; they do not identify musical roles or settle what the music means.</small></p>
   <table>
     <thead><tr><th>Song time</th><th>Focus</th><th>Why</th></tr></thead>
     <tbody>{{PLAN_ROWS}}</tbody>
   </table>
-  <img src="evidence.png" alt="Stem energy, prominent percussion events and the resulting focus spans" style="width:100%;height:auto">
+  <img src="evidence.png" alt="A development chart showing activity and the planned attention over time" style="width:100%;height:auto">
   </details>
 
   <fieldset id="feedback" disabled>
-    <h2>One feedback note</h2>
-    <label for="preference">Which view better directs attention?</label>
+    <h2>Optional note</h2>
+    <label for="preference">Which view guides your attention best?</label>
     <select id="preference">
       <option value="unreviewed">Unreviewed</option>
-      <option value="directed">Directed</option>
-      <option value="fixed">Always-on comparison</option>
+      <option value="gradual">Gradual attention</option>
+      <option value="directed">Earlier direction</option>
+      <option value="fixed">Steady comparison</option>
       <option value="neither">Neither</option>
       <option value="unsure">Unsure</option>
     </select>
@@ -56,52 +64,42 @@ table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;
       <label for="moment">Original song time (seconds)<input id="moment" type="number" step="0.01" min="{{START_S}}" max="{{END_S}}" value="{{START_S}}"></label>
       <button type="button" id="mark">Mark current song time</button>
     </div>
-    <label for="observation">Does the change of focus follow the song? What should be emphasized or left out?</label>
+    <label for="observation">What moment worked, or what should come forward or fall away?</label>
     <textarea id="observation" placeholder="Write one concrete listening observation."></textarea>
     <button type="button" id="export">Download feedback</button>
   </fieldset>
 </section>
-<footer>Notes are not persisted until you download them. <a href="plan.json">Plan</a> · <a href="manifest.json">Manifest</a></footer>
+<footer>Notes are not saved until you download them. <a href="plan.json">{{PLAN_LABEL}}</a> · {{BASELINE_LINK}}{{FIXED_LINK}}{{KEYFRAME_LINK}}<a href="manifest.json">Package details</a></footer>
 </main>
 <script>
 const manifestHash='{{MANIFEST_SHA}}';
 const startSeconds=Number('{{START_S}}');
 const endSeconds=Number('{{END_S}}');
+const threeWay={{THREE_WAY}};
+const visualPass={{VISUAL_PASS}};
+const vocalEmphasis={{VOCAL_EMPHASIS}};
 const video=document.querySelector('#passage');
 const state=document.querySelector('#state');
 const feedback=document.querySelector('#feedback');
 const switcher=document.querySelector('#switcher');
 const restart=document.querySelector('#restart');
 const buttons=[...switcher.querySelectorAll('[data-view]')];
-const blobUrls=new Map();
-let currentView='directed';
+const moments=[...document.querySelectorAll('[data-song-time]')];
+let currentView=vocalEmphasis?'reduced':visualPass?'visual':(threeWay?'gradual':'directed');
 let initialReady=false;
 let loading=false;
 
 function setControls(disabled){
   buttons.forEach(button=>button.disabled=disabled);
+  moments.forEach(button=>button.disabled=disabled||!initialReady);
   restart.disabled=disabled||!initialReady;
-}
-
-async function source(path){
-  if(location.protocol==='file:')return path;
-  let request=blobUrls.get(path);
-  if(!request){
-    request=fetch(path).then(response=>{
-      if(!response.ok)throw Error(`HTTP ${response.status}`);
-      return response.blob();
-    }).then(blob=>URL.createObjectURL(blob));
-    blobUrls.set(path,request);
-  }
-  try{return await request}catch(error){
-    if(blobUrls.get(path)===request)blobUrls.delete(path);
-    throw error;
-  }
 }
 
 function waitForMetadata(){
   return new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>{clear();reject(Error('video load timed out'))},15000);
     const clear=()=>{
+      clearTimeout(timeout);
       video.removeEventListener('loadedmetadata',ready);
       video.removeEventListener('error',failed);
     };
@@ -109,15 +107,39 @@ function waitForMetadata(){
     const failed=()=>{clear();reject(Error('video failed to load'))};
     video.addEventListener('loadedmetadata',ready);
     video.addEventListener('error',failed);
+    if(video.error)failed();
+    else if(video.readyState>=1)ready();
   });
 }
 
-function viewName(view){return view==='directed'?'Directed sequence':'Always-on comparison'}
+function viewName(view){return ({reduced:'Reduced vocal emphasis',steady:'Steady vocal emphasis',visual:'New visual identities',previous:'Previous visuals',gradual:'Gradual attention',directed:threeWay?'Earlier direction':'Directed sequence',fixed:'Steady comparison'})[view]}
+
+function resumePlayback(){
+  // Autoplay denial or slow buffering must not lock the view switcher.
+  video.play().catch(()=>{
+    if(initialReady&&!loading)state.textContent=`Showing ${viewName(currentView)}. Press play to continue.`;
+  });
+}
+
+video.addEventListener('error',()=>{
+  if(loading)return;
+  initialReady=false;
+  feedback.disabled=true;
+  setControls(false);
+  state.textContent='Playback failed. Retry a version to reload the clip.';
+});
+for(const event of ['waiting','stalled'])video.addEventListener(event,()=>{
+  if(initialReady&&!loading)state.textContent=`Buffering ${viewName(currentView)}. You can retry a version if playback does not resume.`;
+});
+video.addEventListener('playing',()=>{
+  if(initialReady&&!loading)state.textContent=`Showing ${viewName(currentView)}.`;
+});
 
 async function loadView(view){
   if(loading)return;
   loading=true;
-  const asset=view==='directed'?'directed.mp4':'fixed.mp4';
+  if(!threeWay&&view==='gradual')view='directed';
+  const asset=view==='steady'?'steady.mp4':view==='reduced'||view==='visual'?'directed.mp4':view==='previous'?'previous.mp4':view==='gradual'?'directed.mp4':view==='directed'?(threeWay?'coarse.mp4':'directed.mp4'):'fixed.mp4';
   const priorSrc=video.currentSrc||video.src;
   const priorTime=Number.isFinite(video.currentTime)?video.currentTime:0;
   const wasPlaying=!video.paused;
@@ -128,8 +150,7 @@ async function loadView(view){
   video.controls=false;
   state.textContent=`Loading ${viewName(view)}…`;
   try{
-    const src=await source(asset);
-    video.src=src;
+    video.src=asset;
     video.load();
     await waitForMetadata();
     video.currentTime=Math.min(priorTime,video.duration);
@@ -137,22 +158,19 @@ async function loadView(view){
     buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
     state.textContent=`Showing ${viewName(view)}.`;
     initialReady=true;
-    if(wasPlaying)await video.play();
+    if(wasPlaying)resumePlayback();
   }catch(error){
-    if(location.protocol!=='file:')blobUrls.delete(asset);
     let restored=false;
     if(priorSrc&&initialReady){
       try{
-        if(priorSrc!==video.currentSrc||video.error){
-          video.src=priorSrc;
-          video.load();
-          await waitForMetadata();
-        }
+        video.src=priorSrc;
+        video.load();
+        await waitForMetadata();
         video.currentTime=Math.min(priorTime,video.duration);
         currentView=priorView;
         buttons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===priorView)));
         restored=true;
-        if(wasPlaying)await video.play();
+        if(wasPlaying)resumePlayback();
       }catch(_){restored=false}
     }
     if(!restored)initialReady=false;
@@ -166,6 +184,10 @@ async function loadView(view){
 }
 
 buttons.forEach(button=>button.addEventListener('click',()=>loadView(button.dataset.view)));
+moments.forEach(button=>button.addEventListener('click',()=>{
+  video.currentTime=Math.max(0,Math.min(endSeconds-startSeconds,Number(button.dataset.songTime)-startSeconds));
+  video.play().catch(()=>{});
+}));
 restart.addEventListener('click',()=>{video.currentTime=0;video.play().catch(()=>{})});
 document.querySelector('#mark').addEventListener('click',()=>{
   const songTime=Math.max(startSeconds,Math.min(endSeconds,startSeconds+(video.currentTime||0)));
@@ -180,14 +202,46 @@ document.querySelector('#export').addEventListener('click',()=>{
   if(!Number.isFinite(entered)||entered<startSeconds||entered>endSeconds){
     state.textContent=`Song time must be between ${startSeconds} and ${endSeconds} seconds.`;return;
   }
-  const payload={schema_version:1,manifest_sha256:manifestHash,created_utc:new Date().toISOString(),observations:[{passage_id:'transition-return',song_time_s:Number(entered.toFixed(2)),preference,variant_viewed:currentView,observation,status:'user_observation_untriaged'}]};
+  const payload={schema_version:1,manifest_sha256:manifestHash,created_utc:new Date().toISOString(),observations:[{passage_id:vocalEmphasis?'verse-ending':'transition-return',song_time_s:Number(entered.toFixed(2)),preference,variant_viewed:currentView,observation,status:'user_observation_untriaged'}]};
   const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'}));
   const link=document.createElement('a');link.href=url;link.download='songviz-direction-feedback.json';link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
   state.textContent='Feedback downloaded. Notes remain local unless you share that file.';
 });
-window.addEventListener('beforeunload',()=>blobUrls.forEach(value=>Promise.resolve(value).then(url=>URL.revokeObjectURL(url))));
-loadView('directed');
+if(vocalEmphasis){
+  document.title='SongViz · Vocal emphasis';
+  document.querySelector('#heading').textContent='Let the voice recede?';
+  document.querySelector('#intro').textContent='Two versions of the verse ending you described. Does the voice feel better with steady visual emphasis, or when its shape gradually becomes smaller and fainter?';
+  buttons[0].dataset.view='reduced';buttons[0].textContent=viewName('reduced');
+  buttons[1].dataset.view='steady';buttons[1].textContent=viewName('steady');
+  buttons[2].hidden=true;
+  document.querySelector('#moments').hidden=false;
+  moments[0].dataset.songTime='123';moments[0].textContent='Reduction begins · 2:03';
+  moments[1].dataset.songTime='127';moments[1].textContent='After the reduction · 2:07';
+  document.querySelector('#comparison-note').textContent='Same original recording, shapes and accompaniment. Both start alike; only vocal opacity and size decrease from 123 to 125.5s in Reduced. These are manually chosen settings, not detected musical boundaries. Switch at the same moment to compare.';
+  document.querySelector('.legend').textContent='Voice: vertical strands, still enabled in both views. Snare: angular flashes on the right. Kick: low oval. Accompaniment: broad lower contours. Steady emphasis still responds to the recorded activity.';
+  document.querySelector('#preference').innerHTML='<option value="unreviewed">Unreviewed</option><option value="reduced">Reduced vocal emphasis</option><option value="steady">Steady vocal emphasis</option><option value="neither">Neither</option><option value="unsure">Unsure</option>';
+  document.querySelector('label[for="observation"]').textContent='Does the voice remain readable, and does its visual prominence fit this ending?';
+}else if(visualPass){
+  document.title='SongViz · Visual identities';
+  document.querySelector('#heading').textContent='A shape for each sound';
+  document.querySelector('#intro').textContent='A refreshed version of the passage you watched, with distinct shapes and movement for voice, snare, and kick.';
+  buttons[0].dataset.view='visual';buttons[0].textContent=viewName('visual');
+  buttons[1].dataset.view='previous';buttons[1].textContent=viewName('previous');
+  buttons[2].hidden=true;
+  document.querySelector('#moments').hidden=false;
+  document.querySelector('#comparison-note').textContent='Same recording and emphasis schedule. Switch at any moment to compare the new shapes with the previous gradual version.';
+  document.querySelector('.legend').textContent='Voice: flowing vertical strands. Snare: sharp angular flashes on the right. Kick: a compact low impact. Accompaniment: broad layered contours.';
+  document.querySelector('#preference').innerHTML='<option value="unreviewed">Unreviewed</option><option value="visual">New visual identities</option><option value="previous">Previous visuals</option><option value="neither">Neither</option><option value="unsure">Unsure</option>';
+  document.querySelector('label[for="preference"]').textContent='Which version is clearer to follow?';
+  document.querySelector('label[for="observation"]').textContent='Can you distinguish the voice, snare, and kick? What still feels awkward?';
+}else if(!threeWay){
+  document.querySelector('[data-view="gradual"]').hidden=true;
+  document.querySelector('[data-view="directed"]').textContent='Directed sequence';
+  document.querySelector('#preference option[value="gradual"]').remove();
+  document.querySelector('#preference option[value="directed"]').textContent='Directed sequence';
+}
+loadView(currentView);
 </script>
 </body>
 </html>

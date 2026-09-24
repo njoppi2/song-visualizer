@@ -79,6 +79,10 @@ class DirectedVisualizer:
         pixels[..., 1] = 11 + (8 * shade + 4 * glow).astype(np.uint8)
         pixels[..., 2] = 20 + (13 * shade + 9 * glow).astype(np.uint8)
         image = Image.fromarray(pixels, "RGB").convert("RGBA")
+        if self.plan.get("visual_policy", {}).get("kind") == "authored_source_vocabulary_v1":
+            # The opt-in visual pass has a clean stage: construction guides
+            # and a permanent ring would compete with the sound identities.
+            return image.convert("RGB")
         static = Image.new("RGBA", image.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(static)
         scale = min(self.width / 960.0, self.height / 540.0)
@@ -120,6 +124,33 @@ class DirectedVisualizer:
         return self._attack(layer, absolute) if layer in self._WINDOW else self._energy_at(layer, absolute)
 
     @staticmethod
+    def _layer_values(spec: dict[str, Any], absolute: float) -> tuple[float, float]:
+        """Evaluate an optional v2 envelope; v1 stays its original constant."""
+        envelope = spec.get("envelope")
+        if not envelope:
+            return max(0.0, min(1.0, float(spec.get("gain", 0.0)))), 1.0
+        if absolute <= float(envelope[0]["t_s"]):
+            key = envelope[0]
+            return float(key["gain"]), float(key["emphasis"])
+        if absolute >= float(envelope[-1]["t_s"]):
+            key = envelope[-1]
+            return float(key["gain"]), float(key["emphasis"])
+        index = bisect_right([float(key["t_s"]) for key in envelope], absolute) - 1
+        left, right = envelope[index], envelope[index + 1]
+        amount = (absolute - float(left["t_s"])) / (float(right["t_s"]) - float(left["t_s"]))
+        gain = float(left["gain"]) + amount * (float(right["gain"]) - float(left["gain"]))
+        emphasis = float(left["emphasis"]) + amount * (float(right["emphasis"]) - float(left["emphasis"]))
+        return gain, emphasis
+
+    def _evaluated_layers(self, segment: dict[str, Any] | None, absolute: float) -> dict[str, dict[str, float | bool]]:
+        if segment is None:
+            return {name: {"visible": False, "gain": 0.0, "emphasis": 0.0} for name in self.LAYERS}
+        return {name: {"visible": bool(segment.get("layers", {}).get(name, {}).get("visible", False)),
+                       "gain": self._layer_values(segment.get("layers", {}).get(name, {}), absolute)[0],
+                       "emphasis": self._layer_values(segment.get("layers", {}).get(name, {}), absolute)[1]}
+                for name in self.LAYERS}
+
+    @staticmethod
     def _motif_color(motif: str, palette: str, layer: str) -> tuple[int, int, int]:
         """A stable motif fingerprint, warmed or cooled by its plan palette."""
         # Deliberately avoid Python's salted hash: motif returns must look alike
@@ -146,12 +177,25 @@ class DirectedVisualizer:
         absolute = self.start_s + float(t)
         old, new, amount = self._segment_state(absolute)
         active = new if new is not None else old
+        evaluated = self._evaluated_layers(active, absolute)
+        previous_evaluated = self._evaluated_layers(old if new is not None else None, absolute)
+        incoming_evaluated = evaluated
         return {
             "t": float(t), "absolute_s": absolute,
             "segment_index": self._segments.index(active) if active is not None else None,
             "previous_segment_index": self._segments.index(old) if new is not None else None,
             "transition": amount if new is not None else 1.0,
             "signals": {layer: self._signal_at(layer, absolute) for layer in self.LAYERS},
+            "evaluated_layers": evaluated,
+            "gains": {layer: values["gain"] for layer, values in evaluated.items()},
+            "emphasis": {layer: values["emphasis"] for layer, values in evaluated.items()},
+            # During a scene crossfade, ``evaluated_layers`` is the incoming
+            # plan. These fields expose the outgoing scene rather than hiding
+            # it from diagnostics.
+            "previous_evaluated_layers": previous_evaluated,
+            "incoming_evaluated_layers": incoming_evaluated,
+            "scene_weights": {"previous": (1.0 - amount) if new is not None else 0.0,
+                              "incoming": amount if new is not None else 1.0},
         }
 
     def _draw_treatment(self, draw: ImageDraw.ImageDraw, treatment: str, layer: str, signal: float,
@@ -192,34 +236,115 @@ class DirectedVisualizer:
                 draw.line((x + 12 * sx * geometry_scale, y + offset, x + spread, y + offset), fill=(*color, int(alpha * factor)), width=strong)
             dot = (4 + 7 * signal) * scale
             draw.ellipse((x - dot, y - dot, x + dot, y + dot), fill=(*color, int(alpha * .7)))
+        elif treatment == "filament":
+            # A decorative upright veil: deliberately continuous and organic,
+            # never a transcription of a vocal's pitch or formants.
+            height = (135 + 135 * sqrt(signal)) * sy * geometry_scale
+            spread = (38 + 36 * sqrt(signal)) * sx * geometry_scale
+            for strand in range(7):
+                offset = (strand - 3) * spread / 4.5
+                points = []
+                for step in range(41):
+                    fraction = step / 40
+                    yy = y - height / 2 + height * fraction
+                    taper = sin(fraction * 3.141592653589793)
+                    sway = sin(absolute * .75 + fraction * 6.1 + strand * .8)
+                    xx = x + (offset + sway * (12 + 18 * signal) * sx * geometry_scale) * taper
+                    points.append((xx, yy))
+                strand_alpha = int(alpha * (.55 + .14 * (3 - abs(strand - 3))))
+                width = max(1, round(2.5 * scale))
+                draw.line(points, fill=(*color, int(strand_alpha * .12)), width=width + max(2, round(8 * scale)), joint="curve")
+                draw.line(points, fill=(*color, strand_alpha), width=width, joint="curve")
+        elif treatment == "shards":
+            # Short discontinuous angular marks make a snare visually distinct
+            # from the voice even in monochrome/small-screen viewing.
+            reach = (22 + 46 * signal) * scale
+            for i, angle in enumerate((-2.45, -1.54, -.55, .42, 1.45, 2.50)):
+                phase = absolute * 7.0 + i * 1.91
+                inner = 7 * scale + sin(phase) * 2 * scale
+                outer = reach * (.70 + .24 * ((i + 1) % 3) / 2)
+                dx, dy = np.cos(angle), np.sin(angle)
+                bend_x, bend_y = np.cos(angle + .38), np.sin(angle + .38)
+                p1 = (x + dx * inner, y + dy * inner)
+                p2 = (x + dx * outer * .58 + bend_x * 5 * scale, y + dy * outer * .58 + bend_y * 5 * scale)
+                p3 = (x + dx * outer, y + dy * outer)
+                draw.line((p1, p2, p3), fill=(*color, int(alpha * (.80 + .12 * (i % 2)))), width=strong, joint="curve")
+        elif treatment == "impact":
+            # A low compact mass with a bounded halo, rather than a long rail.
+            rx = (23 + 31 * signal) * sx * geometry_scale
+            ry = (9 + 16 * signal) * sy * geometry_scale
+            draw.ellipse((x - rx, y - ry, x + rx, y + ry), fill=(*color, int(alpha * .90)))
+            halo = 1.0 + .42 * signal
+            draw.ellipse((x - rx * halo, y - ry * halo, x + rx * halo, y + ry * halo), outline=(*color, int(alpha * .75)), width=strong)
+            draw.arc((x - rx * 1.8, y - ry * 2.3, x + rx * 1.8, y + ry * 2.3), 202, 338, fill=(*color, int(alpha * .38)), width=max(1, strong - 1))
+        elif treatment == "contour":
+            # Broad, low layered fields.  These sit behind the voice through
+            # authored draw order and keep a silhouette unlike vertical filaments.
+            span = (180 + 85 * signal) * sx * geometry_scale
+            amp = (12 + 26 * signal) * sy * geometry_scale
+            for band in range(4):
+                points = []
+                for step in range(49):
+                    fraction = step / 48
+                    xx = x - span + fraction * span * 2
+                    yy = y + (band - 1) * 10 * sy * geometry_scale + sin(fraction * 6.3 + absolute * (.28 + band * .07) + band) * amp * (.38 + .18 * band)
+                    points.append((xx, yy))
+                band_alpha = int(alpha * (.28 + .16 * band))
+                draw.line(points, fill=(*color, int(band_alpha * .12)), width=max(3, strong + 5), joint="curve")
+                draw.line(points, fill=(*color, band_alpha), width=max(1, strong - 1), joint="curve")
 
     def _draw_segment(self, draw: ImageDraw.ImageDraw, segment: dict[str, Any], weight: float, absolute: float) -> None:
         if weight <= 0:
             return
         palette = segment.get("palette", "cool")
         motif = segment.get("motif", "")
-        for layer in self.LAYERS:
+        # The authored atmospheric field goes down first.  Legacy plans retain
+        # their original layer order and therefore their frozen pixels.
+        authored = any("anchor" in segment.get("layers", {}).get(layer, {}) for layer in self.LAYERS)
+        layers = ("other", "bass", "pulse", "kick", "snare", "hh", "vocals") if authored else self.LAYERS
+        for layer in layers:
             spec = segment.get("layers", {}).get(layer, {})
             if not spec.get("visible", False):
                 continue
-            gain = max(0.0, min(1.0, float(spec.get("gain", 0.0))))
+            gain, emphasis = self._layer_values(spec, absolute)
+            gain = max(0.0, min(1.0, gain))
+            emphasis = max(0.0, min(1.0, emphasis))
             if not gain:
                 continue
             treatment = spec.get("treatment", "ticks")
             signal = self._signal_at(layer, absolute)
             # Supporting layers stay intentionally quieter than the plan focus.
             primary = layer == segment.get("focus")
-            importance = 1.0 if primary else .34
+            importance = 1.0 if primary else (.34 if "envelope" not in spec else .15 + .85 * emphasis)
             # A plan can make a stem visible without making near-silence glow:
             # signal response remains strong at musical levels but fades away
             # rapidly near zero.
             alpha = int(235 * weight * gain * importance * sqrt(signal))
+            if treatment in {"filament", "shards", "impact", "contour"}:
+                # The new thin geometry needs a brighter ink response to stay
+                # legible at review size; plan gain/clock remain unchanged.
+                alpha = min(255, round(alpha * 1.6))
+            anchor = spec.get("anchor")
+            if anchor is not None:
+                # Authored anchored layout: anchors never jump with focus. Focus is
+                # expressed by a modest scale lift, preserving source identity.
+                lane = (float(anchor[0]), float(anchor[1]))
+                geometry = (.62 + .50 * emphasis) * (1.16 if primary else 1.0)
             # Every focus claims the same central stage.  All other layers use
             # distinct fixed support lanes, so a dense plan remains readable.
-            lane = (0.50, 0.47) if primary else self._SUPPORT_LANES[layer]
+            elif primary or "envelope" not in spec:
+                lane = (0.50, 0.47) if primary else self._SUPPORT_LANES[layer]
+                geometry = (.55 + .45 * emphasis) if "envelope" in spec else (1.0 if primary else .55)
+            else:
+                support = self._SUPPORT_LANES[layer]
+                # V2 emphasis moves a support treatment toward the center;
+                # it never changes treatment identity or selects a new layer.
+                pull = .72 * emphasis
+                lane = (support[0] + ((.50 - support[0]) * pull), support[1] + ((.47 - support[1]) * pull))
+                geometry = .55 + .45 * emphasis
             self._draw_treatment(
                 draw, treatment, layer, signal, self._motif_color(motif, palette, layer), alpha,
-                absolute, lane, 1.0 if primary else .55,
+                absolute, lane, geometry,
             )
 
     def _scene_for_segment(self, segment: dict[str, Any], absolute: float) -> Image.Image:

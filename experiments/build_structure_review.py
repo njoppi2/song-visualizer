@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import importlib.util
 import json
@@ -23,6 +24,14 @@ from experiments.build_review import fingerprint, run
 from songviz import story as current
 from songviz.ingest import sha256_file
 from songviz.recurrence import compare_phrases
+from songviz.structure_annotations import normalize_annotations
+
+
+HUMAN_ANNOTATIONS_SHA256 = 'dd100b34d43ece3dbe500b297f0fb4320db71e3eebb9dc705959145e54aa8b2f'
+LISTENING_FEEDBACK_SHA256 = 'f69b14f0343d0ebe4af12d37f66e88c76aa5d8e7673f7529345333589d5c47b6'
+LISTENING_EXAMPLE_IDS = ('drum-entry', 'within-passage', 'verse-ending', 'transition-extent')
+LISTENING_CHANGE_VALUES = {'none', 'subtle', 'local', 'broad'}
+HUMAN_BOUNDARY_DIAGNOSTIC_THRESHOLD_S = 1.0
 
 
 def write_json(path, value):
@@ -33,6 +42,215 @@ def verify_records(records):
     for record in records:
         if sha256_file(ROOT / record['path']) != record['sha256']:
             raise ValueError(f"Changed input: {record['path']}")
+
+
+def embedded_json(value):
+    """Serialize data safely for the self-contained HTML page."""
+    return json.dumps(value, allow_nan=False, separators=(',', ':')).replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+
+
+def _finite_time(value, field):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value):
+        raise ValueError(f'{field} must be a finite number')
+    return float(value)
+
+
+def _same_time(left, right, *, tolerance=1e-6):
+    return abs(float(left) - float(right)) <= tolerance
+
+
+def _record_by_name(records, name):
+    matches = [record for record in records if Path(record.get('path', '')).name == name]
+    if len(matches) != 1:
+        raise ValueError(f'Parent manifest does not uniquely bind {name}')
+    return matches[0]
+
+
+def _verify_overlay_parent(parent: Path):
+    """Return verified frozen review inputs without recomputing any features."""
+    manifest_path = parent / 'manifest.json'
+    if not manifest_path.is_file():
+        raise FileNotFoundError(manifest_path)
+    manifest = json.loads(manifest_path.read_text())
+    outputs = manifest.get('outputs')
+    sources = manifest.get('sources')
+    if not isinstance(outputs, list):
+        raise ValueError('Parent manifest lacks output fingerprints')
+    audio_record = _record_by_name(outputs, 'original.wav')
+    review_record = _record_by_name(outputs, 'review.json')
+    for path, record in ((parent / 'original.wav', audio_record), (parent / 'review.json', review_record)):
+        if not path.is_file() or sha256_file(path) != record.get('sha256'):
+            raise ValueError(f'Changed parent input: {path.name}')
+    # The original review has source records; an overlay instead fingerprints
+    # its original parent manifest in reference_inputs. Follow that verified
+    # link so a later overlay can still prove the original-song hash.
+    provenance_manifest = manifest
+    expected_source_sha = manifest.get('source_audio_sha256')
+    while not (isinstance(provenance_manifest.get('sources'), list) and provenance_manifest['sources']):
+        parent_record = provenance_manifest.get('parent')
+        if not isinstance(parent_record, dict) or Path(parent_record.get('path', '')).name != 'manifest.json':
+            raise ValueError('Overlay parent does not uniquely bind its prior manifest')
+        prior_manifest_path = ROOT / parent_record['path']
+        if not prior_manifest_path.is_file() or sha256_file(prior_manifest_path) != parent_record.get('sha256'):
+            raise ValueError('Changed prior manifest in overlay provenance')
+        provenance_manifest = json.loads(prior_manifest_path.read_text())
+        inherited_source_sha = provenance_manifest.get('source_audio_sha256')
+        if expected_source_sha is not None and inherited_source_sha is not None and inherited_source_sha != expected_source_sha:
+            raise ValueError('Overlay source hash does not match its verified parent')
+    source_record = provenance_manifest['sources'][0]
+    if expected_source_sha is not None and expected_source_sha != source_record.get('sha256'):
+        raise ValueError('Overlay source hash does not match its verified original source')
+    # Structure-review manifests also fingerprint stem WAVs as sources. The
+    # first record is the immutable original-song record established by the
+    # parent builder; later source records are cached analyses/stems.
+    if not isinstance(source_record, dict) or Path(source_record.get('path', '')).suffix.lower() not in {'.flac', '.mp3', '.wav', '.ogg', '.m4a'}:
+        raise ValueError('Parent manifest does not identify the original source audio first')
+    source_path = ROOT / source_record['path']
+    if not source_path.is_file() or sha256_file(source_path) != source_record.get('sha256'):
+        raise ValueError('Changed source audio in parent manifest')
+    review = json.loads((parent / 'review.json').read_text())
+    duration = _finite_time(review.get('duration_s'), 'parent review duration_s')
+    sections = review.get('sections')
+    if not isinstance(sections, dict) or not isinstance(sections.get('candidate'), list):
+        raise ValueError('Parent review has no candidate section timeline')
+    return manifest, review, source_record, audio_record, duration
+
+
+def _human_sections(annotation: dict, *, annotation_sha256: str, source_audio_sha256: str,
+                    audio_sha256: str, duration_s: float):
+    """Validate the raw editor export and retain only authored section fields."""
+    normalized = normalize_annotations(annotation, feedback_sha256=annotation_sha256)
+    source = normalized['source']
+    if source['source_audio_sha256'] != source_audio_sha256 or source['audio_sha256'] != audio_sha256:
+        raise ValueError('Human annotations are not bound to the parent source audio')
+    if not _same_time(source['duration_s'], duration_s):
+        raise ValueError('Human annotation duration does not match the parent review')
+    layers = normalized.get('layers')
+    if not isinstance(layers, list) or len(layers) != 1:
+        raise ValueError('Expected one authored human annotation layer')
+    spans = layers[0].get('spans')
+    if not isinstance(spans, list) or len(spans) != 19:
+        raise ValueError('Expected exactly 19 authored human spans')
+    if any(span.get('certainty') != 'unspecified' for span in spans):
+        raise ValueError('Human annotation certainty must remain unspecified')
+    sections = []
+    for span in spans:
+        sections.append({
+            'id': span['id'], 'start_s': span['start_s'], 'end_s': span['end_s'],
+            'label': span['label'], 'motif': span['motif'] or None,
+            'motif_id': span['identity_id'], 'certainty': span['certainty'],
+        })
+    return sections
+
+
+def _listening_cards(listening_review: dict, feedback: dict, *, source_audio_sha256: str,
+                     audio_sha256: str, duration_s: float):
+    """Join four hash-bound raw answers to their immutable source-time excerpts."""
+    for key, expected in (('source_audio_sha256', source_audio_sha256), ('audio_sha256', audio_sha256)):
+        if listening_review.get(key) != expected or feedback.get(key) != expected:
+            raise ValueError(f'Listening {key} does not match the parent source audio')
+    if not _same_time(listening_review.get('duration_s'), duration_s):
+        raise ValueError('Listening review duration does not match the parent review')
+    examples = listening_review.get('examples')
+    answers = feedback.get('answers')
+    if not isinstance(examples, list) or not isinstance(answers, list):
+        raise ValueError('Listening review lacks examples or answers')
+    if {example.get('id') for example in examples} != set(LISTENING_EXAMPLE_IDS):
+        raise ValueError('Listening review does not contain the four expected excerpts')
+    answer_by_id = {answer.get('example_id'): answer for answer in answers if isinstance(answer, dict)}
+    if set(answer_by_id) != set(LISTENING_EXAMPLE_IDS) or len(answer_by_id) != len(answers):
+        raise ValueError('Listening feedback must contain each of the four excerpts exactly once')
+    cards = []
+    for example in examples:
+        answer = answer_by_id[example['id']]
+        start = _finite_time(example.get('start_s'), 'listening excerpt start_s')
+        end = _finite_time(example.get('end_s'), 'listening excerpt end_s')
+        if not 0 <= start < end <= duration_s:
+            raise ValueError('Listening excerpt is outside the parent source duration')
+        if answer.get('perceived_change') not in LISTENING_CHANGE_VALUES or not isinstance(answer.get('notes'), str):
+            raise ValueError('Listening feedback has an invalid perceived-change value or note')
+        cards.append({
+            'id': example['id'], 'title': example.get('title', example['id']), 'start_s': start, 'end_s': end,
+            'focus_start_s': _finite_time(example.get('focus_start_s'), 'listening focus_start_s'),
+            'focus_end_s': _finite_time(example.get('focus_end_s'), 'listening focus_end_s'),
+            'perceived_change': answer['perceived_change'], 'notes': answer['notes'],
+        })
+    return cards
+
+
+def listening_window_lane(cards: list[dict]):
+    """Prepare a display-only lane from raw guided-listening windows.
+
+    The state is only a visual grouping of the listener's supplied
+    ``perceived_change`` value.  It does not create an event point, a change
+    duration, or a comparison with either section timeline.
+    """
+    if len(cards) != len(LISTENING_EXAMPLE_IDS) or {card.get('id') for card in cards} != set(LISTENING_EXAMPLE_IDS):
+        raise ValueError('Expected the four raw guided-listening windows')
+    windows = []
+    for card in cards:
+        perceived_change = card.get('perceived_change')
+        if perceived_change not in LISTENING_CHANGE_VALUES or not isinstance(card.get('notes'), str):
+            raise ValueError('Listening window must preserve raw change label and note text')
+        start = _finite_time(card.get('start_s'), 'listening window start_s')
+        end = _finite_time(card.get('end_s'), 'listening window end_s')
+        if not start < end:
+            raise ValueError('Listening window must have an increasing raw source range')
+        windows.append({
+            'id': card['id'], 'start_s': start, 'end_s': end,
+            'perceived_change': perceived_change, 'notes': card['notes'],
+            'listener_state': 'none_control' if perceived_change == 'none' else 'change_heard',
+        })
+    return windows
+
+
+def human_candidate_disagreements(human_sections: list[dict], candidate_sections: list[dict], duration_s: float,
+                                  threshold_s: float = HUMAN_BOUNDARY_DIAGNOSTIC_THRESHOLD_S):
+    """List timing-only human/candidate boundary disagreements for review.
+
+    The signed value is candidate time minus human time. It intentionally does
+    not compare the unrelated user-label and heuristic-role taxonomies.
+    """
+    if threshold_s <= 0:
+        raise ValueError('Diagnostic threshold must be positive')
+    candidates = [_finite_time(section.get('start_s'), 'candidate boundary') for section in candidate_sections[1:]]
+    records = []
+    for section in human_sections[1:]:
+        human_time = _finite_time(section.get('start_s'), 'human boundary')
+        if not candidates:
+            raise ValueError('Candidate timeline has no boundaries to compare')
+        candidate_time = min(candidates, key=lambda value: (abs(value - human_time), value))
+        signed_offset = candidate_time - human_time
+        if abs(signed_offset) > threshold_s:
+            records.append({
+                'human_boundary_s': human_time, 'candidate_boundary_s': candidate_time,
+                'candidate_minus_human_s': signed_offset,
+                'context_start_s': max(0.0, human_time - 8.0),
+                'context_end_s': min(duration_s, human_time + 8.0),
+            })
+    return records
+
+
+def prepare_human_reference_data(annotation: dict, *, annotation_sha256: str, listening_review: dict,
+                                 feedback: dict, source_audio_sha256: str, audio_sha256: str,
+                                 duration_s: float, candidate_sections: list[dict]):
+    """Pure preparation for the overlay page; it never computes audio features."""
+    human_sections = _human_sections(annotation, annotation_sha256=annotation_sha256,
+                                     source_audio_sha256=source_audio_sha256, audio_sha256=audio_sha256,
+                                     duration_s=duration_s)
+    cards = _listening_cards(listening_review, feedback, source_audio_sha256=source_audio_sha256,
+                             audio_sha256=audio_sha256, duration_s=duration_s)
+    return {
+        'human_sections': human_sections,
+        'listening_feedback': cards,
+        'listening_window_lane': listening_window_lane(cards),
+        'boundary_diagnostic': {
+            'threshold_s': HUMAN_BOUNDARY_DIAGNOSTIC_THRESHOLD_S,
+            'meaning': ('Declared review threshold only. It is not a universal timing tolerance, proof of a musical error, '
+                        'or a semantic comparison of user labels with heuristic roles.'),
+            'disagreements': human_candidate_disagreements(human_sections, candidate_sections, duration_s),
+        },
+    }
 
 
 def choose_repeats(results, limit=3):
@@ -231,8 +449,135 @@ def build(out: Path, parent: Path):
     print(f'Ready: {out}/index.html', flush=True)
 
 
+def build_human_reference_overlay(out: Path, parent: Path, annotations: Path, listening: Path, feedback: Path):
+    """Create a new source-linked review page from frozen data only.
+
+    This is deliberately separate from :func:`build`: it copies the already
+    verified review audio/timelines and does not load audio, stems, or features.
+    """
+    out, parent, annotations, listening, feedback = (path.resolve() for path in (out, parent, annotations, listening, feedback))
+    if out.exists():
+        raise FileExistsError(f'Refusing to overwrite {out}')
+    if parent in out.parents or listening in out.parents:
+        raise ValueError('Overlay output must be separate from frozen input packages')
+    manifest, parent_review, source_record, audio_record, duration_s = _verify_overlay_parent(parent)
+    page_asset_names = ('sections-comparison.png', 'novelty-comparison.png', 'evidence.png')
+    page_assets = [_record_by_name(manifest.get('outputs', []), name) for name in page_asset_names]
+    for asset in page_assets:
+        source_path = parent / asset['path'].split('/')[-1]
+        if not source_path.is_file() or sha256_file(source_path) != asset.get('sha256'):
+            raise ValueError(f'Changed parent page asset: {source_path.name}')
+    if sha256_file(annotations) != HUMAN_ANNOTATIONS_SHA256:
+        raise ValueError('Human annotation SHA-256 does not match the frozen export')
+    if sha256_file(feedback) != LISTENING_FEEDBACK_SHA256:
+        raise ValueError('Listening feedback SHA-256 does not match the frozen export')
+    listening_manifest_path = listening / 'manifest.json'
+    listening_review_path = listening / 'review.json'
+    if not listening_manifest_path.is_file() or not listening_review_path.is_file():
+        raise FileNotFoundError('Listening package must contain manifest.json and review.json')
+    listening_manifest = json.loads(listening_manifest_path.read_text())
+    if listening_manifest.get('kind') != 'songviz-listening-examples':
+        raise ValueError('Expected a frozen guided-listening package')
+    listening_record = _record_by_name(listening_manifest.get('outputs', []), 'review.json')
+    if sha256_file(listening_review_path) != listening_record.get('sha256'):
+        raise ValueError('Changed guided-listening review')
+    listening_review = json.loads(listening_review_path.read_text())
+    feedback_data = json.loads(feedback.read_text())
+    if feedback_data.get('kind') != 'songviz-listening-examples-feedback' or feedback_data.get('schema_version') != 1:
+        raise ValueError('Feedback is not a guided-listening export')
+    if feedback_data.get('review_sha256') != sha256_file(listening_review_path):
+        raise ValueError('Listening feedback is not hash-bound to the guided-listening review')
+    if feedback_data.get('example_set_id') != listening_review.get('example_set_id'):
+        raise ValueError('Listening feedback example set does not match the guided-listening review')
+    annotation_data = json.loads(annotations.read_text())
+    reference = prepare_human_reference_data(
+        annotation_data, annotation_sha256=HUMAN_ANNOTATIONS_SHA256,
+        listening_review=listening_review, feedback=feedback_data,
+        source_audio_sha256=source_record['sha256'], audio_sha256=audio_record['sha256'],
+        duration_s=duration_s, candidate_sections=parent_review['sections']['candidate'],
+    )
+    review = deepcopy(parent_review)
+    review['audio_path'] = 'original.wav'
+    review['sections'] = {
+        'human': reference['human_sections'],
+        'baseline': parent_review['sections']['baseline'],
+        'candidate': parent_review['sections']['candidate'],
+    }
+    review['human_reference'] = {
+        'kind': 'source-matched-human-annotation', 'source': 'user marks',
+        'certainty': 'unspecified', 'annotation_sha256': HUMAN_ANNOTATIONS_SHA256,
+        'note': 'These labels are user marks, not external ground truth. Empty motifs remain unknown identities.',
+    }
+    review['listening_feedback'] = reference['listening_feedback']
+    review['listening_window_lane'] = reference['listening_window_lane']
+    review['boundary_diagnostic'] = reference['boundary_diagnostic']
+    review['notes'] = [
+        'Human annotations are user marks with certainty unspecified; they are not external ground truth.',
+        'Baseline and candidate timelines are heuristic. The candidate is unvalidated; its role letters are not compared semantically with user labels.',
+        'Raw listening judgments and optional acoustic/model material remain separate on this page.',
+    ]
+    snapshot_rels = [
+        'experiments/build_structure_review.py', 'experiments/templates/structure_review.html',
+        'songviz/structure_annotations.py', 'songviz/ingest.py', 'experiments/build_review.py',
+    ]
+    if any(not (ROOT / rel).is_file() for rel in snapshot_rels):
+        raise FileNotFoundError('Required source snapshot is missing')
+    out.mkdir(parents=True)
+    inputs = out / 'inputs'; inputs.mkdir()
+    for rel in snapshot_rels:
+        destination = inputs / rel; destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / rel, destination)
+    for source_path, name in (
+        (parent / 'manifest.json', 'parent-manifest.json'), (parent / 'review.json', 'parent-review.json'),
+        (annotations, 'human-annotations.json'), (listening_manifest_path, 'listening-manifest.json'),
+        (listening_review_path, 'listening-review.json'), (feedback, 'listening-feedback.json'),
+    ):
+        shutil.copy2(source_path, inputs / name)
+    shutil.copy2(parent / 'original.wav', out / 'original.wav')
+    if sha256_file(out / 'original.wav') != audio_record['sha256']:
+        raise ValueError('Copied review audio does not exactly match the verified frozen parent')
+    for asset in page_assets:
+        name = Path(asset['path']).name
+        shutil.copy2(parent / name, out / name)
+        if sha256_file(out / name) != asset['sha256']:
+            raise ValueError(f'Copied parent page asset does not match its frozen hash: {name}')
+    write_json(out / 'review.json', review)
+    provenance = [
+        fingerprint(parent / 'manifest.json'), fingerprint(parent / 'review.json'), fingerprint(annotations),
+        fingerprint(listening_manifest_path), fingerprint(listening_review_path), fingerprint(feedback),
+    ]
+    result_manifest = {
+        'schema_version': 1, 'kind': 'songviz-structure-review-human-reference',
+        'created_utc': datetime.now(timezone.utc).isoformat(),
+        'parent': fingerprint(parent / 'manifest.json'), 'source_audio_sha256': source_record['sha256'],
+        'audio_sha256': audio_record['sha256'], 'reference_inputs': provenance,
+        'input_snapshots': [fingerprint(path) for path in sorted(inputs.rglob('*')) if path.is_file()],
+        'outputs': [fingerprint(out / name) for name in ('original.wav', 'review.json', *page_asset_names)],
+        'scope': ('Frozen parent timelines plus source-matched human annotations and raw listening feedback. '
+                  'No audio features, stories, boundaries, roles, or model outputs were recomputed.'),
+        'page_integrity': 'index.html derives from the snapshotted template, review.json, and this manifest hash.',
+    }
+    write_json(out / 'manifest.json', result_manifest)
+    template = (inputs / 'experiments/templates/structure_review.html').read_text()
+    (out / 'index.html').write_text(template.replace('{{REVIEW_JSON}}', embedded_json(review)).replace('{{MANIFEST_SHA}}', sha256_file(out / 'manifest.json')))
+    for record in provenance:
+        path = ROOT / record['path'] if not Path(record['path']).is_absolute() else Path(record['path'])
+        if sha256_file(path) != record['sha256']:
+            raise ValueError(f'Input changed while building: {path}')
+    print(f'Ready: {out}/index.html', flush=True)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--parent', type=Path, default=ROOT/'outputs/reviews/structure-grid-01')
-    args = parser.parse_args(); build(args.out.resolve(), args.parent.resolve())
+    parser.add_argument('--human-reference', action='store_true',
+                        help='Copy a frozen structure review and add verified human/reference records without recomputing features.')
+    parser.add_argument('--annotations', type=Path, default=ROOT/'benchmark/feedback/section-editor-02.json')
+    parser.add_argument('--listening', type=Path, default=ROOT/'outputs/reviews/listening-examples-01')
+    parser.add_argument('--feedback', type=Path, default=ROOT/'benchmark/feedback/listening-examples-01.json')
+    args = parser.parse_args()
+    if args.human_reference:
+        build_human_reference_overlay(args.out, args.parent, args.annotations, args.listening, args.feedback)
+    else:
+        build(args.out.resolve(), args.parent.resolve())
