@@ -1,11 +1,12 @@
-# Multi-team collaboration protocol
+# Optional cross-account collaboration protocol (historical)
 
-This protocol is for independent teams working in the same SongViz repository,
-including Codex/OpenAI and Claude/Anthropic accounts, with a human relaying
-messages between them. It works with one, two or more teams. The repository is
-the shared workspace; the human is the cross-account coordination channel.
-No custom orchestration service is needed. Current teams, tasks and preferred
-lead models are assigned only in `CONTINUE.md`.
+The active SongViz workflow is solo. This document preserves procedures from a
+former multi-account workflow; it is not an active assignment or a requirement
+for ordinary work. Use it only if the user explicitly asks to resume work across
+independent accounts. Agree on the participants, integration owner, bounded task
+and write scopes in the current handoff before anyone acts. Do not infer that
+historical teams or model preferences are active. No custom orchestration
+service is needed.
 
 ## Entry order and source of truth
 
@@ -19,11 +20,9 @@ At the start of every work session, read in this order:
 4. The relevant code, tests, manifests and existing artifacts, after checking
    their provenance and the working-tree state.
 
-Before any team-scoped action beyond this read-only orientation, ask the human:
-**"What team am I?"** Do not infer the answer from the account, previous chat,
-or the assignment table. Wait for the human to identify the team before editing,
-delegating, running task validation, or otherwise advancing work. Then use
-`CONTINUE.md` to determine that team's current ownership and scope.
+When the user explicitly activates cross-account collaboration, first record
+participants, ownership and write scopes in `CONTINUE.md`. Until then, the solo
+workflow in `AGENTS.md` applies and there is no team-identification question.
 
 `CONTINUE.md` is the sole mutable current-status and queue document. Do not
 create a second status index, queue, or competing handoff. Detailed evidence
@@ -32,7 +31,9 @@ document. A protocol document is not permission to rewrite `CONTINUE.md` for
 routine communication; update it only at a meaningful handoff, as required by
 `AGENTS.md`.
 
-## Default ownership
+## Roles for an explicitly activated collaboration
+
+The roles below describe the former setup and apply only after the user asks to resume it.
 
 Ownership is exclusive for the duration of a task and is recorded in the
 human-relayed request or in the current `CONTINUE.md` handoff:
@@ -63,10 +64,10 @@ stop before editing and ask the human to relay a reassignment or a completed
 handoff. Reading shared files is fine; simultaneous edits to the same file are
 not.
 
-## Delegation is available to every team
+## Delegation guidance for an explicitly activated collaboration
 
-The user explicitly requests useful bounded delegation across **all teams**.
-No team has a monopoly on implementation or on access to cheaper sub-agents.
+The former workflow supported bounded delegation across participating teams.
+That preference is historical and does not authorize delegation in the current solo workflow.
 An Astra-led or Opus-led team can own a whole experiment, including its code
 and tests, and delegate that work directly without routing it through Team 2.
 Sub-agents may themselves delegate when useful, within their inherited scope.
@@ -116,7 +117,7 @@ on explicit sub-agent delegation and risk-proportionate verification; the
 Claude model choices above are supplied by the user, not established by that
 OpenAI source.
 
-## Direct messages and durable handoffs
+## Direct messages and durable handoffs (when collaboration is active)
 
 A direct message is a short, human-relayed request or reply used for the
 current bounded task. It is not repository state and must not be treated as an
@@ -162,7 +163,7 @@ work is incomplete, use `blocked` only for a real dependency and state what
 the human must relay. A durable reply is summarized in `CONTINUE.md` by the
 integration owner; the full evidence stays in its linked document.
 
-### Keep completion visible without competing status indexes
+### Keep completion visible without competing status indexes (when collaboration is active)
 
 At a meaningful handoff, every team must update its **existing owned deliverable
 document** with a short dated status: `in progress`, `complete — awaiting
@@ -172,10 +173,10 @@ candidate/hash. Preserve earlier observations as historical evidence rather than
 silently replacing their dates or claiming they were rerun. Return the compact
 reply to the human even when the other account is offline.
 
-Only Team 1/the named integration owner changes `CONTINUE.md`. On receiving or
-discovering a handoff, the owner checks the actual file and artifact before
-reporting its status, then records `accepted`, `revisions requested`, or `review
-pending` in the checkpoint and live assignment. A completed deliverable is not
+When collaboration is active, the named integration owner changes `CONTINUE.md`.
+On receiving or discovering a handoff, the owner checks the actual file and
+artifact before reporting its status, then records `accepted`, `revisions
+requested`, or `review pending` in the checkpoint and live assignment. A completed deliverable is not
 automatically accepted. If the checkpoint says a document does not exist, verify
 the filesystem before repeating that claim. Discovering a completed document
 does not authorize starting the experiment it proposes.
@@ -183,7 +184,7 @@ does not authorize starting the experiment it proposes.
 This is a handoff obligation within the existing documents, not permission for
 counterparts to edit the shared checkpoint or create separate queue files.
 
-## When to continue and when to ask for the counterpart
+## When to continue and when to ask for a counterpart (when collaboration is active)
 
 Keep progressing when the task is within the assigned write scope, inputs are
 available and provenance is clear, the other team is not needed for a decision,
@@ -200,6 +201,8 @@ absent team merely to preserve symmetry, and do not make a counterpart's
 decision by assumption.
 
 ## Integration, Git and artifacts
+
+These general preservation rules also apply in solo work; cross-account ownership rules apply only when collaboration is active.
 
 The named integration owner inspects the actual diff, tests and generated
 outputs, then integrates only after the bounded result is accepted. Git is the
